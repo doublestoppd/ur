@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CPSI Utilization Review Data Compiler</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<header class="app-header">
+  <div>
+    <h1>CPSI Utilization Review Data Compiler</h1>
+    <p class="subtitle">Offline compilation of CPSI/Evident encounter exports into utilization-review metrics, objective review queues, and an Excel workbook.</p>
+  </div>
+  <div class="header-meta">
+    <span class="badge badge-offline" id="offline-badge">Runs offline &middot; no network calls</span>
+    <span class="version" id="version-line"></span>
+  </div>
+</header>
+
+<p class="phi-banner">
+  Patient data stays in this browser tab's memory for this run only. It is never written to browser storage and never leaves this workstation.
+  Only reference mappings and thresholds are saved locally.
+</p>
+
+<nav class="steps" id="step-nav" aria-label="Processing steps"></nav>
+
+<main>
+
+  <!-- ============================================================ 1. IMPORT -->
+  <section class="step" id="step-import">
+    <h2>1. Import CPSI export</h2>
+    <p class="hint">Select or drop one or more CPSI Ad Hoc exports (.xlsx, .xls, or .csv). Multiple months may be imported together.</p>
+
+    <div class="dropzone" id="dropzone">
+      <p><strong>Drop files here</strong> or</p>
+      <input type="file" id="file-input" multiple accept=".xlsx,.xls,.csv,.txt">
+    </div>
+
+    <div id="file-list"></div>
+
+    <div class="actions">
+      <button type="button" class="primary" id="btn-to-mapping" disabled>Continue to field mapping</button>
+    </div>
+  </section>
+
+  <!-- =============================================================== 2. MAP -->
+  <section class="step" id="step-map" hidden>
+    <h2>2. Map fields</h2>
+    <p class="hint">
+      Known CPSI field names are mapped automatically. Where two source columns are equally plausible, the tool does not choose &mdash; select the correct column below.
+      Sample values are shown from the loaded file and are never saved.
+    </p>
+    <div id="mapping-messages"></div>
+    <div class="table-wrap"><table id="mapping-table"></table></div>
+    <div class="actions">
+      <button type="button" id="btn-back-import">Back</button>
+      <button type="button" class="primary" id="btn-to-rules">Continue to rules &amp; codes</button>
+    </div>
+  </section>
+
+  <!-- ============================================================= 3. RULES -->
+  <section class="step" id="step-rules" hidden>
+    <h2>3. Rules &amp; reference codes</h2>
+    <p class="hint">
+      Reference mappings and operational thresholds are editable here. Core calculation formulas are not editable in the interface; they are centralized in the
+      calculation rule registry and documented in the <a href="#" id="link-calcref-from-rules">Calculation Reference</a>.
+    </p>
+
+    <div class="tabs" id="rules-tabs"></div>
+    <div id="rules-panel"></div>
+
+    <div class="config-actions">
+      <button type="button" id="btn-config-export">Export configuration (JSON)</button>
+      <label class="file-button">Import configuration
+        <input type="file" id="config-import" accept=".json" hidden>
+      </label>
+      <button type="button" id="btn-config-save">Save to this browser</button>
+      <button type="button" id="btn-config-reset">Reset to defaults</button>
+      <span class="config-status" id="config-status"></span>
+    </div>
+
+    <div class="actions">
+      <button type="button" id="btn-back-map">Back</button>
+      <button type="button" class="primary" id="btn-to-validate">Validate &amp; process</button>
+    </div>
+  </section>
+
+  <!-- ========================================================== 4. VALIDATE -->
+  <section class="step" id="step-validate" hidden>
+    <h2>4. Validate</h2>
+    <div class="period-picker">
+      <label>Reporting period start <input type="date" id="period-start"></label>
+      <label>Reporting period end <input type="date" id="period-end"></label>
+      <button type="button" id="btn-reprocess">Apply &amp; reprocess</button>
+      <span class="hint" id="period-hint"></span>
+    </div>
+    <div id="validate-summary"></div>
+    <div id="validate-diagnostics"></div>
+    <div class="actions">
+      <button type="button" id="btn-back-rules">Back to rules</button>
+      <button type="button" class="primary" id="btn-to-results">View results</button>
+    </div>
+  </section>
+
+  <!-- =========================================================== 5. RESULTS -->
+  <section class="step" id="step-results" hidden>
+    <h2>5. Results</h2>
+    <div id="results-body"></div>
+    <div class="actions">
+      <button type="button" id="btn-back-validate">Back</button>
+      <button type="button" class="primary" id="btn-to-export">Continue to export</button>
+    </div>
+  </section>
+
+  <!-- ============================================================ 6. EXPORT -->
+  <section class="step" id="step-export" hidden>
+    <h2>6. Export workbook</h2>
+    <div id="export-summary"></div>
+    <label class="checkbox">
+      <input type="checkbox" id="opt-exclude-names"> Exclude patient names from the exported detail and review sheets
+    </label>
+    <div class="actions">
+      <button type="button" id="btn-back-results">Back</button>
+      <button type="button" class="primary" id="btn-export">Generate .xlsx workbook</button>
+      <span class="config-status" id="export-status"></span>
+    </div>
+  </section>
+
+  <!-- ============================================== CALCULATION REFERENCE -->
+  <section class="step" id="step-calcref" hidden>
+    <h2>Calculation Reference</h2>
+    <p class="hint">
+      Generated from the same rule registry the calculation engine uses. Every metric and review trigger below is exported with the workbook.
+      Read-only: changing a formula requires a source-code change, a rule-version increment, and updated unit tests.
+    </p>
+    <div class="filter-row">
+      <input type="search" id="calcref-filter" placeholder="Filter by rule ID, name, or text">
+      <select id="calcref-group">
+        <option value="">All groups</option>
+        <option value="Calculation">Calculation rules</option>
+        <option value="Review trigger">Review triggers</option>
+        <option value="Data quality">Data quality rules</option>
+      </select>
+    </div>
+    <div id="calcref-body"></div>
+    <h3>External references</h3>
+    <div id="calcref-refs"></div>
+  </section>
+
+</main>
+
+<div class="modal-backdrop" id="modal-backdrop" hidden>
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <h3 id="modal-title"></h3>
+      <button type="button" id="modal-close" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<footer class="app-footer">
+  <p>
+    This utility performs objective data processing only. It does not make InterQual determinations, avoidable-day decisions, Code&nbsp;44 decisions,
+    denial or medical-necessity conclusions, and it cannot verify that an IMM or MOON was delivered or signed.
+    Regulatory calculations are surveillance aids and must be validated against hospital policy and current payer/CMS requirements before being treated as official compliance reporting.
+  </p>
+  <p class="muted">Spreadsheet engine: SheetJS Community Edition (Apache&nbsp;2.0), bundled locally in <code>vendor/</code>. No content is loaded from the internet.</p>
+</footer>
+
+<script src="vendor/xlsx.full.min.js"></script>
+<script src="src/core/ur.js"></script>
+<script src="src/core/util.js"></script>
+<script src="src/config/defaultMappings.js"></script>
+<script src="src/config/calculationRules.js"></script>
+<script src="src/config/reviewRules.js"></script>
+<script src="src/config/dataQualityRules.js"></script>
+<script src="src/config/configSchema.js"></script>
+<script src="src/quality/diagnostics.js"></script>
+<script src="src/import/parsers.js"></script>
+<script src="src/import/headerMapper.js"></script>
+<script src="src/import/spreadsheetReader.js"></script>
+<script src="src/domain/normalizeEncounter.js"></script>
+<script src="src/domain/transitionLinker.js"></script>
+<script src="src/domain/episodeBuilder.js"></script>
+<script src="src/domain/readmissionDetector.js"></script>
+<script src="src/metrics/scope.js"></script>
+<script src="src/metrics/inpatient.js"></script>
+<script src="src/metrics/observation.js"></script>
+<script src="src/metrics/swingBed.js"></script>
+<script src="src/metrics/census.js"></script>
+<script src="src/metrics/payer.js"></script>
+<script src="src/quality/validators.js"></script>
+<script src="src/quality/codeInventory.js"></script>
+<script src="src/review/reviewQueue.js"></script>
+<script src="src/pipeline.js"></script>
+<script src="src/export/zipPatch.js"></script>
+<script src="src/export/calculationReferenceSheet.js"></script>
+<script src="src/export/workbookBuilder.js"></script>
+<script src="src/ui/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+# The distribution has no build step and no dependencies; nothing here is generated.
+node_modules/
+*.log
+
+# Never commit real exports or compiled workbooks: they contain PHI.
+*.xlsx
+*.xls
+*.csv
+!tests/fixtures/**

@@ -1,0 +1,11 @@
+{
+  "name": "cpsi-ur-data-compiler",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Offline browser-only compiler for CPSI/Evident utilization-review exports. Node is used only to run the test suite; the distribution itself needs no runtime and no build step.",
+  "scripts": {
+    "test": "node tests/run.js"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
