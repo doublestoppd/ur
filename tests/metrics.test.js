@@ -60,13 +60,19 @@ describe('inpatient metrics', function () {
     });
   });
 
-  test('CAH96 reports variance against the configured target and labels itself an estimate', function () {
-    assert.equal(m.inpatient.CAH96_001.targetHours, 96);
-    assert.close(m.inpatient.CAH96_001.varianceHours, m.inpatient.IP_ALOS_001.hours - 96, 1e-9);
-    var rule = UR.calculationRules.byId('CAH96_001');
+  test('the target variance carries both readings and labels itself an estimate', function () {
+    assert.equal(m.inpatient.IP_TARGET_001.targetDays, 4);
+    assert.close(m.inpatient.IP_TARGET_001.varianceDays, m.inpatient.IP_ALOS_001.days - 4, 1e-9);
+    assert.close(m.inpatient.IP_TARGET_001.varianceHours, m.inpatient.IP_ALOS_001.hours - 96, 1e-9,
+      'the hours reading equals the retired CAH96_001 arithmetic exactly');
+    assert.equal(m.inpatient.IP_TARGET_001.withinTarget, m.inpatient.IP_ALOS_001.days <= 4);
+    var rule = UR.calculationRules.byId('IP_TARGET_001');
+    assert.equal(rule.version, '1.1');
     assert.equal(rule.classification, UR.CLASSIFICATION.REGULATORY);
     assert.includes(rule.notes, 'SURVEILLANCE ESTIMATE ONLY');
     assert.includes(rule.notes, 'ANNUAL');
+    assert.includes(rule.notes, 'CAH96_001', 'the merge is documented in the registry');
+    assert.equal(UR.calculationRules.byId('CAH96_001'), null, 'the duplicate rule is gone');
   });
 
   test('T14 flags a Medicare inpatient crossing a single midnight', function () {

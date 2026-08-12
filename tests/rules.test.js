@@ -15,7 +15,7 @@ var UR = app.UR;
 var fixtures = require('./fixtures/synthetic');
 
 var SPEC_CALCULATION_RULES = [
-  'IP_ADM_001', 'IP_LOS_001', 'IP_ALOS_001', 'IP_MEDLOS_001', 'CAH96_001', 'IP_TARGET_001',
+  'IP_ADM_001', 'IP_LOS_001', 'IP_ALOS_001', 'IP_MEDLOS_001', 'IP_TARGET_001',
   'IP_GT4_001', 'IP_EXCESS_001', 'IP_SHORT_001', 'IP_2MN_001',
   'OS_ADM_001', 'OS_LOS_001', 'OS_ALOS_001', 'OS_24_001', 'OS_36_001', 'OS_48_001',
   'OSIP_001', 'OSIP_RATE_001', 'OSIP_TIME_001',

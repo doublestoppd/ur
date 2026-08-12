@@ -216,7 +216,7 @@
     return wrap;
   }
 
-  /* "CAH96_001, IP_GT4_001" -> a span of individual rule links. */
+  /* "IP_GT4_001, RQ_IP_GT4" -> a span of individual rule links. */
   function ruleLinkList(text) {
     var wrap = el('span');
     String(text).split(',').forEach(function (part, index) {
@@ -868,7 +868,7 @@
     var wrap = el('div');
     wrap.appendChild(el('p', { class: 'hint', text: 'Thresholds are read by the calculation engine at run time and printed in the Calculation Reference, so a change here is visible in the exported workbook.' }));
     wrap.appendChild(table(['Threshold', 'Value', 'Rules affected'], [
-      ['CAH acute target (hours)', editNumber(th, 'acuteTargetHours', function () { markConfigChanged(); }), ruleLinkList('CAH96_001, IP_GT4_001, IP_EXCESS_001, RQ_IP_GT4')],
+      ['CAH acute target (hours)', editNumber(th, 'acuteTargetHours', function () { markConfigChanged(); }), ruleLinkList('IP_GT4_001, IP_GT4_PCT_001, IP_EXCESS_001, RQ_IP_GT4')],
       ['Operational target (days)', editNumber(th, 'acuteTargetDays', function () { markConfigChanged(); }), ruleLinkList('IP_TARGET_001')],
       ['Observation thresholds (hours)', editList(th, 'obsThresholdHours', function () { markConfigChanged(); }), ruleLinkList('OS_24_001, OS_36_001, OS_48_001, RQ_OS_*')],
       ['One-day stay ceiling (hours)', editNumber(th, 'oneDayStayHours', function () { markConfigChanged(); }), ruleLinkList('IP_SHORT_001, RQ_1DAY')],
@@ -1333,13 +1333,13 @@
         '  |  occupancy as of ' + util.fmtDateTime(state.period.asOf))
     ]));
 
-    var cahTone = m.inpatient.CAH96_001.withinTarget === null ? ''
-      : (m.inpatient.CAH96_001.withinTarget ? 'good' : 'warn');
+    var cahTone = m.inpatient.IP_TARGET_001.withinTarget === null ? ''
+      : (m.inpatient.IP_TARGET_001.withinTarget ? 'good' : 'warn');
 
     host.appendChild(el('div', { class: 'headline-grid' }, [
       headline('Continuous episodes', m.census.EPISODE_CNT_001.value, '', 'EPISODE_CNT_001', 'Hospital episodes, internal transitions collapsed'),
       headline('Acute mean LOS', num(m.inpatient.IP_ALOS_001.days, 2), 'days', 'IP_ALOS_001', num(m.inpatient.IP_ALOS_001.hours, 1) + ' hours over ' + m.inpatient.IP_ALOS_001.n + ' discharges'),
-      headline(th.acuteTargetHours + 'h surveillance', (m.inpatient.CAH96_001.varianceHours === null ? '-' : (m.inpatient.CAH96_001.varianceHours > 0 ? '+' : '') + num(m.inpatient.CAH96_001.varianceHours, 1)), 'hours', 'CAH96_001', 'Against the ' + th.acuteTargetHours + '-hour annual expectation', cahTone),
+      headline(th.acuteTargetDays + '-day target variance', (m.inpatient.IP_TARGET_001.varianceDays === null ? '-' : (m.inpatient.IP_TARGET_001.varianceDays > 0 ? '+' : '') + num(m.inpatient.IP_TARGET_001.varianceDays, 2)), 'days', 'IP_TARGET_001', 'Against the CAH ' + th.acuteTargetDays + '-day (' + (th.acuteTargetDays * 24) + '-hour) annual expectation', cahTone),
       headline('Observation > ' + th.obsThresholdHours[0] + 'h', m.observation.OS_24_001.value, '', 'OS_24_001', 'of ' + m.observation.OS_ALOS_001.n + ' discharged observation stays'),
       headline('Accounts to review', state.reviewQueue.byAccount.length, '', '', state.reviewQueue.rows.length + ' reasons across the queue'),
       headline('Data issues', dq.Blocking + dq.Error, '', '', dq.Warning + ' warnings, ' + dq.Info + ' notices', (dq.Blocking + dq.Error) ? 'warn' : 'good')
@@ -1353,9 +1353,8 @@
         function () { showRows('IP_LOS_001 - qualifying discharged IP accounts', m.inpatient.IP_LOS_001.encounters); }),
       metricRow('Mean length of stay', num(m.inpatient.IP_ALOS_001.hours, 1), 'hours', num(m.inpatient.IP_ALOS_001.days, 2) + ' days', 'IP_ALOS_001'),
       metricRow('Median length of stay', num(m.inpatient.IP_MEDLOS_001.hours, 1), 'hours', num(m.inpatient.IP_MEDLOS_001.days, 2) + ' days', 'IP_MEDLOS_001'),
-      metricRow('CAH ' + th.acuteTargetHours + '-hour variance', num(m.inpatient.CAH96_001.varianceHours, 1), 'hours',
-        'Surveillance estimate; the requirement is an annual average', 'CAH96_001', null, cahTone),
-      metricRow(th.acuteTargetDays + '-day target variance', num(m.inpatient.IP_TARGET_001.varianceDays, 2), 'days', 'Operational target', 'IP_TARGET_001'),
+      metricRow(th.acuteTargetDays + '-day target variance', num(m.inpatient.IP_TARGET_001.varianceDays, 2), 'days',
+        num(m.inpatient.IP_TARGET_001.varianceHours, 1) + ' hours. Surveillance estimate; the CAH requirement is an annual average', 'IP_TARGET_001', null, cahTone),
       metricRow('Stays over ' + th.acuteTargetHours + 'h', m.inpatient.IP_GT4_001.value, '', '', 'IP_GT4_001',
         function () { showRows('IP_GT4_001 - stays over target', m.inpatient.IP_GT4_001.detail.map(function (d) { return d.encounter; })); }),
       metricRow('Percent over ' + th.acuteTargetHours + 'h', pct(m.inpatient.IP_GT4_PCT_001.value), '',

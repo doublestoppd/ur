@@ -137,7 +137,7 @@
       };
     },
 
-    /* Mean acute LOS per month against the CAH target (CAH96_001). */
+    /* Mean acute LOS per month against the CAH target (IP_TARGET_001). */
     monthlyAcuteLos: function (state) {
       var categories = [], mean = [], median = [];
       for (var i = 0; i < state.monthly.length; i++) {
@@ -146,19 +146,21 @@
         mean.push(round(m.metrics.inpatient.IP_ALOS_001.hours, 2));
         median.push(round(m.metrics.inpatient.IP_MEDLOS_001.hours, 2));
       }
-      var target = state.config.thresholds.acuteTargetHours;
+      /* The reference line is IP_TARGET_001's day target, drawn in hours on
+       * this hours axis, so the chart and the variance always agree. */
+      var targetDays = state.config.thresholds.acuteTargetDays;
       return {
         id: 'monthly-acute-los',
         title: 'Acute inpatient length of stay by month',
         subtitle: 'Surveillance estimate only: the Critical Access Hospital requirement is an ANNUAL average, and swing-bed days are excluded from it.',
-        ruleIds: ['IP_ALOS_001', 'IP_MEDLOS_001', 'CAH96_001'],
+        ruleIds: ['IP_ALOS_001', 'IP_MEDLOS_001', 'IP_TARGET_001'],
         form: 'line',
         categories: categories,
         series: [
           { name: 'Mean LOS', values: mean },
           { name: 'Median LOS', values: median }
         ],
-        reference: { value: target, label: target + '-hour CAH annual average' },
+        reference: { value: targetDays * 24, label: targetDays + '-day (' + (targetDays * 24) + '-hour) CAH annual average' },
         valueLabel: 'Hours',
         decimals: 1,
         empty: categories.length ? '' : 'No month could be derived from the imported data.'

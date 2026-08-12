@@ -90,7 +90,7 @@ describe('acceptance criteria (spec 16.1)', function () {
     /* The Executive Summary is written for a reader and deliberately carries
      * no Rule IDs; the Calculation Reference documents every one. */
     var reference = XLSX.utils.sheet_to_csv(wb.Sheets['Calculation Reference']);
-    ['IP_ALOS_001', 'CAH96_001', 'PD_EQ_001', 'PD_MN_001', 'READMIT_30_001'].forEach(function (id) {
+    ['IP_ALOS_001', 'IP_TARGET_001', 'PD_EQ_001', 'PD_MN_001', 'READMIT_30_001'].forEach(function (id) {
       assert.includes(reference, id);
     });
     var queue = XLSX.utils.sheet_to_json(wb.Sheets['Review Queue'], { header: 1 });

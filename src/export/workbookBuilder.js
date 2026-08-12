@@ -254,12 +254,11 @@
       rows.push(line('Acute IP mean LOS (hours)', function (mm) { return N(mm.inpatient.IP_ALOS_001.hours); }));
       rows.push(line('Acute IP mean LOS (days)', function (mm) { return N(mm.inpatient.IP_ALOS_001.days); }));
       rows.push(line('Acute IP median LOS (hours)', function (mm) { return N(mm.inpatient.IP_MEDLOS_001.hours); }));
-      rows.push(line(th.acuteTargetHours + '-hour surveillance variance (hours)', function (mm) { return N(mm.inpatient.CAH96_001.varianceHours); },
+      rows.push(line(th.acuteTargetDays + '-day (' + (th.acuteTargetDays * 24) + '-hour) target variance (days)', function (mm) { return N(mm.inpatient.IP_TARGET_001.varianceDays); },
         'Surveillance estimate only. The CAH requirement is an ANNUAL average; these are period figures for early warning.'));
-      rows.push(line('Within ' + th.acuteTargetHours + '-hour target', function (mm) {
-        return mm.inpatient.CAH96_001.withinTarget === null ? 'n/a' : yn(mm.inpatient.CAH96_001.withinTarget);
+      rows.push(line('Within ' + th.acuteTargetDays + '-day target', function (mm) {
+        return mm.inpatient.IP_TARGET_001.withinTarget === null ? 'n/a' : yn(mm.inpatient.IP_TARGET_001.withinTarget);
       }));
-      rows.push(line(th.acuteTargetDays + '-day operational target variance (days)', function (mm) { return N(mm.inpatient.IP_TARGET_001.varianceDays); }));
       rows.push(line('Acute IP stays > ' + th.acuteTargetHours + 'h', function (mm) { return mm.inpatient.IP_GT4_001.value; }));
       rows.push(line('Percent of acute IP stays > ' + th.acuteTargetHours + 'h', function (mm) { return pctText(mm.inpatient.IP_GT4_PCT_001.value); },
         'Of qualifying discharged IP accounts in each column.'));

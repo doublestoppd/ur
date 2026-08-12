@@ -118,7 +118,7 @@ setting at a time and re-check the Transitions worksheet.
 
 | Figure | Rule ID | The limit |
 |---|---|---|
-| CAH 96-hour average | `CAH96_001` | A **surveillance estimate over the selected period**. The CAH requirement is an *annual* average across the cost-reporting year, excluding swing-bed and distinct-part-unit services. Do not treat the monthly figure as a certification calculation until it has been reconciled with the cost report methodology. |
+| 4-day (96-hour) target variance | `IP_TARGET_001` | A **surveillance estimate over the selected period**. The CAH requirement is an *annual* average across the cost-reporting year, excluding swing-bed and distinct-part-unit services. Do not treat the monthly figure as a certification calculation until it has been reconciled with the cost report methodology. (v1.1 absorbs the retired `CAH96_001`, which computed the same variance in hours.) |
 | Two-midnight review list | `IP_2MN_001` / `RQ_SHORT_MCR` | Identifies **candidates only**. It cannot see the physician's expectation at admission, case-by-case exceptions, or inpatient-only procedures. Nothing on this list is "inappropriate" by virtue of being on it. |
 | IMM candidates | `RQ_IMM` | An **eligibility list, not proof of delivery**. CPSI cannot export scanned or signed notice status. Every row still needs manual confirmation, including any required follow-up copy. |
 | MOON candidates | `RQ_MOON` | Same: eligibility only. Verify timing requirements against current CMS guidance and hospital procedure. |

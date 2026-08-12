@@ -125,18 +125,14 @@
           days: medianHours === null ? null : medianHours / 24,
           n: qualifying.length
         },
-        CAH96_001: {
-          meanHours: meanHours,
-          targetHours: targetHours,
-          varianceHours: meanHours === null ? null : meanHours - targetHours,
-          ratio: meanHours === null ? null : meanHours / targetHours,
-          withinTarget: meanHours === null ? null : meanHours <= targetHours,
-          n: qualifying.length
-        },
         IP_TARGET_001: {
           meanDays: meanDays,
           targetDays: targetDays,
-          varianceDays: meanDays === null ? null : meanDays - targetDays
+          varianceDays: meanDays === null ? null : meanDays - targetDays,
+          varianceHours: meanDays === null ? null : (meanDays - targetDays) * 24,
+          ratio: meanDays === null ? null : meanDays / targetDays,
+          withinTarget: meanDays === null ? null : meanDays <= targetDays,
+          n: qualifying.length
         },
         IP_GT4_001: {
           value: longStays.length,

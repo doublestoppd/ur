@@ -150,33 +150,20 @@
     }),
 
     rule({
-      id: 'CAH96_001',
-      name: 'CAH 96-hour surveillance estimate',
+      id: 'IP_TARGET_001',
+      version: '1.1',
+      name: 'Four-day (96-hour) target variance',
       classification: C.REGULATORY,
-      definition: 'Mean acute inpatient LOS in hours for qualifying discharged IP segments in the selected period, compared with the 96-hour Critical Access Hospital annual-average expectation.',
-      formula: 'meanAcuteIPLosHours - 96; also reported as a ratio to 96 hours',
+      definition: 'Difference between the mean acute inpatient LOS in days and the 4-day target - the Critical Access Hospital 96-hour annual-average expectation expressed in days. Also reported in hours, as a ratio to the target, and as a within-target flag.',
+      formula: 'meanAcuteIPLosDays - thresholds.acuteTargetDays; hours variant multiplies by 24',
       inputs: ['IP_ALOS_001'],
       inclusions: ['Acute inpatient segments only.'],
       exclusions: ['Swing-bed services and distinct-part unit days, consistent with the CAH annual-average definition.', 'Observation time.', 'Open encounters.'],
-      thresholds: [t('CAH acute target (hours)', 'thresholds.acuteTargetHours')],
+      thresholds: [t('Acute target (days)', 'thresholds.acuteTargetDays')],
       nullHandling: 'No value when no qualifying discharged IP accounts exist in the period.',
       sourceRefs: ['R1', 'R2'],
-      notes: 'SURVEILLANCE ESTIMATE ONLY. The CAH requirement is an ANNUAL average across the cost-reporting year; a monthly figure is an early-warning aid. Do not treat this as an official certification calculation until it has been validated against the hospital cost report methodology.',
-      implementationKey: 'metrics.inpatient.cah96'
-    }),
-
-    rule({
-      id: 'IP_TARGET_001',
-      name: 'Four-day operational target variance',
-      classification: C.OPERATIONAL,
-      definition: 'Difference between the mean acute inpatient LOS in days and the hospital 4.0-day operational target.',
-      formula: 'meanAcuteIPLosDays - 4.0',
-      inputs: ['IP_ALOS_001'],
-      inclusions: ['Qualifying discharged IP accounts.'],
-      exclusions: ['Open encounters.'],
-      thresholds: [t('Operational target (days)', 'thresholds.acuteTargetDays')],
-      nullHandling: 'No value when the mean is unavailable.',
-      notes: 'An internal management target expressed alongside the regulatory surveillance figure, not a substitute for it.',
+      notes: 'SURVEILLANCE ESTIMATE ONLY. The CAH requirement is an ANNUAL average across the cost-reporting year; a period figure is an early-warning aid, not an official certification calculation. ' +
+             'v1.1: absorbs the retired CAH96_001 (v1.0) - the two rules computed the same variance in different units (96 hours = 4 days), so one figure now carries both the operational and the regulatory reading.',
       implementationKey: 'metrics.inpatient.targetVariance'
     }),
 
