@@ -300,7 +300,13 @@
       rows.push(line('Unique continuous episodes', function (mm) { return mm.census.EPISODE_CNT_001.value; }, 'Recommended primary hospital-episode count.'));
       rows.push(line('Unique patients', function (mm) { return mm.census.PATIENT_CNT_001.value; }, 'A patient seen in two months counts in both columns; the Total is distinct patients.'));
       rows.push(line('Equivalent patient days (time-weighted)', function (mm) { return N(mm.census.PD_EQ_001.value); }, 'PAIRED METHOD - not yet validated as the hospital official patient-day measure.'));
-      rows.push(line('Midnight census patient days', function (mm) { return mm.census.PD_MN_001.value; }, 'PAIRED METHOD - traditional midnight convention.'));
+      rows.push(line('  Inpatient (time-weighted)', function (mm) { return N(mm.census.PD_IP_001.equivalentDays); }));
+      rows.push(line('  Observation (time-weighted)', function (mm) { return N(mm.census.PD_OS_001.equivalentDays); }));
+      rows.push(line('  Swing bed (time-weighted)', function (mm) { return N(mm.census.PD_SB_001.equivalentDays); }));
+      rows.push(line('Midnight census patient days', function (mm) { return mm.census.PD_MN_001.value; }, 'PAIRED METHOD - traditional midnight convention. The three service lines sum exactly to each total.'));
+      rows.push(line('  Inpatient (midnight census)', function (mm) { return mm.census.PD_IP_001.midnightDays; }));
+      rows.push(line('  Observation (midnight census)', function (mm) { return mm.census.PD_OS_001.midnightDays; }));
+      rows.push(line('  Swing bed (midnight census)', function (mm) { return mm.census.PD_SB_001.midnightDays; }));
       rows.push(line('Time-weighted average daily census', function (mm) { return N(mm.census.ADC_EQ_001.value); }));
       rows.push(line('Midnight average daily census', function (mm) { return N(mm.census.ADC_MN_001.value); }));
       rows.push(line('Deaths', function (mm) { return mm.payer.DEATH_001.value; },
@@ -353,6 +359,7 @@
         'OS admissions', 'OS mean (h)', 'OS > ' + th.obsThresholdHours[0] + 'h', '% OS > ' + th.obsThresholdHours[0] + 'h',
         'OS -> IP conversions', 'SB admissions', 'SB mean LOS (d)',
         'Service admissions', 'Episodes', 'Equivalent patient days', 'Midnight patient days',
+        'IP patient days', 'OS patient days', 'SB patient days',
         'Time-weighted ADC', 'Midnight ADC', 'Deaths',
         'Readmissions <= ' + th.readmissionWindowDays[0] + 'd', 'Readmissions <= ' + th.readmissionWindowDays[1] + 'd'
       ];
@@ -388,6 +395,9 @@
           m.census.EPISODE_CNT_001.value,
           N(m.census.PD_EQ_001.value),
           m.census.PD_MN_001.value,
+          m.census.PD_IP_001.midnightDays,
+          m.census.PD_OS_001.midnightDays,
+          m.census.PD_SB_001.midnightDays,
           N(m.census.ADC_EQ_001.value),
           N(m.census.ADC_MN_001.value),
           m.payer.DEATH_001.value,

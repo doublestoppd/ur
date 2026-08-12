@@ -174,6 +174,29 @@ describe('patient days and census', function () {
     assert.equal(s.metrics.census.PD_MN_001.value, 2, 'midnights of 08/01 and 08/02');
   });
 
+  test('per-service patient days reconcile exactly to both totals', function () {
+    /* The main fixture carries IP, OS, and SB stays at once. */
+    var c = state.metrics.census;
+    assert.equal(c.PD_IP_001.midnightDays + c.PD_OS_001.midnightDays + c.PD_SB_001.midnightDays,
+      c.PD_MN_001.value, 'midnight-census services sum to the midnight total');
+    assert.close(c.PD_IP_001.equivalentDays + c.PD_OS_001.equivalentDays + c.PD_SB_001.equivalentDays,
+      c.PD_EQ_001.value, 1e-9, 'time-weighted services sum to the time-weighted total');
+    assert.ok(c.PD_IP_001.midnightDays > 0, 'the fixture has inpatient days');
+    assert.ok(c.PD_SB_001.midnightDays > 0, 'the fixture has swing-bed days');
+  });
+
+  test('a single-service run puts every patient day in that service', function () {
+    var matrix = [
+      fixtures.HEADERS.slice(),
+      ['9205', 'C5', 'ONLY, SB', 'SB', '08/10/2026', 600, '08/13/2026', 600, 'BCBS', 'H', 1]
+    ];
+    var s = fixtures.run(UR, { matrix: matrix });
+    assert.equal(s.metrics.census.PD_SB_001.midnightDays, 3);
+    assert.equal(s.metrics.census.PD_IP_001.midnightDays, 0);
+    assert.equal(s.metrics.census.PD_OS_001.midnightDays, 0);
+    assert.close(s.metrics.census.PD_SB_001.equivalentDays, 3, 1e-9);
+  });
+
   test('the two methods diverge for short stays, as designed', function () {
     var matrix = [
       fixtures.HEADERS.slice(),

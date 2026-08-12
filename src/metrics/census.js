@@ -107,6 +107,9 @@
           byService: midnightDays,
           dailyCensus: dailyCensus
         },
+        PD_IP_001: { midnightDays: midnightDays.IP, equivalentDays: equivalentDays.IP, service: UR.SERVICE.IP },
+        PD_OS_001: { midnightDays: midnightDays.OS, equivalentDays: equivalentDays.OS, service: UR.SERVICE.OS },
+        PD_SB_001: { midnightDays: midnightDays.SB, equivalentDays: equivalentDays.SB, service: UR.SERVICE.SB },
         ADC_EQ_001: {
           value: adcEq,
           days: period.days

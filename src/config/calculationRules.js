@@ -540,6 +540,51 @@
     }),
 
     rule({
+      id: 'PD_IP_001',
+      name: 'Acute inpatient patient days',
+      classification: C.OPERATIONAL,
+      definition: 'Patient days for acute inpatient (IP) accounts only, reported under BOTH paired methods: the midnight-census count and the time-weighted equivalent.',
+      formula: 'midnightDays = PD_MN_001 restricted to this service; equivalentDays = PD_EQ_001 restricted to this service',
+      inputs: ['PD_MN_001', 'PD_EQ_001'],
+      inclusions: ['acute inpatient (IP) accounts only.'],
+      exclusions: ['All other services.'],
+      thresholds: [t('Include open encounters in occupancy', 'processing.includeOpenInOccupancy')],
+      nullHandling: 'Open encounters are treated as still occupying through the as-of datetime when included.',
+      notes: 'PAIRED METHOD - the per-service split of the two total patient-day figures; the three services sum exactly to each total. Swing-bed and observation days are never mixed into this figure, consistent with the CAH separation of acute and swing-bed services.',
+      implementationKey: 'metrics.census.byService'
+    }),
+
+    rule({
+      id: 'PD_OS_001',
+      name: 'Observation patient days',
+      classification: C.OPERATIONAL,
+      definition: 'Patient days for observation (OS) accounts only, reported under BOTH paired methods: the midnight-census count and the time-weighted equivalent.',
+      formula: 'midnightDays = PD_MN_001 restricted to this service; equivalentDays = PD_EQ_001 restricted to this service',
+      inputs: ['PD_MN_001', 'PD_EQ_001'],
+      inclusions: ['observation (OS) accounts only.'],
+      exclusions: ['All other services.'],
+      thresholds: [t('Include open encounters in occupancy', 'processing.includeOpenInOccupancy')],
+      nullHandling: 'Open encounters are treated as still occupying through the as-of datetime when included.',
+      notes: 'PAIRED METHOD - the per-service split of the two total patient-day figures; the three services sum exactly to each total. Observation is carried in hours operationally; the day figures here exist so observation utilization can sit beside the inpatient and swing-bed day counts.',
+      implementationKey: 'metrics.census.byService'
+    }),
+
+    rule({
+      id: 'PD_SB_001',
+      name: 'Swing-bed patient days',
+      classification: C.OPERATIONAL,
+      definition: 'Patient days for swing bed (SB) accounts only, reported under BOTH paired methods: the midnight-census count and the time-weighted equivalent.',
+      formula: 'midnightDays = PD_MN_001 restricted to this service; equivalentDays = PD_EQ_001 restricted to this service',
+      inputs: ['PD_MN_001', 'PD_EQ_001'],
+      inclusions: ['swing bed (SB) accounts only.'],
+      exclusions: ['All other services.'],
+      thresholds: [t('Include open encounters in occupancy', 'processing.includeOpenInOccupancy')],
+      nullHandling: 'Open encounters are treated as still occupying through the as-of datetime when included.',
+      notes: 'PAIRED METHOD - the per-service split of the two total patient-day figures; the three services sum exactly to each total. Kept separate from acute inpatient throughout: swing-bed days are excluded from the CAH acute average and cost-report acute statistics.',
+      implementationKey: 'metrics.census.byService'
+    }),
+
+    rule({
       id: 'ADC_EQ_001',
       name: 'Time-weighted average daily census',
       classification: C.OPERATIONAL,
