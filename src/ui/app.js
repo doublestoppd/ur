@@ -1721,7 +1721,7 @@
         doc.createTextNode(dq.Error + ' error(s) and ' + dq.Warning + ' warning(s) will be exported with the workbook on the Data Quality worksheet.')
       ]));
     }
-    host.appendChild(el('p', { class: 'hint', text: 'The workbook contains 17 worksheets including the Review Queue, detail sheets, Data Quality, Code Inventory, Calculation Reference, and Run Metadata. It has no macros and no external links.' }));
+    host.appendChild(el('p', { class: 'hint', text: 'The workbook contains 18 worksheets and opens on a linked Contents page. Tabs are color-grouped, header rows are frozen and filterable, and long tables are banded for reading across. It has no macros and no external links.' }));
     renderNav('export');
   }
 

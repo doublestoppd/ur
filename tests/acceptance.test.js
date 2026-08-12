@@ -123,7 +123,7 @@ describe('acceptance criteria (spec 16.1)', function () {
     var s = fixtures.run(UR);
     var bytes = UR.workbookBuilder.toBytes(s, '');
     var wb = XLSX.read(bytes, { type: 'array' });
-    assert.equal(wb.SheetNames.length, 17);
+    assert.equal(wb.SheetNames.length, 18);
     UR.zipPatch.parseZip(bytes).forEach(function (entry) {
       assert.ok(entry.name.indexOf('vbaProject') < 0);
       assert.ok(entry.name.indexOf('externalLink') < 0);

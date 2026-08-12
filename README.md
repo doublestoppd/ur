@@ -220,6 +220,24 @@ to encode; severity uses the reserved status colours and never a series slot.
 
 ---
 
+## The exported workbook
+
+Eighteen worksheets, opening on a **Contents** page where every sheet name is a
+link and each sheet has a one-line description. Sheet tabs are color-grouped —
+blue summaries, orange review work, slate account detail, amber data quality,
+green reference — and every table ships with a frozen, filterable header row
+and zebra banding so a row can be read across thirty columns.
+
+Severity cells on the Data Quality sheet and Unrecognized codes in the Code
+Inventory are tinted with the same status colors the application uses on
+screen. All of this is applied by `src/export/zipPatch.js` *after* the workbook
+bytes are written (the bundled spreadsheet library cannot write fonts or
+fills); if the patcher meets anything unexpected it returns the unstyled
+workbook rather than risking a corrupted one, so an export can never fail on
+cosmetics.
+
+---
+
 ## Project layout
 
 ```
@@ -250,9 +268,9 @@ src/metrics/    scope.js            reporting period, month windows, qualifying-
 src/quality/    validators.js codeInventory.js diagnostics.js
                 attention.js        the Overview digest: what needs a person, with actions
 src/review/     reviewQueue.js      objective account-level review queue
-src/export/     workbookBuilder.js  the 17-worksheet compiled workbook
+src/export/     workbookBuilder.js  the 18-worksheet compiled workbook
                 calculationReferenceSheet.js
-                zipPatch.js         adds frozen header panes after the workbook is written
+                zipPatch.js         post-write patcher: styling, tab colors, frozen panes
 src/pipeline.js                     the deterministic processing pipeline
 src/ui/app.js                       user interface controller
 src/ui/charts.js                    canvas chart renderer and PNG export

@@ -17,6 +17,7 @@ var path = require('path');
 var state = fixtures.run(UR);
 
 var EXPECTED_SHEETS = [
+  'Contents',
   'Executive Summary', 'Monthly Trends', 'Review Queue', 'Review by Account',
   'Inpatient Detail', 'Observation Detail', 'Swing Bed Detail', 'Episodes',
   'Transitions', 'Readmissions', 'Payer Summary', 'Disposition & Source',

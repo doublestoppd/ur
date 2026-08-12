@@ -1,7 +1,7 @@
 /*
  * workbookBuilder.js - builds the compiled Excel workbook (spec 13).
  *
- * One workbook per run, sixteen worksheets, no macros and no external links.
+ * One workbook per run, eighteen worksheets, no macros and no external links.
  * Datetimes are written as true Excel date cells using a wall-clock serial
  * number, so nothing is reinterpreted by the workstation's timezone.
  *
@@ -27,6 +27,21 @@
   }
   function pctText(v) { return v === null || v === undefined ? '' : util.round(v, 1) + '%'; }
   function yn(v) { return v ? 'Yes' : 'No'; }
+
+  /*
+   * Row and cell markers for the styling pass (applied by zipPatch after the
+   * workbook is written, since the bundled library cannot write fonts/fills).
+   * The builder marks MEANING - "this row is a column header" - and the
+   * patcher owns the appearance, so a restyle never touches sheet content.
+   */
+  function HDR(cells) { cells.__style = 'header'; return cells; }    /* column headers: white on accent, wrapped, starts a zebra region */
+  function SEC(cells) { cells.__style = 'section'; return cells; }   /* section bar: accent on light accent, starts a zebra region */
+  function TITLE(cells) { cells.__style = 'title'; return cells; }   /* sheet title: large accent text */
+  function NOTE(cells) { cells.__style = 'note'; return cells; }     /* methodology note: small muted italic */
+  function C(value, styleName) { return { __cell: true, v: value, style: styleName }; }
+  function sevStyle(severity) { return 'sev' + severity; }           /* Blocking/Error/Warning/Info -> sevBlocking... */
+
+  var ROW_HEIGHTS = { header: 26, section: 20, title: 30 };
 
   function xlsx() {
     var X = global.XLSX;
@@ -58,28 +73,81 @@
 
   /*
    * Convert an array of arrays into a worksheet, resolving date markers into
-   * numeric cells with a date format.
+   * numeric cells with a date format, and collecting the sheet's style plan
+   * from the row/cell markers: styled rows, targeted cells, and the zebra
+   * bands computed from table shape (every second data row after a header or
+   * section row, until a blank or styled row ends the table).
    */
   function makeSheet(aoa, opts) {
     var X = xlsx();
     var options = opts || {};
     var dateCells = [];
     var plain = [];
+    var spec = { rows: {}, cells: {}, zebra: [] };
+    var r, c, row;
 
-    for (var r = 0; r < aoa.length; r++) {
-      var row = aoa[r] || [];
+    for (r = 0; r < aoa.length; r++) {
+      row = aoa[r] || [];
+      if (row.__style) { spec.rows[r + 1] = row.__style; }
       var outRow = [];
-      for (var c = 0; c < row.length; c++) {
+      for (c = 0; c < row.length; c++) {
         var v = row[c];
         if (v && v.__dt) {
           outRow.push(v.v === null ? null : util.toExcelSerial(v.v));
           if (v.v !== null) { dateCells.push({ r: r, c: c, fmt: v.fmt }); }
+        } else if (v && v.__cell) {
+          outRow.push(v.v === undefined ? null : v.v);
+          spec.cells[X.utils.encode_cell({ r: r, c: c })] = v.style;
         } else {
           outRow.push(v === undefined ? null : v);
         }
       }
       plain.push(outRow);
     }
+
+    /*
+     * Zebra regions. Banding is a fill on cells, and a fill needs a cell to
+     * sit on, so data rows inside a region are padded to the region's width
+     * with empty strings - otherwise a blank column would punch holes in the
+     * band.
+     */
+    function isBlank(cells) {
+      for (var b = 0; b < cells.length; b++) {
+        if (cells[b] !== null && cells[b] !== '') { return false; }
+      }
+      return true;
+    }
+    var regionStart = -1, regionRows = [];
+    function closeRegion() {
+      if (options.zebra === false || regionStart < 0 || regionRows.length < 2) { regionStart = -1; regionRows = []; return; }
+      var width = plain[regionStart].length;
+      var i;
+      for (i = 0; i < regionRows.length; i++) {
+        if (plain[regionRows[i]].length > width) { width = plain[regionRows[i]].length; }
+      }
+      while (plain[regionStart].length < width) { plain[regionStart].push(''); }
+      for (i = 0; i < regionRows.length; i++) {
+        var member = plain[regionRows[i]];
+        for (var p = 0; p < width; p++) {
+          if (p >= member.length) { member.push(''); }
+          else if (member[p] === null) { member[p] = ''; }
+        }
+        if (i % 2 === 1) { spec.zebra.push(regionRows[i] + 1); }
+      }
+      regionStart = -1; regionRows = [];
+    }
+    for (r = 0; r < plain.length; r++) {
+      var style = spec.rows[r + 1];
+      if (style === 'header' || style === 'section') {
+        closeRegion();
+        regionStart = r;
+      } else if (style || isBlank(plain[r])) {
+        closeRegion();
+      } else if (regionStart >= 0) {
+        regionRows.push(r);
+      }
+    }
+    closeRegion();
 
     var ws = X.utils.aoa_to_sheet(plain);
     for (var i = 0; i < dateCells.length; i++) {
@@ -90,6 +158,18 @@
       }
     }
     ws['!cols'] = autoWidths(aoa, options.maxWidth);
+
+    /* Styled rows get breathing room; the wrapped header needs two lines. */
+    var heights = [];
+    var anyHeight = false;
+    for (var hr in spec.rows) {
+      if (Object.prototype.hasOwnProperty.call(spec.rows, hr) && ROW_HEIGHTS[spec.rows[hr]]) {
+        heights[Number(hr) - 1] = { hpt: ROW_HEIGHTS[spec.rows[hr]] };
+        anyHeight = true;
+      }
+    }
+    if (anyHeight) { ws['!rows'] = heights; }
+
     if (options.autofilter && plain.length > (options.headerRow || 1)) {
       var headerRowIndex = (options.headerRow || 1) - 1;
       var lastCol = 0;
@@ -103,6 +183,7 @@
         )
       };
     }
+    ws.__urStyle = spec;
     return ws;
   }
 
@@ -126,14 +207,14 @@
       var th = cfg.thresholds;
       var rows = [];
 
-      rows.push(['CPSI Utilization Review Data Compiler - Executive Summary']);
+      rows.push(TITLE(['CPSI Utilization Review Data Compiler - Executive Summary']));
       rows.push(['Reporting period', state.period.label]);
       rows.push(['Generated', state.generatedAtText || '']);
       rows.push(['Application / ruleset / configuration version', UR.APP_VERSION + ' / ' + UR.RULESET_VERSION + ' / ' + cfg.configVersion]);
-      rows.push(['Note', 'Regulatory figures below are surveillance aids. They are not official compliance reporting and must be validated against hospital policy and current payer/CMS requirements.']);
+      rows.push(NOTE(['Regulatory figures below are surveillance aids. They are not official compliance reporting and must be validated against hospital policy and current payer/CMS requirements.']));
       rows.push([]);
 
-      rows.push(['CAH ACUTE INPATIENT', 'Value', 'Rule ID', 'Notes']);
+      rows.push(SEC(['CAH ACUTE INPATIENT', 'Value', 'Rule ID', 'Notes']));
       rows.push(['Acute IP admissions (service accounts)', m.inpatient.IP_ADM_001.value, 'IP_ADM_001', 'Includes accounts created by internal status changes.']);
       rows.push(['Discharged IP accounts in scope', m.inpatient.IP_ALOS_001.n, 'IP_LOS_001', 'Basis: ' + cfg.processing.losBasis + ' date within the period.']);
       rows.push(['Acute IP mean LOS (hours)', N(m.inpatient.IP_ALOS_001.hours), 'IP_ALOS_001', '']);
@@ -149,7 +230,7 @@
       rows.push(['Medicare/MA IP crossing < ' + th.shortStayMidnights + ' midnights', m.inpatient.IP_2MN_001.value, 'IP_2MN_001', 'Review candidates only; no appropriateness conclusion.']);
       rows.push([]);
 
-      rows.push(['OBSERVATION', 'Value', 'Rule ID', 'Notes']);
+      rows.push(SEC(['OBSERVATION', 'Value', 'Rule ID', 'Notes']));
       rows.push(['Observation admissions', m.observation.OS_ADM_001.value, 'OS_ADM_001', '']);
       rows.push(['Observation mean duration (hours)', N(m.observation.OS_ALOS_001.meanHours), 'OS_ALOS_001', '']);
       rows.push(['Observation median duration (hours)', N(m.observation.OS_ALOS_001.medianHours), 'OS_ALOS_001', '']);
@@ -161,7 +242,7 @@
       rows.push(['Mean observation hours before conversion', N(m.observation.OSIP_TIME_001.meanHours), 'OSIP_TIME_001', '']);
       rows.push([]);
 
-      rows.push(['SWING BED', 'Value', 'Rule ID', 'Notes']);
+      rows.push(SEC(['SWING BED', 'Value', 'Rule ID', 'Notes']));
       rows.push(['Swing-bed admissions', m.swingBed.SB_ADM_001.value, 'SB_ADM_001', '']);
       rows.push(['Swing-bed mean LOS (days)', N(m.swingBed.SB_ALOS_001.meanDays), 'SB_ALOS_001', 'Excluded from the CAH acute average by design.']);
       rows.push(['Swing-bed median LOS (days)', N(m.swingBed.SB_ALOS_001.medianDays), 'SB_ALOS_001', '']);
@@ -169,7 +250,7 @@
       rows.push(['SB -> IP transitions', m.swingBed.SBIP_001.value, 'SBIP_001', 'Hospital-specific use of discharge code V.']);
       rows.push([]);
 
-      rows.push(['VOLUME, PATIENT DAYS AND CENSUS', 'Value', 'Rule ID', 'Notes']);
+      rows.push(SEC(['VOLUME, PATIENT DAYS AND CENSUS', 'Value', 'Rule ID', 'Notes']));
       rows.push(['Service admissions (IP+OS+SB)', m.census.ADM_SVC_001.value, 'ADM_SVC_001', m.census.ADM_SVC_001.note]);
       rows.push(['Unique continuous episodes', m.census.EPISODE_CNT_001.value, 'EPISODE_CNT_001', 'Recommended primary hospital-episode count.']);
       rows.push(['Unique patients', m.census.PATIENT_CNT_001.value, 'PATIENT_CNT_001', '']);
@@ -182,13 +263,13 @@
 
       var windows = th.readmissionWindowDays;
       var readmitPeriod = UR.pipeline.readmissionsInPeriod(state, state.period);
-      rows.push(['READMISSIONS (INTERNAL OPERATIONAL INDICATORS)', 'Value', 'Rule ID', 'Notes']);
+      rows.push(SEC(['READMISSIONS (INTERNAL OPERATIONAL INDICATORS)', 'Value', 'Rule ID', 'Notes']));
       rows.push(['Potential ' + windows[0] + '-day readmissions', readmitPeriod.short, 'READMIT_7_001', 'Not a CMS readmission rate.']);
       rows.push(['Potential ' + windows[1] + '-day readmissions', readmitPeriod.long, 'READMIT_30_001', 'Not a CMS readmission rate.']);
       rows.push(['Potential ' + windows[1] + '-day Medicare readmissions', readmitPeriod.medicare, 'READMIT_MCR_001', 'Payer taken from the readmitting IP account.']);
       rows.push([]);
 
-      rows.push(['REVIEW QUEUE AND DATA QUALITY', 'Count', 'Rule ID', 'Notes']);
+      rows.push(SEC(['REVIEW QUEUE AND DATA QUALITY', 'Count', 'Rule ID', 'Notes']));
       var counts = state.reviewQueue.counts;
       var ids = UR.reviewRules.ids();
       for (var i = 0; i < ids.length; i++) {
@@ -208,11 +289,11 @@
       }
       if (important.length) {
         rows.push([]);
-        rows.push(['IMPORTANT DATA-QUALITY WARNINGS', important.join('; ')]);
+        rows.push(SEC(['IMPORTANT DATA-QUALITY WARNINGS', important.join('; ')]));
       }
 
       rows.push([]);
-      rows.push(['This worksheet intentionally contains no patient names, MRNs, or account numbers.']);
+      rows.push(NOTE(['This worksheet intentionally contains no patient names, MRNs, or account numbers.']));
       return makeSheet(rows, { maxWidth: 60 });
     },
 
@@ -230,7 +311,7 @@
       ];
       var payerCats = UR.PAYER_CATEGORY_LIST;
       for (var p = 0; p < payerCats.length; p++) { header.push('Payer: ' + payerCats[p]); }
-      rows.push(header);
+      rows.push(HDR(header));
 
       if (!state.monthly.length) {
         rows.push(['No month could be derived from the imported data.']);
@@ -272,8 +353,8 @@
       }
 
       rows.push([]);
-      rows.push(['Monthly figures use each calendar month as its own reporting period. Readmission counts are attributed to the month the readmitting episode began.']);
-      rows.push(['Both patient-day methods are shown; neither is designated the official hospital measure until validated (PD_EQ_001, PD_MN_001).']);
+      rows.push(NOTE(['Monthly figures use each calendar month as its own reporting period. Readmission counts are attributed to the month the readmitting episode began.']));
+      rows.push(NOTE(['Both patient-day methods are shown; neither is designated the official hospital measure until validated (PD_EQ_001, PD_MN_001).']));
       return makeSheet(rows, { autofilter: true });
     },
 
@@ -281,11 +362,11 @@
     reviewQueue: function (state) {
       var cfg = state.config;
       var rows = [];
-      rows.push(
+      rows.push(HDR(
         ['Rule ID', 'Review reason', 'Account', 'MRN'].concat(nameCols(cfg)).concat(
           ['Service', 'Payer category', 'Episode ID', 'Admit', 'Discharge', 'Open',
            'Measure', 'Measure type', 'Related account(s)', 'Detail'])
-      );
+      ));
       var qrows = state.reviewQueue.rows;
       for (var i = 0; i < qrows.length; i++) {
         var r = qrows[i];
@@ -303,8 +384,8 @@
     reviewQueueByAccount: function (state) {
       var cfg = state.config;
       var rows = [];
-      rows.push(['Account', 'MRN'].concat(nameCols(cfg)).concat(
-        ['Service', 'Payer category', 'Episode ID', 'Admit', 'Discharge', 'Reasons', 'Rule IDs', 'Detail']));
+      rows.push(HDR(['Account', 'MRN'].concat(nameCols(cfg)).concat(
+        ['Service', 'Payer category', 'Episode ID', 'Admit', 'Discharge', 'Reasons', 'Rule IDs', 'Detail'])));
       var list = state.reviewQueue.byAccount;
       for (var i = 0; i < list.length; i++) {
         var a = list[i];
@@ -329,7 +410,7 @@
       } else if (serviceClass === UR.SERVICE.OS) {
         header.splice(header.indexOf('Payer category'), 0, '> ' + th.obsThresholdHours[0] + 'h', '> ' + th.obsThresholdHours[1] + 'h', '> ' + th.obsThresholdHours[2] + 'h', 'Converted to IP');
       }
-      rows.push(header);
+      rows.push(HDR(header));
 
       var reviewByAccount = {};
       for (var q = 0; q < state.reviewQueue.rows.length; q++) {
@@ -379,10 +460,10 @@
     episodes: function (state) {
       var cfg = state.config;
       var rows = [];
-      rows.push(['Episode ID', 'MRN'].concat(nameCols(cfg)).concat(
+      rows.push(HDR(['Episode ID', 'MRN'].concat(nameCols(cfg)).concat(
         ['Accounts', 'Account count', 'Service sequence', 'First admit', 'Final discharge', 'Open',
          'Total elapsed hours', 'Total elapsed days', 'Acute IP hours', 'Contains IP', 'Contains OS', 'Contains SB',
-         'Final discharge code', 'Final disposition', 'Death', 'Final payer category', 'Includes probable link']));
+         'Final discharge code', 'Final disposition', 'Death', 'Final payer category', 'Includes probable link'])));
       for (var i = 0; i < state.episodes.length; i++) {
         var ep = state.episodes[i];
         rows.push([ep.episodeId, ep.mrn].concat(nameVal(cfg, ep.patientName)).concat(
@@ -399,9 +480,9 @@
     /* ------------------------------------------------------- Transitions */
     transitions: function (state) {
       var rows = [];
-      rows.push(['Prior account', 'Next account', 'MRN', 'From service', 'To service', 'Expected service',
+      rows.push(HDR(['Prior account', 'Next account', 'MRN', 'From service', 'To service', 'Expected service',
         'Discharge code', 'Prior discharge', 'Next admit', 'Gap minutes', 'Same calendar date',
-        'Link confidence', 'Episode ID', 'Issue', 'Candidate accounts']);
+        'Link confidence', 'Episode ID', 'Issue', 'Candidate accounts']));
       var byRowId = {};
       for (var i = 0; i < state.encounters.length; i++) { byRowId[state.encounters[i].rowId] = state.encounters[i]; }
       for (var t = 0; t < state.transitions.length; t++) {
@@ -415,10 +496,10 @@
       }
       if (state.transitions.length === 0) { rows.push(['No internal status transition was attempted for this data.']); }
       rows.push([]);
-      rows.push(['Confirmed = single expected successor inside the configured gap. Probable = successor admits slightly before the prior discharge, within the overlap tolerance.']);
-      rows.push(['Ambiguous = more than one plausible successor; deliberately not linked. Missing successor = the discharge code expects a successor and none exists within the tolerances.']);
-      rows.push(['Refused (timing) = the expected successor exists but its recorded admission precedes the discharge beyond the overlap tolerance; both accounts are named so the registration times can be corrected.']);
-      rows.push(['Unlinked = a same-day service change with no transition discharge code; reported, never linked on timing alone.']);
+      rows.push(NOTE(['Confirmed = single expected successor inside the configured gap. Probable = successor admits slightly before the prior discharge, within the overlap tolerance.']));
+      rows.push(NOTE(['Ambiguous = more than one plausible successor; deliberately not linked. Missing successor = the discharge code expects a successor and none exists within the tolerances.']));
+      rows.push(NOTE(['Refused (timing) = the expected successor exists but its recorded admission precedes the discharge beyond the overlap tolerance; both accounts are named so the registration times can be corrected.']));
+      rows.push(NOTE(['Unlinked = a same-day service change with no transition discharge code; reported, never linked on timing alone.']));
       return makeSheet(rows, { autofilter: true, maxWidth: 60 });
     },
 
@@ -427,10 +508,10 @@
       var cfg = state.config;
       var windows = cfg.thresholds.readmissionWindowDays;
       var rows = [];
-      rows.push(['MRN'].concat(nameCols(cfg)).concat(
+      rows.push(HDR(['MRN'].concat(nameCols(cfg)).concat(
         ['New IP account', 'New episode ID', 'New episode start', 'Prior episode ID', 'Prior accounts',
          'Prior final discharge', 'Prior disposition', 'Prior discharge code', 'Days between',
-         'Within ' + windows[0] + ' days', 'Within ' + windows[1] + ' days', 'Payer category', 'Medicare']));
+         'Within ' + windows[0] + ' days', 'Within ' + windows[1] + ' days', 'Payer category', 'Medicare'])));
       var pairs = state.readmissions.pairs;
       for (var i = 0; i < pairs.length; i++) {
         var p = pairs[i];
@@ -441,8 +522,8 @@
       }
       if (!pairs.length) { rows.push(['No episode pair fell inside the configured readmission windows.']); }
       rows.push([]);
-      rows.push(['INTERNAL OPERATIONAL INDICATOR. These are not CMS risk-standardized readmission measures: no risk adjustment, no planned-readmission algorithm, no condition cohorts, and no visibility of admissions at other facilities.']);
-      rows.push(['Internal OS/IP/SB status transitions are part of one episode and can never appear here.']);
+      rows.push(NOTE(['INTERNAL OPERATIONAL INDICATOR. These are not CMS risk-standardized readmission measures: no risk adjustment, no planned-readmission algorithm, no condition cohorts, and no visibility of admissions at other facilities.']));
+      rows.push(NOTE(['Internal OS/IP/SB status transitions are part of one episode and can never appear here.']));
       var lb = state.readmissions.lookback;
       if (lb && lb.affectedEpisodes) {
         rows.push(['Incomplete lookback: ' + lb.affectedEpisodes + ' acute IP episode(s) begin before ' + util.fmtDate(lb.cutoff) +
@@ -456,10 +537,10 @@
       var mix = state.metrics.payer.PAYER_MIX_001;
       var th = state.config.thresholds;
       var rows = [];
-      rows.push(['BY MAPPED PAYER CATEGORY']);
-      rows.push(['Payer category', 'Service accounts', '% of accounts', 'IP', 'OS', 'SB', 'Episodes',
+      rows.push(SEC(['BY MAPPED PAYER CATEGORY']));
+      rows.push(HDR(['Payer category', 'Service accounts', '% of accounts', 'IP', 'OS', 'SB', 'Episodes',
         'Occupancy hours', 'IP occupancy hours', 'Equivalent patient days',
-        'One-day IP stays', 'IP > ' + th.acuteTargetHours + 'h', 'OS > ' + th.obsThresholdHours[0] + 'h', 'Deaths']);
+        'One-day IP stays', 'IP > ' + th.acuteTargetHours + 'h', 'OS > ' + th.obsThresholdHours[0] + 'h', 'Deaths']));
       var i, r;
       for (i = 0; i < mix.byCategory.length; i++) {
         r = mix.byCategory[i];
@@ -468,16 +549,16 @@
           r.oneDayStays, r.longStays, r.obsOver24, r.deaths]);
       }
       rows.push([]);
-      rows.push(['BY RAW INSURANCE CODE']);
-      rows.push(['Insurance code', 'Service accounts', 'IP', 'OS', 'SB', 'Episodes',
-        'Occupancy hours', 'Equivalent patient days', 'One-day IP stays', 'IP > ' + th.acuteTargetHours + 'h', 'OS > ' + th.obsThresholdHours[0] + 'h', 'Deaths']);
+      rows.push(SEC(['BY RAW INSURANCE CODE']));
+      rows.push(HDR(['Insurance code', 'Service accounts', 'IP', 'OS', 'SB', 'Episodes',
+        'Occupancy hours', 'Equivalent patient days', 'One-day IP stays', 'IP > ' + th.acuteTargetHours + 'h', 'OS > ' + th.obsThresholdHours[0] + 'h', 'Deaths']));
       for (i = 0; i < mix.byRawCode.length; i++) {
         r = mix.byRawCode[i];
         rows.push([r.key, r.accounts, r.ip, r.os, r.sb, r.episodeCount,
           N(r.occupancyHours), N(r.equivalentPatientDays), r.oneDayStays, r.longStays, r.obsOver24, r.deaths]);
       }
       rows.push([]);
-      rows.push(['Both views are exported so a payer-mapping error is visible instead of being hidden by aggregation. Unmapped insurance codes report under the Unknown category (PAYER_MIX_001).']);
+      rows.push(NOTE(['Both views are exported so a payer-mapping error is visible instead of being hidden by aggregation. Unmapped insurance codes report under the Unknown category (PAYER_MIX_001).']));
       return makeSheet(rows, { maxWidth: 40 });
     },
 
@@ -486,8 +567,8 @@
       var payer = state.metrics.payer;
       var rows = [];
       var i;
-      rows.push(['DISCHARGE DISPOSITION DISTRIBUTION (DISPO_001)']);
-      rows.push(['Disposition category', 'Count', '% of discharges', 'Sample accounts']);
+      rows.push(SEC(['DISCHARGE DISPOSITION DISTRIBUTION (DISPO_001)']));
+      rows.push(HDR(['Disposition category', 'Count', '% of discharges', 'Sample accounts']));
       for (i = 0; i < payer.DISPO_001.rows.length; i++) {
         var d = payer.DISPO_001.rows[i];
         rows.push([d.category, d.count, pctText(d.percent), d.accounts.slice(0, 8).join(', ')]);
@@ -495,8 +576,8 @@
       rows.push(['Total discharges in period', payer.DISPO_001.denominator]);
       rows.push([]);
 
-      rows.push(['DEATHS (DEATH_001)']);
-      rows.push(['Scope', 'Count', '% of discharges']);
+      rows.push(SEC(['DEATHS (DEATH_001)']));
+      rows.push(HDR(['Scope', 'Count', '% of discharges']));
       rows.push(['All included services', payer.DEATH_001.value, pctText(payer.DEATH_001.percent)]);
       for (var s in payer.DEATH_001.byService) {
         if (Object.prototype.hasOwnProperty.call(payer.DEATH_001.byService, s)) {
@@ -510,11 +591,11 @@
       }
       rows.push([]);
 
-      rows.push(['ADMISSION SOURCE (ADMSRC_001)']);
+      rows.push(SEC(['ADMISSION SOURCE (ADMSRC_001)']));
       if (!payer.ADMSRC_001.available) {
         rows.push(['No admission-source column was mapped for this run, so this summary is unavailable.']);
       } else {
-        rows.push(['Source code', 'Mapped label', 'Category', 'Count', '% of admissions']);
+        rows.push(HDR(['Source code', 'Mapped label', 'Category', 'Count', '% of admissions']));
         for (i = 0; i < payer.ADMSRC_001.rows.length; i++) {
           var sr = payer.ADMSRC_001.rows[i];
           rows.push([sr.code, sr.label, sr.category, sr.count, pctText(sr.percent)]);
@@ -522,21 +603,21 @@
       }
       rows.push([]);
 
-      rows.push(['ADMISSIONS AND DISCHARGES BY DAY OF WEEK (DOW_001)']);
-      rows.push(['Day', 'Admissions', 'Discharges']);
+      rows.push(SEC(['ADMISSIONS AND DISCHARGES BY DAY OF WEEK (DOW_001)']));
+      rows.push(HDR(['Day', 'Admissions', 'Discharges']));
       for (i = 0; i < 7; i++) {
         rows.push([payer.DOW_001.dayNames[i], payer.DOW_001.admits[i], payer.DOW_001.discharges[i]]);
       }
       rows.push([]);
 
-      rows.push(['ACUTE IP LOS DISTRIBUTION (LOSDIST_001)']);
-      rows.push(['Band', 'Count', '% of discharged IP']);
+      rows.push(SEC(['ACUTE IP LOS DISTRIBUTION (LOSDIST_001)']));
+      rows.push(HDR(['Band', 'Count', '% of discharged IP']));
       var dist = state.metrics.inpatient.LOSDIST_001;
       for (i = 0; i < dist.bands.length; i++) {
         rows.push([dist.bands[i].label, dist.bands[i].count, pctText(dist.bands[i].percent)]);
       }
       rows.push([]);
-      rows.push(['Percentile', 'Hours', 'Days']);
+      rows.push(HDR(['Percentile', 'Hours', 'Days']));
       for (i = 0; i < dist.percentiles.length; i++) {
         rows.push([dist.percentiles[i].label, N(dist.percentiles[i].hours), N(dist.percentiles[i].days)]);
       }
@@ -547,12 +628,12 @@
     noticeReview: function (state) {
       var cfg = state.config;
       var rows = [];
-      rows.push(['MEDICARE NOTICE MANUAL-CHECK CANDIDATES']);
-      rows.push(['This worksheet lists accounts that objectively QUALIFY for a notice review. It is not proof of delivery.']);
-      rows.push(['CPSI cannot export scanned or signed notice status, so completion, timing, and signature must be verified manually for every row (R3, R4).']);
+      rows.push(TITLE(['MEDICARE NOTICE MANUAL-CHECK CANDIDATES']));
+      rows.push(NOTE(['This worksheet lists accounts that objectively QUALIFY for a notice review. It is not proof of delivery.']));
+      rows.push(NOTE(['CPSI cannot export scanned or signed notice status, so completion, timing, and signature must be verified manually for every row (R3, R4).']));
       rows.push([]);
-      rows.push(['Rule ID', 'Notice', 'Account', 'MRN'].concat(nameCols(cfg)).concat(
-        ['Service', 'Payer category', 'Admit', 'Discharge', 'Open', 'Hours', 'Detail']));
+      rows.push(HDR(['Rule ID', 'Notice', 'Account', 'MRN'].concat(nameCols(cfg)).concat(
+        ['Service', 'Payer category', 'Admit', 'Discharge', 'Open', 'Hours', 'Detail'])));
       var qrows = state.reviewQueue.rows;
       var found = 0;
       for (var i = 0; i < qrows.length; i++) {
@@ -570,24 +651,24 @@
     /* -------------------------------------------------------- Data Quality */
     dataQuality: function (state) {
       var rows = [];
-      rows.push(['SUMMARY BY RULE']);
-      rows.push(['Severity', 'Rule ID', 'Rule', 'Occurrences', 'Sample accounts', 'Effect']);
+      rows.push(SEC(['SUMMARY BY RULE']));
+      rows.push(HDR(['Severity', 'Rule ID', 'Rule', 'Occurrences', 'Sample accounts', 'Effect']));
       var byRule = state.diagnostics.byRule(8);
       var i;
       for (i = 0; i < byRule.length; i++) {
         var g = byRule[i];
         var rule = UR.dataQualityRules.byId(g.ruleId);
-        rows.push([g.severity, g.ruleId, g.name, g.count, g.samples.join(', '), rule ? rule.effect : '']);
+        rows.push([C(g.severity, sevStyle(g.severity)), g.ruleId, g.name, g.count, g.samples.join(', '), rule ? rule.effect : '']);
       }
       if (!byRule.length) { rows.push(['No diagnostic was raised for this run.']); }
 
       rows.push([]);
-      rows.push(['ALL FINDINGS']);
-      rows.push(['Severity', 'Rule ID', 'Rule', 'Account', 'MRN', 'Service', 'Value', 'Message', 'Source file', 'Source sheet', 'Source row']);
+      rows.push(SEC(['ALL FINDINGS']));
+      rows.push(HDR(['Severity', 'Rule ID', 'Rule', 'Account', 'MRN', 'Service', 'Value', 'Message', 'Source file', 'Source sheet', 'Source row']));
       var all = state.diagnostics.sorted();
       for (i = 0; i < all.length; i++) {
         var d = all[i];
-        rows.push([d.severity, d.ruleId, d.name, d.account, d.mrn, d.service, d.value, d.message,
+        rows.push([C(d.severity, sevStyle(d.severity)), d.ruleId, d.name, d.account, d.mrn, d.service, d.value, d.message,
           d.sourceFile, d.sourceSheet, d.sourceRow]);
       }
       return makeSheet(rows, { autofilter: true, headerRow: 2, maxWidth: 90 });
@@ -596,14 +677,16 @@
     /* ------------------------------------------------------ Code Inventory */
     codeInventory: function (state) {
       var rows = [];
-      rows.push(['Every distinct code encountered in the input appears below with its count, configured meaning, and status. No code is silently dropped.']);
+      rows.push(NOTE(['Every distinct code encountered in the input appears below with its count, configured meaning, and status. No code is silently dropped.']));
       rows.push([]);
-      rows.push(['Code type', 'Column mapped', 'Value', 'Count', 'Configured meaning', 'Behavior applied', 'Status', 'Sample accounts']);
+      rows.push(HDR(['Code type', 'Column mapped', 'Value', 'Count', 'Configured meaning', 'Behavior applied', 'Status', 'Sample accounts']));
       for (var s = 0; s < state.codeInventory.length; s++) {
         var sec = state.codeInventory[s];
         for (var r = 0; r < sec.rows.length; r++) {
           var row = sec.rows[r];
-          rows.push([sec.type, yn(sec.mapped), row.value, row.count, row.mappedTo || '', row.behavior, row.status, row.samples.join(', ')]);
+          rows.push([sec.type, yn(sec.mapped), row.value, row.count, row.mappedTo || '', row.behavior,
+            row.status === UR.codeInventory.STATUS.UNRECOGNIZED ? C(row.status, 'sevWarning') : row.status,
+            row.samples.join(', ')]);
         }
         if (!sec.rows.length) {
           rows.push([sec.type, yn(sec.mapped), '(no values encountered)', 0, '', '', '', '']);
@@ -614,14 +697,27 @@
 
     /* ----------------------------------------------- Calculation Reference */
     calculationReference: function (state) {
-      return makeSheet(UR.calculationReferenceSheet.allRows(state.config), { maxWidth: 90 });
+      /*
+       * The rows come from the reference-sheet generator; recognize its shape
+       * rather than duplicating it: a single ALL-CAPS cell is a section bar,
+       * and the row after a section bar is that table's column header.
+       */
+      var rows = UR.calculationReferenceSheet.allRows(state.config);
+      for (var i = 0; i < rows.length; i++) {
+        var row = rows[i];
+        if (row.length === 1 && typeof row[0] === 'string' && /^[A-Z][A-Z /&-]+$/.test(row[0])) {
+          SEC(row);
+          if (rows[i + 1] && rows[i + 1].length > 1) { HDR(rows[i + 1]); }
+        }
+      }
+      return makeSheet(rows, { maxWidth: 90 });
     },
 
     /* ---------------------------------------------------------- Run Metadata */
     runMetadata: function (state) {
       var cfg = state.config;
       var rows = [];
-      rows.push(['RUN METADATA']);
+      rows.push(TITLE(['RUN METADATA']));
       rows.push(['Generated', state.generatedAtText || '']);
       rows.push(['Application version', UR.APP_VERSION]);
       rows.push(['Calculation ruleset version', UR.RULESET_VERSION]);
@@ -635,16 +731,16 @@
       rows.push(['Identical duplicate rows collapsed', yn(cfg.processing.deduplicateIdenticalRows)]);
       rows.push([]);
 
-      rows.push(['SOURCE FILES']);
-      rows.push(['File', 'Worksheet', 'Header row', 'Data rows']);
+      rows.push(SEC(['SOURCE FILES']));
+      rows.push(HDR(['File', 'Worksheet', 'Header row', 'Data rows']));
       for (var i = 0; i < state.sources.length; i++) {
         var s = state.sources[i];
         rows.push([s.fileName, s.sheetName, s.headerRowIndex === undefined ? '' : s.headerRowIndex + 1, s.rows.length]);
       }
       rows.push([]);
 
-      rows.push(['FIELD MAPPING']);
-      rows.push(['Canonical field', 'Requirement', 'Source column', 'Match basis', 'Confidence']);
+      rows.push(SEC(['FIELD MAPPING']));
+      rows.push(HDR(['Canonical field', 'Requirement', 'Source column', 'Match basis', 'Confidence']));
       var fields = UR.headerMapper.FIELDS;
       for (var f = 0; f < fields.length; f++) {
         var m = state.mapping[fields[f].key];
@@ -653,12 +749,12 @@
       }
       rows.push([]);
 
-      rows.push(['PROCESSING COUNTS']);
+      rows.push(SEC(['PROCESSING COUNTS']));
       for (var l = 0; l < state.summaryLines.length; l++) { rows.push([state.summaryLines[l]]); }
       rows.push([]);
 
-      rows.push(['ACTIVE THRESHOLDS']);
-      rows.push(['Setting', 'Value']);
+      rows.push(SEC(['ACTIVE THRESHOLDS']));
+      rows.push(HDR(['Setting', 'Value']));
       rows.push(['Acute target hours', cfg.thresholds.acuteTargetHours]);
       rows.push(['Acute target days', cfg.thresholds.acuteTargetDays]);
       rows.push(['Observation thresholds (hours)', cfg.thresholds.obsThresholdHours.join(', ')]);
@@ -671,55 +767,123 @@
       rows.push(['Same calendar date required', yn(cfg.transition.requireSameCalendarDate)]);
       rows.push(['Suspicious gap threshold (minutes)', cfg.transition.suspiciousGapMinutes]);
       rows.push([]);
-      rows.push(['This workbook contains no macros and no external links. It was generated entirely on this workstation with no network access.']);
+      rows.push(NOTE(['This workbook contains no macros and no external links. It was generated entirely on this workstation with no network access.']));
       return makeSheet(rows, { maxWidth: 60 });
     },
 
+    /* ------------------------------------------------------------ Contents */
+    contents: function (state, sheetList) {
+      var rows = [];
+      rows.push(TITLE(['CPSI Utilization Review Data Compiler - Compiled Workbook']));
+      rows.push(['Reporting period', state.period.label]);
+      rows.push(['Generated', state.generatedAtText || '']);
+      rows.push(['Application / ruleset / configuration version',
+        UR.APP_VERSION + ' / ' + UR.RULESET_VERSION + ' / ' + state.config.configVersion]);
+      rows.push(NOTE(['Regulatory figures are surveillance aids, not official compliance reporting. Validate against hospital policy and current payer/CMS requirements.']));
+      rows.push([]);
+      rows.push(HDR(['Worksheet', 'Group', 'What it contains']));
+      for (var i = 0; i < sheetList.length; i++) {
+        rows.push([C(sheetList[i].name, 'link'), sheetList[i].group, sheetList[i].desc]);
+      }
+      rows.push([]);
+      rows.push(NOTE(['Each worksheet name above is a link. Sheet tabs are color-grouped: blue summaries, orange review work, slate account detail, amber data quality, green reference.']));
+
+      var ws = makeSheet(rows, { maxWidth: 90, zebra: false });
+      var X = xlsx();
+      for (var l = 0; l < sheetList.length; l++) {
+        var addr = X.utils.encode_cell({ r: 7 + l, c: 0 });
+        if (ws[addr]) { ws[addr].l = { Target: "#'" + sheetList[l].name + "'!A1" }; }
+      }
+      return ws;
+    },
+
     /*
-     * Assemble the workbook. Returns { workbook, freezeRows } where freezeRows
-     * maps 1-based worksheet position to the number of header rows to freeze.
+     * Assemble the workbook. Returns { workbook, freezeRows, plan }:
+     * freezeRows maps 1-based worksheet position to frozen header rows (kept
+     * for compatibility), and plan is the full per-sheet styling plan the
+     * zip patcher applies - tab colors, styled rows, severity cells, zebra.
      */
     build: function (state, generatedAtText) {
       var X = xlsx();
       state.generatedAtText = generatedAtText || '';
+
+      var TAB = {
+        Summary: 'FF2A78D6', Review: 'FFEB6834', Detail: 'FF5B6B7B',
+        Quality: 'FFEDA100', Reference: 'FF1BAF7A'
+      };
+
+      var sheets = [
+        { name: 'Executive Summary', group: 'Summary', freeze: 0, ws: workbookBuilder.executiveSummary(state),
+          desc: 'Every headline metric with its Rule ID. Carries no patient identifiers.' },
+        { name: 'Monthly Trends', group: 'Summary', freeze: 1, ws: workbookBuilder.monthlyTrends(state),
+          desc: 'The same metrics month by month, including payer mix.' },
+        { name: 'Review Queue', group: 'Review', freeze: 1, ws: workbookBuilder.reviewQueue(state),
+          desc: 'One row per review reason; filter by Rule ID. No clinical conclusions.' },
+        { name: 'Review by Account', group: 'Review', freeze: 1, ws: workbookBuilder.reviewQueueByAccount(state),
+          desc: 'One row per account with every review reason attached.' },
+        { name: 'Inpatient Detail', group: 'Detail', freeze: 1, ws: workbookBuilder.detailSheet(state, UR.SERVICE.IP),
+          desc: 'Every acute inpatient account: LOS, thresholds, links, and flags.' },
+        { name: 'Observation Detail', group: 'Detail', freeze: 1, ws: workbookBuilder.detailSheet(state, UR.SERVICE.OS),
+          desc: 'Every observation account with duration thresholds and conversions.' },
+        { name: 'Swing Bed Detail', group: 'Detail', freeze: 1, ws: workbookBuilder.detailSheet(state, UR.SERVICE.SB),
+          desc: 'Every swing-bed account. Kept apart from the CAH acute average.' },
+        { name: 'Episodes', group: 'Detail', freeze: 1, ws: workbookBuilder.episodes(state),
+          desc: 'Continuous hospital episodes; internal status changes collapsed.' },
+        { name: 'Transitions', group: 'Detail', freeze: 1, ws: workbookBuilder.transitions(state),
+          desc: 'Every attempted status transition, accepted or refused, with reasons.' },
+        { name: 'Readmissions', group: 'Detail', freeze: 1, ws: workbookBuilder.readmissions(state),
+          desc: 'Potential readmission pairs. Internal indicator, not a CMS measure.' },
+        { name: 'Payer Summary', group: 'Summary', freeze: 0, ws: workbookBuilder.payerSummary(state),
+          desc: 'Utilization by payer category and by raw insurance code.' },
+        { name: 'Disposition & Source', group: 'Summary', freeze: 0, ws: workbookBuilder.dispositionAndSource(state),
+          desc: 'Dispositions, deaths, admission sources, day-of-week, LOS distribution.' },
+        { name: 'Notice Review', group: 'Review', freeze: 5, ws: workbookBuilder.noticeReview(state),
+          desc: 'IMM / MOON manual-check candidates. Not proof of delivery.' },
+        { name: 'Data Quality', group: 'Quality', freeze: 2, ws: workbookBuilder.dataQuality(state),
+          desc: 'Every diagnostic raised, summarized by rule and listed as findings.' },
+        { name: 'Code Inventory', group: 'Quality', freeze: 3, ws: workbookBuilder.codeInventory(state),
+          desc: 'Every distinct code encountered and exactly how it was treated.' },
+        { name: 'Calculation Reference', group: 'Reference', freeze: 0, ws: workbookBuilder.calculationReference(state),
+          desc: 'The full rule registry behind every number in this workbook.' },
+        { name: 'Run Metadata', group: 'Reference', freeze: 0, ws: workbookBuilder.runMetadata(state),
+          desc: 'Versions, source files, field mapping, and thresholds for reproducibility.' }
+      ];
+
       var wb = X.utils.book_new();
       var freeze = {};
+      var plan = { sheets: {} };
       var index = 0;
 
-      function add(name, ws, headerRows) {
+      function add(name, ws, group, headerRows) {
         X.utils.book_append_sheet(wb, ws, name);
         index++;
         if (headerRows) { freeze[index] = headerRows; }
+        var spec = ws.__urStyle || { rows: {}, cells: {}, zebra: [] };
+        plan.sheets[index] = {
+          tab: TAB[group],
+          freeze: headerRows || 0,
+          rows: spec.rows,
+          cells: spec.cells,
+          zebra: spec.zebra
+        };
+        delete ws.__urStyle;
       }
 
-      add('Executive Summary', workbookBuilder.executiveSummary(state), 0);
-      add('Monthly Trends', workbookBuilder.monthlyTrends(state), 1);
-      add('Review Queue', workbookBuilder.reviewQueue(state), 1);
-      add('Review by Account', workbookBuilder.reviewQueueByAccount(state), 1);
-      add('Inpatient Detail', workbookBuilder.detailSheet(state, UR.SERVICE.IP), 1);
-      add('Observation Detail', workbookBuilder.detailSheet(state, UR.SERVICE.OS), 1);
-      add('Swing Bed Detail', workbookBuilder.detailSheet(state, UR.SERVICE.SB), 1);
-      add('Episodes', workbookBuilder.episodes(state), 1);
-      add('Transitions', workbookBuilder.transitions(state), 1);
-      add('Readmissions', workbookBuilder.readmissions(state), 1);
-      add('Payer Summary', workbookBuilder.payerSummary(state), 0);
-      add('Disposition & Source', workbookBuilder.dispositionAndSource(state), 0);
-      add('Notice Review', workbookBuilder.noticeReview(state), 5);
-      add('Data Quality', workbookBuilder.dataQuality(state), 2);
-      add('Code Inventory', workbookBuilder.codeInventory(state), 3);
-      add('Calculation Reference', workbookBuilder.calculationReference(state), 0);
-      add('Run Metadata', workbookBuilder.runMetadata(state), 0);
+      add('Contents', workbookBuilder.contents(state, sheets), 'Summary', 0);
+      for (var i = 0; i < sheets.length; i++) {
+        add(sheets[i].name, sheets[i].ws, sheets[i].group, sheets[i].freeze);
+      }
 
-      return { workbook: wb, freezeRows: freeze };
+      return { workbook: wb, freezeRows: freeze, plan: plan };
     },
 
-    /* Build and serialize to bytes, with frozen header panes applied. */
+    /* Build and serialize to bytes, with styling and frozen panes applied. */
     toBytes: function (state, generatedAtText) {
       var X = xlsx();
       var built = workbookBuilder.build(state, generatedAtText);
       var raw = X.write(built.workbook, { bookType: 'xlsx', type: 'array', compression: false });
       var bytes = new Uint8Array(raw);
-      return UR.zipPatch.applyFreezePanes(bytes, built.freezeRows);
+      return UR.zipPatch.applyWorkbookPolish(bytes, built.plan);
     }
   };
 

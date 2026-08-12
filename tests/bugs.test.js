@@ -67,7 +67,7 @@ describe('configurable thresholds cannot break the run', function () {
       assert.ok(typeof s.metrics.observation[id].value === 'number', id + ' has a count');
     });
     /* And the things that read them still build. */
-    assert.ok(UR.workbookBuilder.build(s, '').workbook.SheetNames.length === 17);
+    assert.ok(UR.workbookBuilder.build(s, '').workbook.SheetNames.length === 18);
     assert.ok(UR.chartData.all(s).length >= 12);
   });
 
@@ -200,7 +200,7 @@ describe('workbook robustness', function () {
     var s = fixtures.run(UR, { matrix: matrix });
     var bytes = UR.workbookBuilder.toBytes(s, '');
     var wb = XLSX.read(bytes, { type: 'array' });
-    assert.equal(wb.SheetNames.length, 17);
+    assert.equal(wb.SheetNames.length, 18);
     var queue = XLSX.utils.sheet_to_csv(wb.Sheets['Review Queue']);
     assert.includes(queue, 'No account met a review trigger');
   });

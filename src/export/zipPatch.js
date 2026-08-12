@@ -1,14 +1,16 @@
 /*
- * zipPatch.js - post-write patcher that adds frozen header panes to the
- * generated workbook (spec 13).
+ * zipPatch.js - post-write patcher that adds frozen header panes, cell styling,
+ * and sheet-tab colors to the generated workbook (spec 13).
  *
- * The bundled Apache-2.0 spreadsheet library writes a fixed <sheetViews> block
- * and offers no frozen-pane option, so this module rewrites the worksheet XML
- * after the workbook bytes are produced.
+ * The bundled Apache-2.0 spreadsheet library writes number formats, column
+ * widths, and autofilters, but no fonts, fills, or tab colors - so this module
+ * rewrites styles.xml and the worksheet XML after the workbook bytes are
+ * produced. The builder decides WHAT to style (it knows each sheet's layout);
+ * this module only knows HOW, so the two cannot disagree about a row's meaning.
  *
  * It only handles STORED (uncompressed) zip entries, which is what the library
  * emits by default. If it ever encounters a compressed entry it returns the
- * original bytes untouched: a workbook without frozen panes is a small cosmetic
+ * original bytes untouched: a workbook without styling is a small cosmetic
  * loss, whereas a corrupted workbook is not acceptable.
  */
 (function (global) {
@@ -197,11 +199,154 @@
     return xml.replace(re, pane);
   }
 
+  /* ------------------------------------------------------------- styling */
+
+  /*
+   * The workbook's visual language, matching the application palette: dark
+   * accent header bars with white text, a quiet zebra band, pill-colored
+   * severity cells. All text is Arial (spec: professional font throughout).
+   */
+  var INK = 'FF1B2733', ACCENT = 'FF1D4E79', MUTED = 'FF5B6B7B';
+
+  var FONTS =
+    '<fonts count="10">' +
+    '<font><sz val="10"/><color rgb="' + INK + '"/><name val="Arial"/><family val="2"/></font>' +          /* 0 base */
+    '<font><b/><sz val="10"/><color rgb="FFFFFFFF"/><name val="Arial"/><family val="2"/></font>' +        /* 1 header */
+    '<font><b/><sz val="14"/><color rgb="' + ACCENT + '"/><name val="Arial"/><family val="2"/></font>' +  /* 2 title */
+    '<font><b/><sz val="10"/><color rgb="' + ACCENT + '"/><name val="Arial"/><family val="2"/></font>' +  /* 3 section */
+    '<font><i/><sz val="9"/><color rgb="' + MUTED + '"/><name val="Arial"/><family val="2"/></font>' +    /* 4 note */
+    '<font><b/><sz val="10"/><color rgb="FF8B1A1A"/><name val="Arial"/><family val="2"/></font>' +        /* 5 blocking */
+    '<font><b/><sz val="10"/><color rgb="FFB23C17"/><name val="Arial"/><family val="2"/></font>' +        /* 6 error */
+    '<font><b/><sz val="10"/><color rgb="FF8A6100"/><name val="Arial"/><family val="2"/></font>' +        /* 7 warning */
+    '<font><b/><sz val="10"/><color rgb="FF2E6B4F"/><name val="Arial"/><family val="2"/></font>' +        /* 8 info */
+    '<font><u/><sz val="10"/><color rgb="' + ACCENT + '"/><name val="Arial"/><family val="2"/></font>' +  /* 9 link */
+    '</fonts>';
+
+  function solidFill(rgb) {
+    return '<fill><patternFill patternType="solid"><fgColor rgb="' + rgb + '"/></patternFill></fill>';
+  }
+
+  /* Appended in this order after the library's own fills. */
+  var EXTRA_FILLS = [
+    solidFill(ACCENT),      /* +0 header bar */
+    solidFill('FFF2F5F8'),  /* +1 zebra band */
+    solidFill('FFE8F0F7'),  /* +2 section bar */
+    solidFill('FFFBE9E9'),  /* +3 blocking */
+    solidFill('FFFDF0E8'),  /* +4 error */
+    solidFill('FFFDF7E3'),  /* +5 warning */
+    solidFill('FFEAF5EF')   /* +6 info */
+  ];
+
+  /*
+   * Rewrite styles.xml: swap the default font set for ours, append the fills,
+   * and append the named cell formats plus a zebra variant of every format the
+   * library already emitted - the variant keeps the original number format, so
+   * a banded date cell still renders as a date.
+   *
+   * Returns { xml, styleIndex, zebraMap } or null when the file does not look
+   * like the library's output.
+   */
+  function patchStylesXml(xml) {
+    if (!/<fonts count="\d+">[\s\S]*?<\/fonts>/.test(xml)) { return null; }
+    xml = xml.replace(/<fonts count="\d+">[\s\S]*?<\/fonts>/, FONTS);
+
+    var fillsMatch = /<fills count="(\d+)">([\s\S]*?)<\/fills>/.exec(xml);
+    if (!fillsMatch) { return null; }
+    var fillBase = Number(fillsMatch[1]);
+    xml = xml.replace(fillsMatch[0],
+      '<fills count="' + (fillBase + EXTRA_FILLS.length) + '">' + fillsMatch[2] + EXTRA_FILLS.join('') + '</fills>');
+
+    var xfsMatch = /<cellXfs count="(\d+)">([\s\S]*?)<\/cellXfs>/.exec(xml);
+    if (!xfsMatch) { return null; }
+    var existing = xfsMatch[2].match(/<xf [^>]*\/>/g) || [];
+    var base = existing.length;
+
+    function xf(fontId, fillId, extra) {
+      return '<xf numFmtId="0" fontId="' + fontId + '" fillId="' + fillId +
+        '" borderId="0" xfId="0" applyFont="1" applyFill="1"' + (extra || '/>');
+    }
+
+    var appended = [
+      /* header: white on accent, wrapped, vertically centered */
+      xf(1, fillBase + 0, ' applyAlignment="1"><alignment vertical="center" wrapText="1"/></xf>'),
+      xf(2, 0),                 /* title */
+      xf(3, fillBase + 2),      /* section */
+      xf(4, 0),                 /* note */
+      xf(5, fillBase + 3),      /* sevBlocking */
+      xf(6, fillBase + 4),      /* sevError */
+      xf(7, fillBase + 5),      /* sevWarning */
+      xf(8, fillBase + 6),      /* sevInfo */
+      xf(9, 0)                  /* link */
+    ];
+    var styleIndex = {
+      header: base, title: base + 1, section: base + 2, note: base + 3,
+      sevBlocking: base + 4, sevError: base + 5, sevWarning: base + 6, sevInfo: base + 7,
+      link: base + 8
+    };
+
+    var zebraMap = {};
+    for (var i = 0; i < existing.length; i++) {
+      var numFmt = /numFmtId="(\d+)"/.exec(existing[i]);
+      appended.push('<xf numFmtId="' + (numFmt ? numFmt[1] : '0') +
+        '" fontId="0" fillId="' + (fillBase + 1) + '" borderId="0" xfId="0" applyNumberFormat="1" applyFill="1"/>');
+      zebraMap[i] = base + appended.length - 1;
+    }
+
+    xml = xml.replace(xfsMatch[0],
+      '<cellXfs count="' + (base + appended.length) + '">' + xfsMatch[2] + appended.join('') + '</cellXfs>');
+    return { xml: xml, styleIndex: styleIndex, zebraMap: zebraMap };
+  }
+
+  /*
+   * Apply one sheet's plan to its XML: tab color, frozen panes, styled rows,
+   * zebra bands, and per-cell overrides (severity and status cells).
+   */
+  function patchSheetXml(xml, sheetPlan, styles) {
+    if (sheetPlan.tab) {
+      xml = xml.replace(/(<worksheet[^>]*>)/,
+        '$1<sheetPr><tabColor rgb="' + sheetPlan.tab + '"/></sheetPr>');
+    }
+    if (sheetPlan.freeze) { xml = freezeXml(xml, sheetPlan.freeze); }
+
+    var rowStyles = sheetPlan.rows || {};
+    var cellStyles = sheetPlan.cells || {};
+    var zebra = {};
+    (sheetPlan.zebra || []).forEach(function (n) { zebra[n] = true; });
+    var hasCellStyles = false;
+    for (var k in cellStyles) { if (Object.prototype.hasOwnProperty.call(cellStyles, k)) { hasCellStyles = true; break; } }
+    var hasWork = hasCellStyles || (sheetPlan.zebra || []).length > 0;
+    for (var r in rowStyles) { if (Object.prototype.hasOwnProperty.call(rowStyles, r)) { hasWork = true; break; } }
+    if (!hasWork) { return xml; }
+
+    return xml.replace(/(<row r="(\d+)"[^>]*>)([\s\S]*?)(<\/row>)/g, function (m, open, rnum, content, close) {
+      var n = Number(rnum);
+      var named = rowStyles[n];
+      if (named && styles.styleIndex[named] !== undefined) {
+        content = content.replace(/<c r="([A-Z]+\d+)"( s="\d+")?/g,
+          '<c r="$1" s="' + styles.styleIndex[named] + '"');
+      } else if (zebra[n]) {
+        content = content.replace(/<c r="([A-Z]+\d+)"( s="(\d+)")?/g, function (cm, addr, sAttr, sVal) {
+          var mapped = styles.zebraMap[sVal === undefined ? 0 : Number(sVal)];
+          return mapped === undefined ? cm : '<c r="' + addr + '" s="' + mapped + '"';
+        });
+      }
+      if (hasCellStyles) {
+        content = content.replace(/<c r="([A-Z]+\d+)"( s="\d+")?/g, function (cm, addr) {
+          var name = cellStyles[addr];
+          if (!name || styles.styleIndex[name] === undefined) { return cm; }
+          return '<c r="' + addr + '" s="' + styles.styleIndex[name] + '"';
+        });
+      }
+      return open + content + close;
+    });
+  }
+
   var zipPatch = {
     crc32: crc32,
     parseZip: parseZip,
     buildZip: buildZip,
     freezeXml: freezeXml,
+    patchStylesXml: patchStylesXml,
 
     /*
      * bytes       - Uint8Array of the written .xlsx
@@ -242,8 +387,69 @@
       } catch (e2) {
         return input;
       }
+    },
+
+    /*
+     * bytes - Uint8Array of the written .xlsx
+     * plan  - { sheets: { 1: { tab, freeze, rows, cells, zebra }, ... } }
+     *   tab    - 'FFRRGGBB' sheet-tab color
+     *   freeze - number of header rows to freeze
+     *   rows   - { rowNumber: 'header'|'title'|'section'|'note' }
+     *   cells  - { 'A5': 'sevWarning', ... } targeted overrides
+     *   zebra  - [rowNumber, ...] banded data rows
+     *
+     * Every failure path returns the original bytes: an unstyled workbook is
+     * always preferable to a corrupted one.
+     */
+    applyWorkbookPolish: function (bytes, plan) {
+      var input = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+      var entries;
+      try {
+        entries = parseZip(input);
+      } catch (e) {
+        return input;
+      }
+      if (!entries) { return input; }
+      for (var s = 0; s < entries.length; s++) {
+        if (entries[s].method !== 0) { return input; }
+      }
+
+      try {
+        var styles = null;
+        var i;
+        for (i = 0; i < entries.length; i++) {
+          if (entries[i].name === 'xl/styles.xml') {
+            styles = patchStylesXml(decodeUTF8(entries[i].data));
+            if (styles) { entries[i].data = encodeUTF8(styles.xml); }
+            break;
+          }
+        }
+        if (!styles) { return zipPatch.applyFreezePanes(input, collectFreeze(plan)); }
+
+        for (i = 0; i < entries.length; i++) {
+          var m = /^xl\/worksheets\/sheet(\d+)\.xml$/.exec(entries[i].name);
+          if (!m) { continue; }
+          var sheetPlan = plan.sheets[Number(m[1])];
+          if (!sheetPlan) { continue; }
+          entries[i].data = encodeUTF8(patchSheetXml(decodeUTF8(entries[i].data), sheetPlan, styles));
+        }
+        return buildZip(entries);
+      } catch (e2) {
+        return input;
+      }
     }
   };
+
+  /* Fall back to bare freeze panes when the style sheet is unrecognizable. */
+  function collectFreeze(plan) {
+    var freeze = {};
+    for (var k in plan.sheets) {
+      if (Object.prototype.hasOwnProperty.call(plan.sheets, k) && plan.sheets[k].freeze) {
+        freeze[k] = plan.sheets[k].freeze;
+      }
+    }
+    return freeze;
+  }
 
   UR.zipPatch = zipPatch;
 
