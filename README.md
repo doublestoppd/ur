@@ -32,7 +32,7 @@ being treated as official compliance reporting.
 Nothing to install; no administrator rights, npm, Node, or Python needed.
 
 The six-step flow is: **Import → Map fields → Rules & codes → Validate → Results → Export**,
-with a **Graphs** tab and a **Calculation Reference** page reachable at any point after processing.
+with **Accounts**, **Graphs**, and **Calculation Reference** tabs reachable at any point after processing.
 
 ### Running the tests (development only)
 
@@ -113,6 +113,37 @@ actually used for the run, so the exported reference always matches the numbers 
 
 ---
 
+## Accounts: checking the interpretation against the chart
+
+The Accounts tab lists **every** account that was imported — including the ones the metrics
+excluded, because "why is this account missing from the count" is exactly the question a
+verification pass needs to answer. Search by account, MRN, patient name, or episode; filter by
+service, by whether the record counted, by open encounters, or by review status.
+
+Selecting an account opens the whole **patient course**, not just that one CPSI account, and
+for every visit it shows three things side by side:
+
+| | |
+|---|---|
+| **Source column** | the header the value came from, e.g. `ipv1_ad_time` |
+| **Value as imported** | the cell exactly as it arrived, e.g. `1015` |
+| **Interpreted as** | what the engine made of it, e.g. `08/03/2026 10:15` |
+
+So an Excel serial of `46236` appears beside `08/03/2026`, a blank time appears beside
+"midnight assumed", and an unmapped payer code appears beside `Unknown` rather than silently
+becoming a category. Below that sit the derived values (elapsed duration, midnights crossed,
+episode membership, whether the record counted and why not), every diagnostic raised against
+the visit, and every review-queue reason it triggered.
+
+The dossier also shows **every transition attempt for that patient, accepted or refused, with
+the reason**. A refusal is the answer to "why are these two accounts separate episodes when
+the chart clearly shows one stay" — a missing successor, two ambiguous candidates, a gap
+outside tolerance. That is usually a source-data or mapping finding, not a tool finding.
+
+This is the view to have open beside the charting system during the pilot.
+
+---
+
 ## Graphs
 
 The Graphs tab draws fourteen charts from the same calculated metrics as the
@@ -163,6 +194,7 @@ src/domain/     normalizeEncounter.js raw rows -> canonical encounters + diagnos
                 transitionLinker.js   internal status-transition reconstruction
                 episodeBuilder.js     continuous episode assembly
                 readmissionDetector.js internal readmission indicators
+                accountDetail.js      account browser list and patient dossier
 src/metrics/    scope.js            reporting period, month windows, qualifying-record filters
                 inpatient.js observation.js swingBed.js census.js payer.js
                 chartData.js        metric -> chart specifications (no drawing code)

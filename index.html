@@ -110,8 +110,43 @@
     <div id="results-body"></div>
     <div class="actions">
       <button type="button" id="btn-back-validate">Back</button>
+      <button type="button" id="btn-accounts-from-results">Browse accounts</button>
       <button type="button" id="btn-to-graphs">View graphs</button>
       <button type="button" class="primary" id="btn-to-export">Continue to export</button>
+    </div>
+  </section>
+
+  <!-- ========================================================== ACCOUNTS -->
+  <section class="step" id="step-accounts" hidden>
+    <h2>Accounts</h2>
+    <p class="hint">
+      Every account that was imported, including the ones excluded from the metrics. Select one to see the complete patient course:
+      each source cell exactly as it arrived beside the value the tool derived from it, every status transition it accepted or refused, and every
+      judgement it made. This view exists so the interpretation can be checked against the chart, account by account.
+    </p>
+    <div class="filter-row">
+      <input type="search" id="account-search" placeholder="Search account, MRN, patient name, or episode">
+      <select id="account-service">
+        <option value="">All services</option>
+        <option value="IP">Acute inpatient</option>
+        <option value="OS">Observation</option>
+        <option value="SB">Swing bed</option>
+        <option value="IGNORED">Ignored service code</option>
+        <option value="UNKNOWN">Unrecognized service code</option>
+      </select>
+      <select id="account-status">
+        <option value="">All records</option>
+        <option value="included">Counted in metrics</option>
+        <option value="excluded">Excluded from metrics</option>
+        <option value="open">Open encounters</option>
+        <option value="review">On the review queue</option>
+        <option value="flagged">Flagged in any way</option>
+      </select>
+      <span class="config-status" id="account-count"></span>
+    </div>
+    <div class="account-layout">
+      <div id="account-list" class="account-list"></div>
+      <div id="account-detail" class="account-detail"></div>
     </div>
   </section>
 
@@ -202,6 +237,7 @@
 <script src="src/domain/transitionLinker.js"></script>
 <script src="src/domain/episodeBuilder.js"></script>
 <script src="src/domain/readmissionDetector.js"></script>
+<script src="src/domain/accountDetail.js"></script>
 <script src="src/metrics/scope.js"></script>
 <script src="src/metrics/inpatient.js"></script>
 <script src="src/metrics/observation.js"></script>

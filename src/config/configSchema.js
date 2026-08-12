@@ -159,11 +159,52 @@
         errors.push('processing.losBasis must be "discharge" or "admission".');
       }
 
-      if (cfg.thresholds && !isPlainArray(cfg.thresholds.obsThresholdHours)) {
-        errors.push('thresholds.obsThresholdHours must be an array of hours.');
+      /*
+       * The rule registry defines a fixed number of cohorts: three observation
+       * thresholds (OS_24_001 / OS_36_001 / OS_48_001) and two readmission
+       * windows (READMIT_7_001 / READMIT_30_001). The VALUES are configurable;
+       * the COUNT is structural, because each one is a separately versioned and
+       * separately documented rule. Accepting a different count would leave
+       * rules with no threshold to read.
+       */
+      function checkNumericList(path, list, count, unit, dependents) {
+        if (!isPlainArray(list)) {
+          errors.push(path + ' must be an array of ' + unit + '.');
+          return;
+        }
+        if (list.length !== count) {
+          errors.push(path + ' must contain exactly ' + (count === 3 ? 'three' : 'two') + ' values, one for each of ' +
+            dependents + '. Change the values, not how many there are; adding a cohort is a source-code change ' +
+            'that also adds a rule to the registry.');
+          return;
+        }
+        for (var i = 0; i < list.length; i++) {
+          var n = Number(list[i]);
+          if (isNaN(n) || n <= 0) {
+            errors.push(path + '[' + i + '] must be a positive number of ' + unit + '.');
+            return;
+          }
+          if (i > 0 && n <= Number(list[i - 1])) {
+            errors.push(path + ' must be in ascending order; ' + list[i - 1] + ' is followed by ' + list[i] + '.');
+            return;
+          }
+          list[i] = n;
+        }
       }
-      if (cfg.thresholds && !isPlainArray(cfg.thresholds.readmissionWindowDays)) {
-        errors.push('thresholds.readmissionWindowDays must be an array of days.');
+
+      if (cfg.thresholds) {
+        checkNumericList('thresholds.obsThresholdHours', cfg.thresholds.obsThresholdHours, 3, 'hours',
+          'OS_24_001, OS_36_001, and OS_48_001');
+        checkNumericList('thresholds.readmissionWindowDays', cfg.thresholds.readmissionWindowDays, 2, 'days',
+          'READMIT_7_001 and READMIT_30_001');
+      }
+
+      if (cfg.processing) {
+        var share = cfg.processing.periodInferenceShare;
+        if (typeof share !== 'number' || isNaN(share) || share <= 0 || share > 1) {
+          errors.push('processing.periodInferenceShare must be a fraction greater than 0 and at most 1. ' +
+            'It is the share of the busiest month\'s activity a neighbouring month must carry to join the inferred reporting period.');
+        }
       }
 
       if (raw.deathCategory) { cfg.deathCategory = String(raw.deathCategory); }

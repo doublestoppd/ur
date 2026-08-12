@@ -16,24 +16,34 @@
   var reader = UR.spreadsheetReader;
   var cfgSchema = UR.configSchema;
 
-  /* Signature used to detect exact duplicate rows across files and sheets. */
-  function rowSignature(e) {
+  /*
+   * The comparable content of a row, joined on a control character so that
+   * neighbouring fields cannot run together into a colliding signature.
+   */
+  function contentParts(e) {
     return [
-      e.account, e.mrn, e.serviceRaw,
+      e.mrn, e.serviceRaw,
       e.admitDT ? e.admitDT.getTime() : '',
       e.dischargeDT ? e.dischargeDT.getTime() : '',
       e.insuranceRaw, e.dischargeCodeRaw, e.admissionSourceRaw, e.name
     ].join('');
   }
 
-  /* Content signature ignoring the account number, for conflict detection. */
+  /* Signature used to detect exact duplicate rows across files and sheets. */
+  function rowSignature(e) {
+    return e.account + '' + contentParts(e);
+  }
+
+  /*
+   * Signature for conflict detection: the same content without the account
+   * number. It must cover EVERY field the row signature covers. An earlier
+   * version omitted the patient name and the admission source, so two rows
+   * sharing an account number but differing only in those fields were neither
+   * identical (so never de-duplicated) nor conflicting (so never excluded) -
+   * and both were counted.
+   */
   function contentSignature(e) {
-    return [
-      e.mrn, e.serviceRaw,
-      e.admitDT ? e.admitDT.getTime() : '',
-      e.dischargeDT ? e.dischargeDT.getTime() : '',
-      e.insuranceRaw, e.dischargeCodeRaw
-    ].join('');
+    return contentParts(e);
   }
 
   function normalizeOne(row, ctx) {
@@ -59,6 +69,7 @@
       transitionTo: null, transitionFrom: null,
       admissionSourceRaw: '', admissionSourceLabel: '', admissionSourceCategory: '',
 
+      raw: {},              /* source cell values, by canonical field */
       included: false,      /* service maps to IP / OS / SB */
       metricEligible: false,/* may contribute to metrics */
       excludedReason: '',
@@ -69,6 +80,26 @@
     };
 
     function cell(key) { return reader.cellFor(row, mapping, key); }
+
+    /*
+     * Keep every mapped source cell exactly as it arrived, beside the column it
+     * came from. The account detail view shows these next to the interpreted
+     * values so a reviewer can check the tool's reading against the chart -
+     * an Excel serial of 46236 displayed beside "08/03/2026" is what makes the
+     * interpretation checkable rather than something to take on trust.
+     *
+     * In memory only, exactly like the rest of the encounter: never persisted.
+     */
+    for (var fi = 0; fi < UR.headerMapper.FIELDS.length; fi++) {
+      var fkey = UR.headerMapper.FIELDS[fi].key;
+      var m = mapping[fkey];
+      var rawValue = m ? cell(fkey) : undefined;
+      e.raw[fkey] = {
+        column: m ? m.header : null,
+        value: rawValue === undefined ? null : rawValue,
+        type: rawValue === null || rawValue === undefined ? 'blank' : (typeof rawValue)
+      };
+    }
 
     /* --------------------------------------------------------- identifiers */
     e.account = parsers.parseId(cell('account'));

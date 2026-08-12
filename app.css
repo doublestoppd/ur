@@ -383,3 +383,130 @@ button.link { border: none; background: none; color: var(--accent); text-decorat
   .chart-grid { grid-template-columns: 1fr; }
   .chart-actions, .steps, .app-header, .dropzone { display: none; }
 }
+
+/* --------------------------------------------------------- metrics view */
+
+.period-line {
+  padding: .45rem .7rem;
+  background: var(--accent-soft);
+  border-radius: 4px;
+  font-size: .85rem;
+  color: var(--accent);
+}
+
+.headline-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: .6rem;
+  margin: .75rem 0 1.25rem;
+}
+.headline-card {
+  display: flex;
+  flex-direction: column;
+  gap: .1rem;
+  padding: .65rem .75rem;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 5px;
+  background: #fbfcfd;
+}
+.headline-label { font-size: .76rem; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+.headline-value { font-size: 1.7rem; font-weight: 600; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.headline-unit { font-size: .85rem; font-weight: 400; color: var(--muted); }
+.headline-note { font-size: .76rem; color: var(--muted); }
+.headline-rule { font-size: .68rem; color: var(--muted); margin-top: .15rem; }
+.tone-good { color: var(--info); }
+.tone-warn { color: var(--warning); }
+
+/* Fixed column geometry so the value column lines up from section to section:
+ * the point of the table is that a reader can run their eye down one column. */
+.metric-table { table-layout: fixed; width: 100%; }
+.metric-table th:nth-child(1) { width: 30%; }
+.metric-table th:nth-child(2) { width: 110px; }
+.metric-table th:nth-child(4) { width: 165px; }
+.metric-table td { overflow-wrap: anywhere; }
+.metric-table th, .metric-table td { padding: .3rem .6rem; }
+.metric-table thead th { font-size: .75rem; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); }
+.metric-label-cell { font-weight: 500; text-align: left; background: none; position: static; }
+.metric-value-cell { text-align: right; white-space: nowrap; width: 1%; }
+.metric-number { font-size: 1.02rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.metric-unit { font-size: .78rem; color: var(--muted); }
+.metric-detail-cell { color: var(--muted); font-size: .82rem; }
+.metric-rule-cell { white-space: nowrap; font-size: .74rem; }
+.metric-rule-cell code { color: var(--muted); }
+.metric-rule-cell button.link { margin-left: .4rem; font-size: .74rem; }
+
+/* -------------------------------------------------------- accounts view */
+
+.account-layout {
+  display: grid;
+  grid-template-columns: minmax(230px, 320px) 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+.account-list {
+  max-height: 76vh;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: .3rem;
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+}
+.account-item {
+  display: flex;
+  flex-direction: column;
+  gap: .12rem;
+  width: 100%;
+  text-align: left;
+  padding: .45rem .55rem;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: none;
+  font-size: .82rem;
+  cursor: pointer;
+}
+.account-item:hover { background: var(--accent-soft); border-color: var(--line); color: inherit; }
+.account-item.selected { background: var(--accent-soft); border-color: var(--accent); }
+.account-item-head { display: flex; justify-content: space-between; gap: .5rem; }
+.account-service { color: var(--muted); font-size: .74rem; font-family: ui-monospace, Menlo, Consolas, monospace; }
+.account-item-sub { color: var(--muted); font-size: .75rem; }
+.account-badges { display: flex; flex-wrap: wrap; gap: .2rem; margin-top: .15rem; }
+.account-badges:empty { display: none; }
+
+.account-detail {
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: .8rem 1rem 1.2rem;
+  min-width: 0;
+  max-height: 76vh;
+  overflow-y: auto;
+}
+.account-detail h4 { margin: 1.1rem 0 .3rem; font-size: .95rem; border-bottom: 1px solid var(--line); padding-bottom: .2rem; }
+.account-detail h5 { margin: .8rem 0 .25rem; font-size: .85rem; color: var(--muted); }
+
+.visit { border: 1px solid var(--line); border-radius: 5px; margin: .5rem 0; background: #fbfcfd; }
+.visit > summary {
+  padding: .5rem .7rem;
+  cursor: pointer;
+  font-size: .85rem;
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  flex-wrap: wrap;
+}
+.visit > summary strong { margin-right: .3rem; }
+.visit[open] > summary { border-bottom: 1px solid var(--line); }
+.visit-body { padding: .3rem .7rem .7rem; }
+.visit-body code { font-size: .8rem; }
+
+@media (max-width: 1000px) {
+  .account-layout { grid-template-columns: 1fr; }
+  .account-list { max-height: 320px; }
+  .account-detail { max-height: none; }
+}
+
+@media (prefers-color-scheme: dark) {
+  .headline-card, .visit { background: #202830; }
+}

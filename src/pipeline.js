@@ -61,6 +61,14 @@
         return state;
       }
 
+      /*
+       * The mapping screen validates the first file. When several files are
+       * imported together the others may not carry the same columns, and their
+       * rows would then fall out of every metric with nothing naming the file
+       * responsible. Report each shortfall against its own file.
+       */
+      UR.validators.reportSourceMappings(sources, diag);
+
       var normalized = UR.normalizeEncounter.normalizeAll(sources, config, diag);
       state.encounters = normalized.encounters;
       state.duplicatesRemoved = normalized.duplicatesRemoved;

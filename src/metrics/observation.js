@@ -23,18 +23,27 @@
       var hours = scope.losHours(qualifying);
       var i, e;
 
-      /* Threshold cohorts: >24h, >36h, >48h by default. */
+      /*
+       * Threshold cohorts: >24h, >36h, >48h by default. The registry defines
+       * exactly these three rules, so all three keys are always produced even
+       * if a configuration somehow carries a different number of thresholds -
+       * a missing key would throw in the results view and the workbook rather
+       * than degrading. Configuration validation refuses that shape up front;
+       * this is the second line of defence.
+       */
       var thresholdRuleIds = ['OS_24_001', 'OS_36_001', 'OS_48_001'];
       var cohorts = {};
-      for (var t = 0; t < th.obsThresholdHours.length; t++) {
+      for (var t = 0; t < thresholdRuleIds.length; t++) {
         var limit = th.obsThresholdHours[t];
         var members = [];
-        for (i = 0; i < qualifying.length; i++) {
-          if (qualifying[i].durationHours > limit) { members.push(qualifying[i]); }
+        if (limit !== undefined && limit !== null) {
+          for (i = 0; i < qualifying.length; i++) {
+            if (qualifying[i].durationHours > limit) { members.push(qualifying[i]); }
+          }
         }
-        var ruleId = thresholdRuleIds[t] || ('OS_' + limit + '_001');
-        cohorts[ruleId] = {
-          thresholdHours: limit,
+        cohorts[thresholdRuleIds[t]] = {
+          thresholdHours: limit === undefined ? null : limit,
+          unavailable: limit === undefined || limit === null,
           value: members.length,
           percent: util.pct(members.length, qualifying.length),
           accounts: scope.accounts(members),

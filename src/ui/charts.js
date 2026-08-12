@@ -180,6 +180,9 @@
     var scale = niceTicks(maxValue(spec), 0, horizontal ? 4 : 5);
 
     /* --------------------------------------------------------- plot frame */
+    /* Set the label font BEFORE measuring with it, or the gutter is sized
+     * against whatever font the last drawing step happened to leave behind. */
+    ctx.font = '11px ' + FONT;
     var padLeft = horizontal ? Math.min(190, longestLabelWidth(ctx, spec.categories) + 14) : 46;
     var padRight = horizontal ? 54 : 16;
     var padBottom = horizontal ? 26 : 34;

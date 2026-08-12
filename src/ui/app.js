@@ -24,7 +24,8 @@
     config: null,
     state: null,
     activeRulesTab: 'serviceCodes',
-    configStatus: ''
+    configStatus: '',
+    selectedAccount: null
   };
 
   var STEPS = [
@@ -33,6 +34,7 @@
     { id: 'rules', label: '3. Rules & codes' },
     { id: 'validate', label: '4. Validate' },
     { id: 'results', label: '5. Results' },
+    { id: 'accounts', label: 'Accounts' },
     { id: 'graphs', label: 'Graphs' },
     { id: 'export', label: '6. Export' },
     { id: 'calcref', label: 'Calculation Reference' }
@@ -77,10 +79,6 @@
     }));
     var t = el('table', null, [thead, tbody]);
     return el('div', { class: opts.scroll ? 'scroll-box' : 'table-wrap' }, [t]);
-  }
-
-  function severityClass(severity) {
-    return 'msg msg-' + String(severity).toLowerCase();
   }
 
   function pill(text, kind) { return el('span', { class: 'pill pill-' + kind, text: text }); }
@@ -135,6 +133,7 @@
     if (id === 'rules') { renderRules(); }
     if (id === 'validate') { renderValidate(); }
     if (id === 'results') { renderResults(); }
+    if (id === 'accounts') { renderAccounts(); }
     if (id === 'graphs') { renderGraphs(); }
     if (id === 'export') { renderExport(); }
     if (id === 'calcref') { renderCalcRef(); }
@@ -434,6 +433,9 @@
   }
 
   function renderRules() {
+    /* The last state known to pass validation, for rolling a bad edit back. */
+    ui.configSnapshot = util.clone(ui.config);
+
     var tabs = $('rules-tabs');
     clear(tabs);
     RULES_TABS.forEach(function (t) {
@@ -459,7 +461,23 @@
     $('config-status').textContent = ui.configStatus;
   }
 
+  /*
+   * Apply an edit made in the rules tables.
+   *
+   * The editors write straight into the configuration object, so the same
+   * schema that guards an imported JSON file has to guard them too - otherwise
+   * the UI is a way around it. An edit that fails validation is rolled back to
+   * the last good state and the reason is shown, rather than being half-applied
+   * and surfacing later as a broken metric.
+   */
   function markConfigChanged(message) {
+    var check = UR.configSchema.validate(JSON.parse(UR.configSchema.toJSON(ui.config, '')));
+    if (!check.ok) {
+      if (ui.configSnapshot) { ui.config = util.clone(ui.configSnapshot); }
+      ui.configStatus = 'Change not applied: ' + check.errors.join(' ');
+      renderRules();
+      return;
+    }
     UR.configSchema.bumpVersion(ui.config);
     ui.state = null;
     ui.configStatus = message || ('Configuration version ' + ui.config.configVersion + ' (unsaved).');
@@ -869,6 +887,52 @@
     openModal(title, body);
   }
 
+  /*
+   * Metric rows read better than a wall of equally-weighted cards: the eye can
+   * run down a value column, the comparison sits beside the number instead of
+   * under it, and every row carries the Rule ID that produced it.
+   *
+   * headline() is reserved for the handful of figures a UR reviewer opens the
+   * page to see; everything else is a row in a titled section.
+   */
+  function metricRow(label, value, unit, detail, ruleId, onDetail, tone) {
+    return {
+      label: label, value: value, unit: unit || '',
+      detail: detail || '', ruleId: ruleId || '', onDetail: onDetail || null, tone: tone || ''
+    };
+  }
+
+  function renderMetricSection(host, title, note, rows) {
+    host.appendChild(el('h3', { text: title }));
+    if (note) { host.appendChild(el('p', { class: 'hint', text: note })); }
+
+    var body = el('tbody', null, rows.map(function (r) {
+      var valueCell = el('td', { class: 'metric-value-cell' }, [
+        el('span', { class: 'metric-number' + (r.tone ? ' tone-' + r.tone : ''), text: r.value }),
+        r.unit ? el('span', { class: 'metric-unit', text: ' ' + r.unit }) : null
+      ]);
+      return el('tr', null, [
+        el('th', { class: 'metric-label-cell', scope: 'row', text: r.label }),
+        valueCell,
+        el('td', { class: 'metric-detail-cell', text: r.detail }),
+        el('td', { class: 'metric-rule-cell' }, [
+          r.ruleId ? el('code', { text: r.ruleId }) : null,
+          r.onDetail ? el('button', { type: 'button', class: 'link', onclick: r.onDetail }, ['rows']) : null
+        ])
+      ]);
+    }));
+
+    host.appendChild(el('div', { class: 'table-wrap' }, [
+      el('table', { class: 'metric-table' }, [
+        el('thead', null, [el('tr', null, [
+          el('th', { text: 'Metric' }), el('th', { text: 'Value' }),
+          el('th', { text: 'Detail' }), el('th', { text: 'Rule' })
+        ])]),
+        body
+      ])
+    ]));
+  }
+
   function renderResults() {
     if (!ui.state) { process(); }
     var state = ui.state;
@@ -881,80 +945,104 @@
 
     var m = state.metrics;
     var th = ui.config.thresholds;
-
-    host.appendChild(el('p', { class: 'hint', text: 'Reporting period ' + state.period.label + '. Values are calculated from the imported rows only; every figure names the rule that produced it.' }));
-
-    host.appendChild(el('h3', { text: 'CAH acute inpatient' }));
-    host.appendChild(el('div', { class: 'summary-grid' }, [
-      card('Acute IP admissions', m.inpatient.IP_ADM_001.value, 'IP_ADM_001', 'Service accounts, includes status changes',
-        function () { showRows('IP_ADM_001 - acute inpatient admissions', m.inpatient.IP_ADM_001.encounters); }),
-      card('Mean acute LOS (hours)', num(m.inpatient.IP_ALOS_001.hours, 1), 'IP_ALOS_001', num(m.inpatient.IP_ALOS_001.days, 2) + ' days over ' + m.inpatient.IP_ALOS_001.n + ' discharges',
-        function () { showRows('IP_ALOS_001 - qualifying discharged IP accounts', m.inpatient.IP_LOS_001.encounters); }),
-      card('Median acute LOS (hours)', num(m.inpatient.IP_MEDLOS_001.hours, 1), 'IP_MEDLOS_001', ''),
-      card(th.acuteTargetHours + 'h surveillance variance', num(m.inpatient.CAH96_001.varianceHours, 1), 'CAH96_001',
-        'Surveillance estimate; the CAH requirement is an annual average'),
-      card('Stays > ' + th.acuteTargetHours + 'h', m.inpatient.IP_GT4_001.value, 'IP_GT4_001', pct(m.inpatient.IP_GT4_001.percent) + ' of discharges',
-        function () {
-          showRows('IP_GT4_001 - stays over target', m.inpatient.IP_GT4_001.detail.map(function (d) { return d.encounter; }));
-        }),
-      card('Excess days above target', num(m.inpatient.IP_EXCESS_001.totalDays, 2), 'IP_EXCESS_001', ''),
-      card('One-day acute stays', m.inpatient.IP_SHORT_001.value, 'IP_SHORT_001', payerBreakdown(m.inpatient.IP_SHORT_001.byPayer),
-        function () { showRows('IP_SHORT_001 - one-day acute stays', m.inpatient.IP_SHORT_001.encounters); }),
-      card('Medicare/MA under ' + th.shortStayMidnights + ' midnights', m.inpatient.IP_2MN_001.value, 'IP_2MN_001', 'Review candidates only',
-        function () { showRows('IP_2MN_001 - short Medicare inpatient stays', m.inpatient.IP_2MN_001.encounters); })
-    ]));
-
-    host.appendChild(el('h3', { text: 'Observation' }));
-    host.appendChild(el('div', { class: 'summary-grid' }, [
-      card('Observation admissions', m.observation.OS_ADM_001.value, 'OS_ADM_001', '',
-        function () { showRows('OS_ADM_001 - observation admissions', m.observation.OS_ADM_001.encounters); }),
-      card('Mean duration (hours)', num(m.observation.OS_ALOS_001.meanHours, 1), 'OS_ALOS_001',
-        'Median ' + num(m.observation.OS_ALOS_001.medianHours, 1) + 'h'),
-      card('Over ' + th.obsThresholdHours[0] + 'h', m.observation.OS_24_001.value, 'OS_24_001', '',
-        function () { showRows('OS_24_001', m.observation.OS_24_001.encounters); }),
-      card('Over ' + th.obsThresholdHours[1] + 'h', m.observation.OS_36_001.value, 'OS_36_001', '',
-        function () { showRows('OS_36_001', m.observation.OS_36_001.encounters); }),
-      card('Over ' + th.obsThresholdHours[2] + 'h', m.observation.OS_48_001.value, 'OS_48_001', '',
-        function () { showRows('OS_48_001', m.observation.OS_48_001.encounters); }),
-      card('OS -> IP conversions', m.observation.OSIP_001.value, 'OSIP_001', ''),
-      card('Conversion rate', pct(m.observation.OSIP_RATE_001.value), 'OSIP_RATE_001', m.observation.OSIP_RATE_001.denominatorNote),
-      card('Mean hours before conversion', num(m.observation.OSIP_TIME_001.meanHours, 1), 'OSIP_TIME_001', '')
-    ]));
-
-    host.appendChild(el('h3', { text: 'Swing bed' }));
-    host.appendChild(el('div', { class: 'summary-grid' }, [
-      card('Swing-bed admissions', m.swingBed.SB_ADM_001.value, 'SB_ADM_001', '',
-        function () { showRows('SB_ADM_001 - swing-bed admissions', m.swingBed.SB_ADM_001.encounters); }),
-      card('Mean LOS (days)', num(m.swingBed.SB_ALOS_001.meanDays, 2), 'SB_ALOS_001', 'Median ' + num(m.swingBed.SB_ALOS_001.medianDays, 2) + ' days'),
-      card('IP -> SB', m.swingBed.IPSB_001.value, 'IPSB_001', ''),
-      card('SB -> IP', m.swingBed.SBIP_001.value, 'SBIP_001', 'Hospital-specific use of code V'),
-      card('OS -> SB', m.swingBed.OSSB_001.value, 'OSSB_001', '')
-    ]));
-
-    host.appendChild(el('h3', { text: 'Volume, patient days, and census' }));
-    host.appendChild(el('p', { class: 'hint', text: 'Two patient-day methods are reported on purpose. Compare both against the existing UR workbook before naming either one the official hospital measure.' }));
-    host.appendChild(el('div', { class: 'summary-grid' }, [
-      card('Service admissions', m.census.ADM_SVC_001.value, 'ADM_SVC_001', m.census.ADM_SVC_001.note),
-      card('Unique episodes', m.census.EPISODE_CNT_001.value, 'EPISODE_CNT_001', 'Recommended headline count'),
-      card('Unique patients', m.census.PATIENT_CNT_001.value, 'PATIENT_CNT_001', ''),
-      card('Equivalent patient days', num(m.census.PD_EQ_001.value, 2), 'PD_EQ_001', 'Time-weighted'),
-      card('Midnight patient days', m.census.PD_MN_001.value, 'PD_MN_001', 'Midnight census'),
-      card('Time-weighted ADC', num(m.census.ADC_EQ_001.value, 2), 'ADC_EQ_001', ''),
-      card('Midnight ADC', num(m.census.ADC_MN_001.value, 2), 'ADC_MN_001', ''),
-      card('Deaths', m.payer.DEATH_001.value, 'DEATH_001', pct(m.payer.DEATH_001.percent) + ' of discharges',
-        function () { showRows('DEATH_001 - deaths', m.payer.DEATH_001.encounters); })
-    ]));
-
+    var dq = state.diagnostics.counts();
     var readmits = UR.pipeline.readmissionsInPeriod(state, state.period);
-    host.appendChild(el('h3', { text: 'Readmission indicators (internal operational only)' }));
-    host.appendChild(el('div', { class: 'summary-grid' }, [
-      card('Within ' + th.readmissionWindowDays[0] + ' days', readmits.short, 'READMIT_7_001', 'Not a CMS readmission rate'),
-      card('Within ' + th.readmissionWindowDays[1] + ' days', readmits.long, 'READMIT_30_001', 'Not a CMS readmission rate'),
-      card('Medicare within ' + th.readmissionWindowDays[1] + ' days', readmits.medicare, 'READMIT_MCR_001', '')
+
+    /* ------------------------------------------------------------ headline */
+    host.appendChild(el('p', { class: 'period-line' }, [
+      el('strong', { text: state.period.label }),
+      doc.createTextNode('  |  ' + state.periodSource.toLowerCase() +
+        '  |  discharged stays counted by ' + ui.config.processing.losBasis + ' date' +
+        '  |  occupancy as of ' + util.fmtDateTime(state.period.asOf))
     ]));
 
+    var cahTone = m.inpatient.CAH96_001.withinTarget === null ? ''
+      : (m.inpatient.CAH96_001.withinTarget ? 'good' : 'warn');
+
+    host.appendChild(el('div', { class: 'headline-grid' }, [
+      headline('Continuous episodes', m.census.EPISODE_CNT_001.value, '', 'EPISODE_CNT_001', 'Hospital episodes, internal transitions collapsed'),
+      headline('Acute mean LOS', num(m.inpatient.IP_ALOS_001.days, 2), 'days', 'IP_ALOS_001', num(m.inpatient.IP_ALOS_001.hours, 1) + ' hours over ' + m.inpatient.IP_ALOS_001.n + ' discharges'),
+      headline(th.acuteTargetHours + 'h surveillance', (m.inpatient.CAH96_001.varianceHours === null ? '-' : (m.inpatient.CAH96_001.varianceHours > 0 ? '+' : '') + num(m.inpatient.CAH96_001.varianceHours, 1)), 'hours', 'CAH96_001', 'Against the ' + th.acuteTargetHours + '-hour annual expectation', cahTone),
+      headline('Observation > ' + th.obsThresholdHours[0] + 'h', m.observation.OS_24_001.value, '', 'OS_24_001', 'of ' + m.observation.OS_ALOS_001.n + ' discharged observation stays'),
+      headline('Accounts to review', state.reviewQueue.byAccount.length, '', '', state.reviewQueue.rows.length + ' reasons across the queue'),
+      headline('Data issues', dq.Blocking + dq.Error, '', '', dq.Warning + ' warnings, ' + dq.Info + ' notices', (dq.Blocking + dq.Error) ? 'warn' : 'good')
+    ]));
+
+    /* ----------------------------------------------------------- inpatient */
+    renderMetricSection(host, 'Acute inpatient', '', [
+      metricRow('Admissions (service accounts)', m.inpatient.IP_ADM_001.value, '', 'Includes accounts created by a status change', 'IP_ADM_001',
+        function () { showRows('IP_ADM_001 - acute inpatient admissions', m.inpatient.IP_ADM_001.encounters); }),
+      metricRow('Discharged accounts in scope', m.inpatient.IP_ALOS_001.n, '', 'By ' + ui.config.processing.losBasis + ' date within the period', 'IP_LOS_001',
+        function () { showRows('IP_LOS_001 - qualifying discharged IP accounts', m.inpatient.IP_LOS_001.encounters); }),
+      metricRow('Mean length of stay', num(m.inpatient.IP_ALOS_001.hours, 1), 'hours', num(m.inpatient.IP_ALOS_001.days, 2) + ' days', 'IP_ALOS_001'),
+      metricRow('Median length of stay', num(m.inpatient.IP_MEDLOS_001.hours, 1), 'hours', num(m.inpatient.IP_MEDLOS_001.days, 2) + ' days', 'IP_MEDLOS_001'),
+      metricRow('CAH ' + th.acuteTargetHours + '-hour variance', num(m.inpatient.CAH96_001.varianceHours, 1), 'hours',
+        'Surveillance estimate; the requirement is an annual average', 'CAH96_001', null, cahTone),
+      metricRow(th.acuteTargetDays + '-day target variance', num(m.inpatient.IP_TARGET_001.varianceDays, 2), 'days', 'Operational target', 'IP_TARGET_001'),
+      metricRow('Stays over ' + th.acuteTargetHours + 'h', m.inpatient.IP_GT4_001.value, '', pct(m.inpatient.IP_GT4_001.percent) + ' of discharged accounts', 'IP_GT4_001',
+        function () { showRows('IP_GT4_001 - stays over target', m.inpatient.IP_GT4_001.detail.map(function (d) { return d.encounter; })); }),
+      metricRow('Excess days above target', num(m.inpatient.IP_EXCESS_001.totalDays, 2), 'days',
+        'Mean ' + num(m.inpatient.IP_EXCESS_001.meanDaysAmongLongStays, 2) + ' days among the long stays', 'IP_EXCESS_001'),
+      metricRow('One-day stays', m.inpatient.IP_SHORT_001.value, '', payerBreakdown(m.inpatient.IP_SHORT_001.byPayer), 'IP_SHORT_001',
+        function () { showRows('IP_SHORT_001 - one-day acute stays', m.inpatient.IP_SHORT_001.encounters); }),
+      metricRow('Medicare/MA under ' + th.shortStayMidnights + ' midnights', m.inpatient.IP_2MN_001.value, '', 'Review candidates only; no appropriateness conclusion', 'IP_2MN_001',
+        function () { showRows('IP_2MN_001 - short Medicare inpatient stays', m.inpatient.IP_2MN_001.encounters); })
+    ]);
+
+    /* --------------------------------------------------------- observation */
+    renderMetricSection(host, 'Observation', '', [
+      metricRow('Admissions', m.observation.OS_ADM_001.value, '', '', 'OS_ADM_001',
+        function () { showRows('OS_ADM_001 - observation admissions', m.observation.OS_ADM_001.encounters); }),
+      metricRow('Mean duration', num(m.observation.OS_ALOS_001.meanHours, 1), 'hours', 'Median ' + num(m.observation.OS_ALOS_001.medianHours, 1) + ' hours', 'OS_ALOS_001'),
+      metricRow('Over ' + th.obsThresholdHours[0] + ' hours', m.observation.OS_24_001.value, '', pct(m.observation.OS_24_001.percent) + ' of discharged observation stays', 'OS_24_001',
+        function () { showRows('OS_24_001', m.observation.OS_24_001.encounters); }),
+      metricRow('Over ' + th.obsThresholdHours[1] + ' hours', m.observation.OS_36_001.value, '', '', 'OS_36_001',
+        function () { showRows('OS_36_001', m.observation.OS_36_001.encounters); }),
+      metricRow('Over ' + th.obsThresholdHours[2] + ' hours', m.observation.OS_48_001.value, '', 'High-priority prolonged observation', 'OS_48_001',
+        function () { showRows('OS_48_001', m.observation.OS_48_001.encounters); }),
+      metricRow('Conversions to inpatient', m.observation.OSIP_001.value, '', 'Accepted internal OS to IP transitions', 'OSIP_001'),
+      metricRow('Conversion rate', pct(m.observation.OSIP_RATE_001.value), '', m.observation.OSIP_RATE_001.denominatorNote, 'OSIP_RATE_001'),
+      metricRow('Hours before conversion', num(m.observation.OSIP_TIME_001.meanHours, 1), 'hours mean', 'Median ' + num(m.observation.OSIP_TIME_001.medianHours, 1) + ' hours', 'OSIP_TIME_001')
+    ]);
+
+    /* ----------------------------------------------------------- swing bed */
+    renderMetricSection(host, 'Swing bed', 'Kept separate from acute inpatient throughout: swing-bed days are excluded from the CAH average.', [
+      metricRow('Admissions', m.swingBed.SB_ADM_001.value, '', '', 'SB_ADM_001',
+        function () { showRows('SB_ADM_001 - swing-bed admissions', m.swingBed.SB_ADM_001.encounters); }),
+      metricRow('Mean length of stay', num(m.swingBed.SB_ALOS_001.meanDays, 2), 'days', 'Median ' + num(m.swingBed.SB_ALOS_001.medianDays, 2) + ' days', 'SB_ALOS_001'),
+      metricRow('IP to SB transitions', m.swingBed.IPSB_001.value, '', '', 'IPSB_001'),
+      metricRow('SB to IP transitions', m.swingBed.SBIP_001.value, '', 'Hospital-specific use of discharge code V', 'SBIP_001'),
+      metricRow('OS to SB transitions', m.swingBed.OSSB_001.value, '', '', 'OSSB_001')
+    ]);
+
+    /* ------------------------------------------------- volume and census */
+    renderMetricSection(host, 'Volume, patient days, and census',
+      'Two patient-day methods are reported on purpose. Compare both against the existing UR workbook before naming either one the official hospital measure.', [
+      metricRow('Service admissions', m.census.ADM_SVC_001.value, '',
+        m.census.ADM_SVC_001.ip + ' IP, ' + m.census.ADM_SVC_001.os + ' OS, ' + m.census.ADM_SVC_001.sb + ' SB - includes status changes', 'ADM_SVC_001'),
+      metricRow('Continuous episodes', m.census.EPISODE_CNT_001.value, '', 'Recommended headline count', 'EPISODE_CNT_001'),
+      metricRow('Unique patients', m.census.PATIENT_CNT_001.value, '', 'Distinct MRNs', 'PATIENT_CNT_001'),
+      metricRow('Equivalent patient days', num(m.census.PD_EQ_001.value, 2), 'days', 'Time-weighted method', 'PD_EQ_001'),
+      metricRow('Midnight census patient days', m.census.PD_MN_001.value, 'days', 'Midnight census method', 'PD_MN_001'),
+      metricRow('Time-weighted ADC', num(m.census.ADC_EQ_001.value, 2), '', 'Over ' + state.period.days + ' calendar days', 'ADC_EQ_001'),
+      metricRow('Midnight ADC', num(m.census.ADC_MN_001.value, 2), '', 'Over ' + state.period.days + ' calendar days', 'ADC_MN_001'),
+      metricRow('Deaths', m.payer.DEATH_001.value, '', pct(m.payer.DEATH_001.percent) + ' of discharges in the period', 'DEATH_001',
+        function () { showRows('DEATH_001 - deaths', m.payer.DEATH_001.encounters); })
+    ]);
+
+    /* --------------------------------------------------------- readmission */
+    renderMetricSection(host, 'Readmission indicators',
+      'Internal operational indicators. Not CMS risk-standardized measures, and internal status transitions can never appear here.', [
+      metricRow('Within ' + th.readmissionWindowDays[0] + ' days', readmits.short, '', 'New acute IP episode after a prior episode final discharge', 'READMIT_7_001'),
+      metricRow('Within ' + th.readmissionWindowDays[1] + ' days', readmits.long, '', '', 'READMIT_30_001'),
+      metricRow('Medicare within ' + th.readmissionWindowDays[1] + ' days', readmits.medicare, '', 'Payer taken from the readmitting account', 'READMIT_MCR_001')
+    ]);
+
+    /* -------------------------------------------------------- review queue */
     host.appendChild(el('h3', { text: 'Review queue' }));
-    host.appendChild(el('p', { class: 'hint', text: state.reviewQueue.rows.length + ' review row(s) across ' + state.reviewQueue.byAccount.length + ' account(s). These identify cases to look at; they express no clinical, medical-necessity, denial, or compliance conclusion.' }));
+    host.appendChild(el('p', { class: 'hint', text:
+      state.reviewQueue.rows.length + ' review row(s) across ' + state.reviewQueue.byAccount.length +
+      ' account(s). These identify cases to look at; they express no clinical, medical-necessity, denial, or compliance conclusion.' }));
     host.appendChild(table(['Rule ID', 'Review reason', 'Accounts', ''],
       UR.reviewRules.ids().map(function (id) {
         var rule = UR.reviewRules.byId(id);
@@ -964,7 +1052,10 @@
           : ''];
       }), { numeric: ['Accounts'] }));
 
+    /* ---------------------------------------------------------- transitions */
     host.appendChild(el('h3', { text: 'Transitions' }));
+    host.appendChild(el('p', { class: 'hint', text:
+      'Every attempted internal status change, accepted or refused. Open an account in the Accounts view to see one patient at a time.' }));
     host.appendChild(table(['Prior account', 'Next account', 'Services', 'Discharge code', 'Gap (min)', 'Confidence', 'Episode', 'Issue'],
       state.transitions.map(function (t) {
         var from = null;
@@ -977,6 +1068,18 @@
       }), { scroll: state.transitions.length > 12 }));
 
     renderNav('results');
+  }
+
+  function headline(label, value, unit, ruleId, note, tone) {
+    return el('div', { class: 'headline-card' }, [
+      el('span', { class: 'headline-label', text: label }),
+      el('span', { class: 'headline-value' + (tone ? ' tone-' + tone : '') }, [
+        doc.createTextNode(value === null || value === undefined ? '-' : String(value)),
+        unit ? el('span', { class: 'headline-unit', text: ' ' + unit }) : null
+      ]),
+      note ? el('span', { class: 'headline-note', text: note }) : null,
+      ruleId ? el('code', { class: 'headline-rule', text: ruleId }) : null
+    ]);
   }
 
   function payerBreakdown(byPayer) {
@@ -998,6 +1101,211 @@
           r.ruleId === 'RQ_DATA' ? (r.severity || '') : num(r.measure, 1), r.detail];
       }), { scroll: true }));
     openModal(ruleId + ' - ' + rule.name, body);
+  }
+
+  /* ----------------------------------------------------------- accounts */
+
+  function renderAccounts() {
+    if (!ui.state) { process(); }
+    var listHost = $('account-list');
+    var detailHost = $('account-detail');
+    clear(listHost);
+
+    if (ui.state.blocked) {
+      clear(detailHost);
+      listHost.appendChild(el('div', { class: 'msg msg-blocking', text: 'Processing was blocked, so no account list could be built. Return to Validate to see why.' }));
+      return;
+    }
+
+    var all = UR.accountDetail.list(ui.state);
+    var rows = UR.accountDetail.search(all, $('account-search').value, {
+      service: $('account-service').value,
+      status: $('account-status').value
+    });
+
+    $('account-count').textContent = rows.length + ' of ' + all.length + ' account(s)';
+
+    if (!rows.length) {
+      listHost.appendChild(el('p', { class: 'hint', text: 'No account matches the current filter.' }));
+    }
+
+    rows.forEach(function (row) {
+      var badges = el('span', { class: 'account-badges' });
+      if (row.status === 'Excluded') { badges.appendChild(pill('Excluded', 'warning')); }
+      if (row.isOpen) { badges.appendChild(pill('Open', 'info')); }
+      if (!row.inPeriod) { badges.appendChild(pill('Outside period', 'info')); }
+      if (row.reviewRuleIds.length) { badges.appendChild(pill(row.reviewRuleIds.length + ' review', 'operational')); }
+      if (row.worstSeverity === UR.SEVERITY.ERROR || row.worstSeverity === UR.SEVERITY.BLOCKING) {
+        badges.appendChild(pill(row.worstSeverity, row.worstSeverity.toLowerCase()));
+      }
+
+      var item = el('button', {
+        type: 'button',
+        class: 'account-item' + (ui.selectedAccount === row.account ? ' selected' : ''),
+        onclick: function () {
+          ui.selectedAccount = row.account;
+          renderAccounts();
+        }
+      }, [
+        el('span', { class: 'account-item-head' }, [
+          el('strong', { text: row.account }),
+          el('span', { class: 'account-service', text: row.serviceRaw + (row.serviceClass !== row.serviceRaw ? ' -> ' + row.serviceClass : '') })
+        ]),
+        el('span', { class: 'account-item-sub', text:
+          (ui.config.processing.excludePatientNames ? 'MRN ' + (row.mrn || '(none)') : (row.patientName || '(no name)') + '  |  MRN ' + (row.mrn || '(none)')) }),
+        el('span', { class: 'account-item-sub', text:
+          util.fmtDateTime(row.admitDT) + (row.isOpen ? '  ->  (open)' : '  ->  ' + util.fmtDateTime(row.dischargeDT)) +
+          (row.durationHours === null ? '' : '  |  ' + util.round(row.durationHours, 1) + 'h') }),
+        badges
+      ]);
+      listHost.appendChild(item);
+    });
+
+    renderAccountDetail(detailHost);
+  }
+
+  function renderAccountDetail(host) {
+    clear(host);
+    if (!ui.selectedAccount) {
+      host.appendChild(el('p', { class: 'hint', text: 'Select an account on the left to see the full patient course.' }));
+      return;
+    }
+    var dossier = UR.accountDetail.forAccount(ui.state, ui.selectedAccount);
+    if (!dossier) {
+      host.appendChild(el('p', { class: 'hint', text: 'That account is no longer in the current run.' }));
+      return;
+    }
+    var showNames = !ui.config.processing.excludePatientNames;
+
+    host.appendChild(el('h3', { text: showNames && dossier.patientName ? dossier.patientName : ('MRN ' + (dossier.mrn || '(none)')) }));
+    host.appendChild(el('p', { class: 'hint', text:
+      'MRN ' + (dossier.mrn || '(none)') + '  |  ' + dossier.totals.visits + ' visit(s), ' +
+      dossier.totals.included + ' counted in metrics  |  ' + dossier.totals.episodes + ' continuous episode(s)  |  ' +
+      dossier.totals.acceptedTransitions + ' accepted status transition(s)' +
+      (dossier.hasMrn ? '' : '  |  This record has no MRN, so it cannot be linked to any other account.') }));
+
+    if (!dossier.hasMrn) {
+      host.appendChild(el('div', { class: 'msg msg-warning', text:
+        'Without an MRN this account cannot take part in transition linkage or readmission logic, and it forms an episode of one.' }));
+    }
+
+    /* -------------------------------------------------------- episodes */
+    if (dossier.episodes.length) {
+      host.appendChild(el('h4', { text: 'Continuous episodes' }));
+      host.appendChild(table(
+        ['Episode', 'Service sequence', 'Accounts', 'First admit', 'Final discharge', 'Total elapsed', 'Final disposition'],
+        dossier.episodes.map(function (ep) {
+          return [ep.episodeId, ep.serviceSequence.join(' -> '), ep.accounts.join(', '),
+            util.fmtDateTime(ep.startDT), ep.isOpen ? '(open)' : util.fmtDateTime(ep.endDT),
+            ep.elapsedHours === null ? '-' : util.round(ep.elapsedHours, 1) + 'h (' + util.round(ep.elapsedDays, 2) + 'd)',
+            ep.finalDisposition || '-'];
+        })));
+    }
+
+    /* ------------------------------------------------------- transitions */
+    host.appendChild(el('h4', { text: 'Status transitions' }));
+    if (!dossier.transitions.length) {
+      host.appendChild(el('p', { class: 'hint', text: 'No transition was attempted for this patient: no account carried a transition discharge code.' }));
+    } else {
+      host.appendChild(el('p', { class: 'hint', text: 'Refused links are listed too, with the reason. A refusal is why two accounts that look continuous in the chart are separate episodes here.' }));
+      host.appendChild(table(
+        ['From', 'To', 'Services', 'Discharge code', 'Gap', 'Same date', 'Result', 'Reason'],
+        dossier.transitions.map(function (t) {
+          var accepted = t.confidence === UR.LINK_CONFIDENCE.CONFIRMED || t.confidence === UR.LINK_CONFIDENCE.PROBABLE;
+          return [
+            t.fromAccount,
+            t.toAccount || (t.candidateAccounts || []).join(', ') || '-',
+            t.fromService + ' -> ' + (t.toService || t.expectedService || '?'),
+            t.dischargeCode || '-',
+            t.gapMinutes === null || t.gapMinutes === undefined ? '-' : util.round(t.gapMinutes, 0) + ' min',
+            t.sameDay === null || t.sameDay === undefined ? '-' : (t.sameDay ? 'Yes' : 'No'),
+            pill(t.confidence, accepted ? (t.confidence === UR.LINK_CONFIDENCE.CONFIRMED ? 'info' : 'warning') : 'warning'),
+            t.issue || (accepted ? 'Accepted: exactly one account matched the expected service inside the configured tolerance.' : '')
+          ];
+        })));
+    }
+
+    /* ------------------------------------------------------ readmissions */
+    if (dossier.readmissions.length) {
+      host.appendChild(el('h4', { text: 'Readmission indicators' }));
+      host.appendChild(el('p', { class: 'hint', text: 'Internal operational indicators only. Not a CMS readmission measure.' }));
+      host.appendChild(table(
+        ['Prior episode', 'Prior final discharge', 'Prior disposition', 'New IP account', 'New episode start', 'Days between', 'Within windows'],
+        dossier.readmissions.map(function (r) {
+          var within = [];
+          Object.keys(r.within).forEach(function (k) { if (r.within[k]) { within.push(k + ' days'); } });
+          return [r.priorEpisodeId, util.fmtDateTime(r.priorFinalDischarge), r.priorDisposition,
+            r.newIPAccount, util.fmtDateTime(r.newEpisodeStart), util.round(r.daysBetween, 2),
+            within.join(', ') || 'none'];
+        })));
+    }
+
+    /* ------------------------------------------------------------ visits */
+    host.appendChild(el('h4', { text: 'Visits (' + dossier.visits.length + ')' }));
+    dossier.visits.forEach(function (visit, index) {
+      var e = visit.encounter;
+      var isSelected = e.account === ui.selectedAccount;
+      var open = isSelected || dossier.visits.length <= 3;
+
+      var body = el('div', { class: 'visit-body' });
+
+      body.appendChild(el('p', { class: 'hint', text:
+        'Source: ' + e.sourceFile + '  |  sheet ' + e.sourceSheet + '  |  spreadsheet row ' + e.sourceRowNumber +
+        '. Compare the middle column with the chart; the right column is what this tool derived from it.' }));
+
+      body.appendChild(table(
+        ['Field', 'Source column', 'Value as imported', 'Interpreted as'],
+        visit.fields.map(function (row) {
+          return [row.field, el('code', { text: row.column }), el('code', { text: row.rawValue }), row.interpreted];
+        })));
+
+      body.appendChild(el('h5', { text: 'Derived values' }));
+      body.appendChild(table(['Value', 'Result'], visit.derived.map(function (d) {
+        return [d.label + (d.note ? ' - ' + d.note : ''), d.value];
+      })));
+
+      if (visit.transitions.length) {
+        body.appendChild(el('h5', { text: 'Transitions touching this visit' }));
+        body.appendChild(table(['From', 'To', 'Gap', 'Result', 'Reason'], visit.transitions.map(function (t) {
+          return [t.fromAccount, t.toAccount || (t.candidateAccounts || []).join(', ') || '-',
+            t.gapMinutes === null || t.gapMinutes === undefined ? '-' : util.round(t.gapMinutes, 0) + ' min',
+            t.confidence, t.issue || 'Accepted.'];
+        })));
+      }
+
+      if (visit.reviewRows.length) {
+        body.appendChild(el('h5', { text: 'On the review queue for' }));
+        body.appendChild(table(['Rule ID', 'Reason', 'Detail'], visit.reviewRows.map(function (r) {
+          return [r.ruleId, r.ruleName, r.detail];
+        })));
+      }
+
+      if (visit.diagnostics.length) {
+        body.appendChild(el('h5', { text: 'Diagnostics raised against this visit' }));
+        body.appendChild(table(['Severity', 'Rule ID', 'Finding', 'Message'], visit.diagnostics.map(function (d) {
+          return [pill(d.severity, d.severity.toLowerCase()), d.ruleId, d.name, d.message];
+        })));
+      } else {
+        body.appendChild(el('p', { class: 'hint', text: 'No diagnostic was raised against this visit.' }));
+      }
+
+      var statusPill = visit.status.label === 'Included'
+        ? pill('Counted', 'info')
+        : pill(visit.status.label, visit.status.label === 'Open' ? 'info' : 'warning');
+
+      var details = el('details', { class: 'visit', open: open ? true : null }, [
+        el('summary', null, [
+          el('strong', { text: 'Visit ' + (index + 1) + ': account ' + e.account }),
+          doc.createTextNode('  ' + e.serviceClass + '  |  ' + util.fmtDateTime(e.admitDT) +
+            (e.isOpen ? ' -> (open)' : ' -> ' + util.fmtDateTime(e.dischargeDT)) +
+            (e.durationHours === null ? '' : '  |  ' + util.round(e.durationHours, 1) + 'h') + '  '),
+          statusPill,
+          visit.status.detail ? el('span', { class: 'muted', text: '  ' + visit.status.detail }) : null
+        ]),
+        body
+      ]);
+      host.appendChild(details);
+    });
   }
 
   /* ------------------------------------------------------------- graphs */
@@ -1220,6 +1528,10 @@
     $('btn-back-results').addEventListener('click', function () { goTo('results'); });
     $('btn-to-graphs').addEventListener('click', function () { goTo('graphs'); });
     $('btn-graphs-from-export').addEventListener('click', function () { goTo('graphs'); });
+    $('account-search').addEventListener('input', renderAccounts);
+    $('account-service').addEventListener('change', renderAccounts);
+    $('account-status').addEventListener('change', renderAccounts);
+    $('btn-accounts-from-results').addEventListener('click', function () { goTo('accounts'); });
     $('btn-export-all-png').addEventListener('click', function () {
       var status = $('graphs-status');
       if (!ui.chartCards || !ui.chartCards.length) { return; }

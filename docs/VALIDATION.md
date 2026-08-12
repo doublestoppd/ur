@@ -44,6 +44,11 @@ Run one month that the hospital has already compiled by hand, and compare:
 | Deaths | `DEATH_001` | Should match exactly. If not, the discharge-code mapping is wrong. |
 | LOS > 4 days | `IP_GT4_001` | Strictly greater than 96 hours. A stay of exactly 96.0 hours is excluded. |
 
+**Use the Accounts tab to run the disagreement down.** It lists every imported account,
+including the excluded ones, and shows each source cell beside the value the tool derived from
+it. When a count differs by three, find the three accounts there rather than guessing at the
+formula.
+
 **Where they disagree, check these first:**
 
 1. **The reporting period itself.** The Validate step shows the period, where it
@@ -64,9 +69,13 @@ Run one month that the hospital has already compiled by hand, and compare:
 
 ## 3. Transition and episode reconstruction
 
+Open the **Accounts** tab and select a patient with a known status change. The dossier shows
+every transition attempt for that patient — accepted or refused, with the reason and the gap
+in minutes — so a disagreement with the chart can be traced to the rule that caused it.
+
 | Check | Where |
 |---|---|
-| Every `Ambiguous` and `Missing successor` row is understood | Transitions worksheet |
+| Every `Ambiguous` and `Missing successor` row is understood | Transitions worksheet, or the Accounts tab per patient |
 | `Possible uncoded transition` rows are taken back to coding as a source-data fix | Transitions worksheet |
 | Accepted links flagged for suspicious timing are spot-checked against the chart | Transitions worksheet, `Gap minutes` |
 | A known real `OS → IP → SB → IP` course appears as one episode with the right sequence | Episodes worksheet |
@@ -116,7 +125,27 @@ outside the reporting period, so they do not affect any count — they only supp
 
 ---
 
-## 7. Sign-off
+## 7. Spot-check the interpretation, account by account
+
+Pick a handful of accounts and verify them against the chart in the Accounts tab. Cover at
+least one of each:
+
+| Case | What to confirm |
+|---|---|
+| An ordinary inpatient stay | Admit and discharge datetimes match the chart to the minute, and the LOS follows from them |
+| A status change (OS → IP, IP → SB, SB → IP) | One episode, the right service sequence, and a transition gap that matches the chart |
+| A refused transition | The reason given is a real data or coding issue, not a tool misreading |
+| An excluded account | The stated reason is correct — an unrecognized service code, a bad date, a duplicate |
+| A record with no time on a timestamp | "Midnight assumed" is acceptable for that account, or the export needs the time column |
+| A Medicare account | The insurance code maps to the right category; this drives the IMM, MOON, and two-midnight lists |
+| An open encounter | It really was still in house when the export was pulled |
+
+Anything that does not match is a finding: record it, and fix it in the reference mappings or
+the source export rather than working around it downstream.
+
+---
+
+## 8. Sign-off
 
 | Item | Owner | Date |
 |---|---|---|

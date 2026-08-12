@@ -26,6 +26,37 @@
       return true;
     },
 
+    /*
+     * Per-file mapping check. Every imported table must be able to supply the
+     * required and strongly-recommended fields; a file that cannot is named,
+     * with the count of rows affected, rather than quietly contributing rows
+     * that fall out of every metric.
+     */
+    reportSourceMappings: function (sources, diag) {
+      var reported = 0;
+      for (var s = 0; s < sources.length; s++) {
+        var source = sources[s];
+        var missing = [];
+        var fields = UR.headerMapper.FIELDS;
+        for (var f = 0; f < fields.length; f++) {
+          var field = fields[f];
+          if (field.requirement !== 'required' && field.requirement !== 'strong') { continue; }
+          if (source.mapping && source.mapping[field.key]) { continue; }
+          missing.push(field.label);
+        }
+        if (!missing.length) { continue; }
+        reported++;
+        diag.add('DQ_MAP_REQUIRED', {
+          severity: UR.SEVERITY.WARNING,
+          sourceFile: source.fileName,
+          sourceSheet: source.sheetName,
+          message: source.fileName + ' (' + source.sheetName + ') has no column mapped for: ' + missing.join(', ') +
+                   '. Its ' + source.rows.length + ' row(s) are affected. Check that this file has the same layout as the others.'
+        });
+      }
+      return reported;
+    },
+
     /* Post-normalization: did the mapped columns actually contain usable data? */
     validateNormalized: function (encounters, diag) {
       var ok = true;
