@@ -172,7 +172,7 @@
       classification: C.REGULATORY,
       trigger: 'Medicare FFS or MA acute inpatient admission.',
       definition: 'Lists every mapped Medicare FFS and Medicare Advantage acute inpatient admission as a candidate for manual Important Message verification.',
-      formula: 'serviceClass = IP and payerCategory in {Medicare FFS, Medicare Advantage}',
+      formula: 'serviceClass = IP and payerCategory in {Medicare FFS, Medicare Advantage}, where the category comes from the hospital insurance table',
       thresholds: [],
       fields: ['Account', 'MRN', 'Patient name', 'Payer category', 'Admit', 'Discharge', 'LOS hours', 'Follow-up copy due window'],
       sourceRefs: ['R4'],

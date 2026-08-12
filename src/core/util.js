@@ -222,10 +222,88 @@
       return JSON.parse(JSON.stringify(obj));
     },
 
-    /* Case- and whitespace-insensitive key for code lookups. */
+    /* Case- and whitespace-insensitive key, for grouping and counting only. */
     codeKey: function (v) {
       if (v === null || v === undefined) { return ''; }
       return String(v).trim().toUpperCase();
+    },
+
+    /* The literal code as written, trimmed. Case is preserved. */
+    codeExact: function (v) {
+      if (v === null || v === undefined) { return ''; }
+      return String(v).trim();
+    },
+
+    /*
+     * Look one code up in a reference table.
+     *
+     * CODES ARE CASE-SENSITIVE. This hospital's insurance table contains 21
+     * pairs that differ only in case and mean different payers - DCg is Humana
+     * Women's Clinic while DCG is Lake Village Rehab - so an upper-cased lookup
+     * would silently attribute an account to the wrong payer.
+     *
+     * Matching therefore runs in order of certainty and reports which rule fired:
+     *   exact    - the code as written
+     *   case     - a single row differing only in case (spreadsheets do mangle
+     *              case, so this is accepted, but it is reported)
+     *   numeric  - a single row equal as a number, so "6" finds "06" and back
+     *              (Excel drops leading zeros from a numeric column)
+     *   ambiguous- more than one row matched a fallback: nothing is chosen
+     *
+     * Returns { row, match, candidates }. `row` is null unless a single row won.
+     */
+    findByCode: function (rows, rawValue) {
+      var value = util.codeExact(rawValue);
+      var result = { row: null, match: null, candidates: [] };
+      if (value === '' || !rows || !rows.length) { return result; }
+      var i, row;
+
+      for (i = 0; i < rows.length; i++) {
+        if (util.codeExact(rows[i].code) === value) {
+          result.row = rows[i];
+          result.match = 'exact';
+          return result;
+        }
+      }
+
+      var upper = value.toUpperCase();
+      var caseMatches = [];
+      for (i = 0; i < rows.length; i++) {
+        if (util.codeExact(rows[i].code).toUpperCase() === upper) { caseMatches.push(rows[i]); }
+      }
+      if (caseMatches.length === 1) {
+        result.row = caseMatches[0];
+        result.match = 'case';
+        result.candidates = caseMatches;
+        return result;
+      }
+      if (caseMatches.length > 1) {
+        result.match = 'ambiguous';
+        result.candidates = caseMatches;
+        return result;
+      }
+
+      if (/^\d+$/.test(value)) {
+        var asNumber = parseInt(value, 10);
+        var numberMatches = [];
+        for (i = 0; i < rows.length; i++) {
+          var code = util.codeExact(rows[i].code);
+          if (/^\d+$/.test(code) && parseInt(code, 10) === asNumber) { numberMatches.push(rows[i]); }
+        }
+        if (numberMatches.length === 1) {
+          result.row = numberMatches[0];
+          result.match = 'numeric';
+          result.candidates = numberMatches;
+          return result;
+        }
+        if (numberMatches.length > 1) {
+          result.match = 'ambiguous';
+          result.candidates = numberMatches;
+          return result;
+        }
+      }
+
+      return result;
     },
 
     contains: function (arr, v) {

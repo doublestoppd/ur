@@ -207,6 +207,25 @@
         }
       }
 
+      /*
+       * Two rows with the same code make a lookup non-deterministic, and codes
+       * that differ only in case are legitimate here - so the check is exact.
+       */
+      ['serviceCodes', 'dischargeCodes', 'insuranceCodes', 'admissionSources'].forEach(function (key) {
+        var seen = {};
+        var list = cfg[key] || [];
+        for (var i = 0; i < list.length; i++) {
+          var code = util.codeExact(list[i].code);
+          if (code === '') { continue; }
+          if (seen[code]) {
+            errors.push(key + ' contains the code "' + code + '" more than once. Codes must be unique; ' +
+              'note that codes differing only in case are different codes.');
+            break;
+          }
+          seen[code] = true;
+        }
+      });
+
       if (raw.deathCategory) { cfg.deathCategory = String(raw.deathCategory); }
       cfg.configVersion = typeof raw.configVersion === 'number' ? raw.configVersion : 1;
       cfg.schemaVersion = UR.CONFIG_SCHEMA_VERSION;
@@ -280,44 +299,47 @@
 
     /* --------------------------------------------------------- lookup helpers */
 
+    /*
+     * Every lookup goes through util.findByCode, which is case-sensitive with
+     * reported fallbacks. The *Lookup variants return the full match result so
+     * the caller can report how the code was resolved; the plain variants
+     * return just the row for callers that only need the mapping.
+     */
+    serviceLookup: function (config, rawCode) {
+      return util.findByCode(config.serviceCodes, rawCode);
+    },
+
     serviceBehavior: function (config, rawCode) {
-      var key = util.codeKey(rawCode);
-      if (key === '') { return { behavior: UR.SERVICE.UNKNOWN, row: null }; }
-      for (var i = 0; i < config.serviceCodes.length; i++) {
-        var row = config.serviceCodes[i];
-        if (util.codeKey(row.code) === key) {
-          if (row.enabled === false) { return { behavior: UR.SERVICE.IGNORED, row: row }; }
-          return { behavior: row.behavior, row: row };
-        }
+      var found = configSchema.serviceLookup(config, rawCode);
+      if (!found.row) { return { behavior: UR.SERVICE.UNKNOWN, row: null, match: found.match, candidates: found.candidates }; }
+      if (found.row.enabled === false) {
+        return { behavior: UR.SERVICE.IGNORED, row: found.row, match: found.match, candidates: found.candidates };
       }
-      return { behavior: UR.SERVICE.UNKNOWN, row: null };
+      return { behavior: found.row.behavior, row: found.row, match: found.match, candidates: found.candidates };
+    },
+
+    dischargeLookup: function (config, rawCode) {
+      return util.findByCode(config.dischargeCodes, rawCode);
     },
 
     dischargeCode: function (config, rawCode) {
-      var key = util.codeKey(rawCode);
-      if (key === '') { return null; }
-      for (var i = 0; i < config.dischargeCodes.length; i++) {
-        if (util.codeKey(config.dischargeCodes[i].code) === key) { return config.dischargeCodes[i]; }
-      }
-      return null;
+      return configSchema.dischargeLookup(config, rawCode).row;
+    },
+
+    insuranceLookup: function (config, rawCode) {
+      return util.findByCode(config.insuranceCodes, rawCode);
     },
 
     insuranceCode: function (config, rawCode) {
-      var key = util.codeKey(rawCode);
-      if (key === '') { return null; }
-      for (var i = 0; i < config.insuranceCodes.length; i++) {
-        if (util.codeKey(config.insuranceCodes[i].code) === key) { return config.insuranceCodes[i]; }
-      }
-      return null;
+      return configSchema.insuranceLookup(config, rawCode).row;
+    },
+
+    admissionSourceLookup: function (config, rawCode) {
+      return util.findByCode(config.admissionSources, rawCode);
     },
 
     admissionSource: function (config, rawCode) {
-      var key = util.codeKey(rawCode);
-      if (key === '') { return null; }
-      for (var i = 0; i < config.admissionSources.length; i++) {
-        if (util.codeKey(config.admissionSources[i].code) === key) { return config.admissionSources[i]; }
-      }
-      return null;
+      return configSchema.admissionSourceLookup(config, rawCode).row;
     }
   };
 

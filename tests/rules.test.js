@@ -160,17 +160,19 @@ describe('review rule registry', function () {
 
 describe('configuration', function () {
 
-  test('defaults ship with the specification service and discharge codes', function () {
+  test('defaults ship with the hospital reference tables', function () {
     var config = UR.configSchema.defaults();
     var services = config.serviceCodes.map(function (r) { return r.code; });
     assert.deepEqual(services, ['IP', 'OS', 'SB']);
 
     var codes = config.dischargeCodes.map(function (r) { return r.code; });
-    ['B', 'Q', 'H', 'P', 'X', 'I', 'E', 'A', 'K', 'N', 'V'].forEach(function (c) {
-      assert.ok(codes.indexOf(c) >= 0, 'missing discharge code ' + c);
-    });
-    assert.equal(config.insuranceCodes.length, 0, 'no payer defaults were supplied by the hospital');
-    assert.equal(config.admissionSources.length, 0);
+    ['A', 'B', 'C', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'X', 'Z']
+      .forEach(function (c) {
+        assert.ok(codes.indexOf(c) >= 0, 'missing discharge code ' + c);
+      });
+    assert.equal(codes.length, 23, 'the complete hospital discharge-code table');
+    assert.ok(config.insuranceCodes.length > 700, 'the hospital insurance table ships with the application');
+    assert.equal(config.admissionSources.length, 7, 'the seven origin codes');
     assert.equal(config.transition.maxGapMinutes, 120);
     assert.equal(config.transition.overlapToleranceMinutes, 15);
     assert.equal(config.transition.requireSameCalendarDate, true);
@@ -181,8 +183,9 @@ describe('configuration', function () {
 
   test('code V keeps its published meaning alongside the local rule', function () {
     var v = UR.configSchema.dischargeCode(UR.configSchema.defaults(), 'V');
-    assert.includes(v.label, 'Critical Access Hospital');
+    assert.includes(v.label, 'CRITICAL ACCESS HOSPITAL');
     assert.includes(v.note, 'HOSPITAL-SPECIFIC');
+    assert.deepEqual(v.transitionFrom, ['SB']);
   });
 
   test('export and import round-trip a configuration', function () {

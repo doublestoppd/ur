@@ -206,10 +206,10 @@ describe('code inventory', function () {
     assert.equal(total, state.encounters.length, 'every retained row is represented exactly once');
   });
 
-  test('the unknown discharge code R is surfaced', function () {
+  test('a discharge code outside the hospital table is surfaced', function () {
     var dis = state.codeInventory[1];
-    var r = dis.rows.filter(function (row) { return row.value === 'R'; })[0];
-    assert.ok(r, 'code R appears');
+    var r = dis.rows.filter(function (row) { return row.value === 'Y'; })[0];
+    assert.ok(r, 'code Y appears');
     assert.equal(r.status, UR.codeInventory.STATUS.UNRECOGNIZED);
   });
 
@@ -218,7 +218,7 @@ describe('code inventory', function () {
     var serviceCodes = suggestions.serviceCodes.map(function (r) { return r.code; });
     assert.ok(serviceCodes.indexOf('ZZ') >= 0);
     var dischargeCodes = suggestions.dischargeCodes.map(function (r) { return r.code; });
-    assert.ok(dischargeCodes.indexOf('R') >= 0);
+    assert.ok(dischargeCodes.indexOf('Y') >= 0);
   });
 });
 

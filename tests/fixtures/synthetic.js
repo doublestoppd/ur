@@ -12,7 +12,7 @@
 var HEADERS = [
   'visit_mr_num', 'ipv1_num', 'visit_name', 'visit_servicecd_key',
   'ipv1_ad_date', 'ipv1_ad_time', 'ipv1_dis_date', 'ipv1_dis_time',
-  'visit_ins', 'ipv1_discd', 'admission source'
+  'visit_ins', 'ipv1_discd', 'origin_code'
 ];
 
 /* mrn, account, name, service, adDate, adTime, disDate, disTime, ins, discd, source */
@@ -49,8 +49,9 @@ var ROWS = [
   /* T11 - recognized service code configured as ignored */
   ['1008', 'A801', 'TEST, HOTEL', 'OP', '08/05/2026', 1000, '08/05/2026', 1600, 'BCBS', 'H', 3],
 
-  /* T12 - unknown discharge code: LOS still calculated, no transition assumed */
-  ['1009', 'A901', 'TEST, INDIA', 'IP', '08/06/2026', 800, '08/09/2026', 1000, 'BCBS', 'R', 1],
+  /* T12 - unknown discharge code: LOS still calculated, no transition assumed.
+     Y is deliberately not in the hospital's discharge-code table. */
+  ['1009', 'A901', 'TEST, INDIA', 'IP', '08/06/2026', 800, '08/09/2026', 1000, 'BCBS', 'Y', 1],
 
   /* T13 - 121-hour inpatient stay (25 excess hours over the 96-hour target) */
   ['1010', 'B001', 'TEST, JULIET', 'IP', '08/01/2026', 800, '08/06/2026', 900, 'BCBS', 'H', 1],
@@ -111,11 +112,13 @@ function buildConfig(UR) {
     { code: 'SP', label: 'Self pay', category: PC.SELF_PAY, enabled: true }
   ];
   config.serviceCodes.push({ code: 'OP', label: 'Outpatient', behavior: UR.SERVICE.IGNORED, enabled: true });
+  /* Origin codes as the hospital publishes them, including the unpadded "6". */
   config.admissionSources = [
-    { code: '1', label: 'Physician referral', category: 'Non-emergency', enabled: true },
-    { code: '2', label: 'Clinic referral', category: 'Non-emergency', enabled: true },
-    { code: '3', label: 'Emergency department', category: 'Emergency', enabled: true },
-    { code: '4', label: 'Transfer from another facility', category: 'Transfer', enabled: true }
+    { code: '01', label: 'HOME', category: 'Community', enabled: true },
+    { code: '02', label: 'CLINIC REFERRAL', category: 'Referral', enabled: true },
+    { code: '03', label: 'OTHER HEALTHCARE FAC', category: 'Transfer', enabled: true },
+    { code: '04', label: 'EMERGENCY ROOM', category: 'Emergency', enabled: true },
+    { code: '6', label: 'OBSERVATION', category: 'Internal status change', enabled: true }
   ];
   return config;
 }

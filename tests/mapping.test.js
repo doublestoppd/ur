@@ -24,7 +24,7 @@ describe('header mapping', function () {
       dischargeTime: 'ipv1_dis_time',
       insurance: 'visit_ins',
       dischargeCode: 'ipv1_discd',
-      admissionSource: 'admission source'
+      admissionSource: 'origin_code'
     };
     Object.keys(expected).forEach(function (key) {
       assert.ok(auto.mapping[key], key + ' should be mapped');

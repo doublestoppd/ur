@@ -24,50 +24,96 @@
 
   /* ------------------------------------------------------- discharge codes */
   /*
-   * transitionTo names the service the NEXT account is expected to carry when
-   * this discharge code implies an internal status change (spec 8.2).
-   * transitionFrom, when present, restricts the rule to a source service - code
-   * V only means SB -> IP when the discharging account is a swing-bed account.
+   * The hospital's complete discharge-code table. The description keeps the
+   * UB-04 patient discharge status number the hospital carries with each code
+   * ("01 DISCHARGE TO HOME"), because that number is what a biller or auditor
+   * will look for.
+   *
+   * transitionTo names the service the NEXT account is expected to carry when a
+   * code implies an internal status change (spec 8.2). transitionFrom, where
+   * present, restricts the rule to a source service - V only means SB -> IP
+   * when the discharging account is a swing-bed account.
    */
   var DISCHARGE_CODES = [
+    /* ---------------------------------------------- internal status changes */
     {
-      code: 'B', label: 'Admitted OS to IP', category: 'Internal transition',
+      code: 'B', label: '09 ADMITTED OP TO IP', category: 'Internal transition',
       transitionTo: SERVICE.IP, transitionFrom: [SERVICE.OS], enabled: true,
-      note: 'Observation admitted/converted to inpatient. Expect a following IP account.'
+      note: 'Outpatient (observation) converted to inpatient. Expect a following IP account. ' +
+            'Restricted to observation source accounts because other outpatient services are not included in the metrics.'
     },
     {
-      code: 'Q', label: 'Discharge to swing bed', category: 'Internal transition',
+      code: 'Q', label: '61 DIS/TRANS TO SWING BED', category: 'Internal transition',
       transitionTo: SERVICE.SB, transitionFrom: [SERVICE.IP, SERVICE.OS], enabled: true,
       note: 'Expect a following SB account.'
     },
     {
-      code: 'V', label: 'Transfer to Critical Access Hospital (locally used for SB to IP)',
+      code: 'V', label: '66 DIS/TRANS TO A CRITICAL ACCESS HOSPITAL (CAH)',
       category: 'Internal transition', transitionTo: SERVICE.IP, transitionFrom: [SERVICE.SB],
       enabled: true,
-      note: 'HOSPITAL-SPECIFIC. The published meaning of V is transfer to a CAH. This hospital ' +
-            'also uses V when a swing-bed patient returns to acute inpatient status, so V is ' +
-            'treated as SB -> IP only when the discharging account is a swing-bed account.'
+      note: 'HOSPITAL-SPECIFIC. The published meaning of 66 is transfer to another Critical Access Hospital. ' +
+            'This hospital also uses V when a swing-bed patient returns to acute inpatient status, so V is read ' +
+            'as SB -> IP only when the discharging account is a swing-bed account. A genuine outward transfer ' +
+            'to another CAH will be reported as a missing expected successor.'
     },
-    { code: 'H', label: 'Home', category: 'Discharged home', transitionTo: null, enabled: true, note: 'True discharge.' },
-    { code: 'P', label: 'Hospice / SNF', category: 'Hospice or SNF', transitionTo: null, enabled: true, note: 'True discharge. Raw hospital description preserved.' },
-    { code: 'X', label: 'Transfer to another facility for inpatient care', category: 'External transfer', transitionTo: null, enabled: true, note: 'External inpatient transfer.' },
-    { code: 'I', label: 'Transfer to intermediate care', category: 'External transfer', transitionTo: null, enabled: true, note: 'External / intermediate care transfer.' },
-    { code: 'E', label: 'Patient died', category: 'Death', transitionTo: null, enabled: true, note: 'Mortality source signal (spec 9.8).' },
-    { code: 'A', label: 'Transfer to home health', category: 'Discharged home with services', transitionTo: null, enabled: true, note: 'Home with home health.' },
-    { code: 'K', label: 'Transfer to Veterans Administration hospital', category: 'External transfer', transitionTo: null, enabled: true, note: 'External transfer: VA hospital.' },
-    { code: 'N', label: 'Discharge to skilled nursing facility', category: 'SNF', transitionTo: null, enabled: true, note: 'External SNF discharge.' }
+    {
+      code: 'Z', label: '10 ADMIT TO OBSERVATION', category: 'Internal transition',
+      transitionTo: SERVICE.OS, transitionFrom: null, enabled: true,
+      note: 'Expect a following observation account. Linking the accounts keeps the episode continuous; it makes ' +
+            'no Condition Code 44 determination, which this tool does not attempt. Disable this row if the hospital ' +
+            'does not use Z as an internal status change.'
+    },
+
+    /* ------------------------------------------------------ true discharges */
+    { code: 'H', label: '01 DISCHARGE TO HOME', category: 'Discharged home', transitionTo: null, enabled: true, note: '' },
+    { code: 'A', label: '06 DIS/TRANS TO HOME HEALTH', category: 'Home with services', transitionTo: null, enabled: true, note: '' },
+    { code: 'L', label: '07 LEFT AGAINST MEDICAL ADVICE / DISCONTINUED CARE', category: 'Left against medical advice', transitionTo: null, enabled: true, note: 'Worth watching alongside readmissions.' },
+    { code: 'M', label: '50 HOSPICE - HOME', category: 'Hospice', transitionTo: null, enabled: true, note: '' },
+    { code: 'P', label: '51 DIS/TRANS TO HOSPICE OR SNF', category: 'Hospice', transitionTo: null, enabled: true, note: 'The hospital list combines hospice and SNF under this code; split it if the two need to be reported separately.' },
+    { code: 'N', label: '03 DIS/TRAN TO SKILLED NURSING FACILITY (SNF)', category: 'Skilled nursing facility', transitionTo: null, enabled: true, note: '' },
+    { code: 'I', label: '04 DIS/TRANS TO INTERMEDIATE CARE FACILITY (ICF)', category: 'Intermediate care', transitionTo: null, enabled: true, note: '' },
+
+    /* ---------------------------------------------------- outward transfers */
+    { code: 'X', label: '02 DIS/TRANS TO ACUTE CARE HOSP FOR IP CARE', category: 'Acute care transfer', transitionTo: null, enabled: true, note: '' },
+    { code: 'O', label: "05 DIS/TRANS TO CANCER CENTER/ CHILDREN'S HOSPITAL", category: 'Acute care transfer', transitionTo: null, enabled: true, note: '' },
+    { code: 'R', label: '62 DIS/TRANS TO IP REHAB FACILITY (IRF)', category: 'Rehabilitation facility', transitionTo: null, enabled: true, note: '' },
+    { code: 'S', label: '63 DIS/TRANS TO LONG TERM CARE HOSP (LTCH)', category: 'Long-term care hospital', transitionTo: null, enabled: true, note: '' },
+    { code: 'T', label: '64 DIS/TRANS TO CERTIFIED MEDICAID LTCH NOT MEDICARE', category: 'Long-term care hospital', transitionTo: null, enabled: true, note: '' },
+    { code: 'U', label: '65 DIS/TRANS TO PSYCHIATRIC HOSPITAL', category: 'Psychiatric hospital', transitionTo: null, enabled: true, note: '' },
+    { code: 'K', label: "43 DIS/TRANS DEPT DEF HOSPITAL OR VETERAN'S ADMINISTRAT", category: 'Federal or VA hospital', transitionTo: null, enabled: true, note: '' },
+    { code: 'C', label: '21 DIS/TRANS TO COURT/LAW ENFORCEMENT', category: 'Court or law enforcement', transitionTo: null, enabled: true, note: '' },
+
+    /* ---------------------------------------------------------------- deaths */
+    { code: 'E', label: '20 EXPIRED', category: 'Death', transitionTo: null, enabled: true, note: '' },
+    { code: 'F', label: '40 EXPIRED AT HOME', category: 'Death', transitionTo: null, enabled: true, note: '' },
+    { code: 'G', label: '41 EXPIRED IN A MEDICAL FACILITY', category: 'Death', transitionTo: null, enabled: true, note: '' },
+    { code: 'J', label: '42 EXPIRED - PLACE UNKNOWN', category: 'Death', transitionTo: null, enabled: true, note: '' }
   ];
 
   /* Discharge-code category treated as death by DEATH_001. */
   var DEATH_CATEGORY = 'Death';
 
   /*
-   * Insurance and admission-source codes: no defaults were supplied by the
-   * hospital (spec A.3). Both tables start empty; every encountered value is
-   * inventoried and held in the Unknown category until a user maps it.
+   * The hospital's origin (admission source) codes, exported in the
+   * `origin_code` column.
+   *
+   * Note that OBSERVATION is listed as "6" rather than "06". A spreadsheet
+   * column of these values may arrive as text ("06") or as numbers (6), so code
+   * lookup falls back to a numeric comparison when no exact match exists and
+   * reports when it does (util.findByCode).
    */
-  var INSURANCE_CODES = [];
-  var ADMISSION_SOURCES = [];
+  var ADMISSION_SOURCES = [
+    { code: '01', label: 'HOME', category: 'Community', enabled: true },
+    { code: '02', label: 'CLINIC REFERRAL', category: 'Referral', enabled: true },
+    { code: '03', label: 'OTHER HEALTHCARE FAC', category: 'Transfer', enabled: true },
+    { code: '04', label: 'EMERGENCY ROOM', category: 'Emergency', enabled: true },
+    { code: '05', label: 'LAW ENFORCEMENT', category: 'Law enforcement', enabled: true },
+    { code: '6', label: 'OBSERVATION', category: 'Internal status change', enabled: true },
+    { code: '07', label: 'SWING BED', category: 'Internal status change', enabled: true }
+  ];
+
+  /* The hospital insurance table lives in its own file: 736 codes. */
+  var INSURANCE_CODES = UR.hospitalInsuranceCodes || [];
 
   /* --------------------------------------------------- operational settings */
   var TRANSITION_SETTINGS = {
@@ -144,8 +190,11 @@
     PROCESSING_SETTINGS: PROCESSING_SETTINGS,
     PAYER_CATEGORIES: UR.PAYER_CATEGORY_LIST,
     DISCHARGE_CATEGORIES: [
-      'Internal transition', 'Discharged home', 'Discharged home with services',
-      'SNF', 'Hospice or SNF', 'External transfer', 'Death', 'Other', 'Unknown'
+      'Internal transition', 'Discharged home', 'Home with services',
+      'Left against medical advice', 'Hospice', 'Skilled nursing facility',
+      'Intermediate care', 'Rehabilitation facility', 'Long-term care hospital',
+      'Psychiatric hospital', 'Acute care transfer', 'Federal or VA hospital',
+      'Court or law enforcement', 'Death', 'Other', 'Unknown'
     ],
 
     /* A fresh, fully populated configuration object. */

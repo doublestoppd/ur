@@ -84,10 +84,11 @@
       aliases: ['ipv1_discd', 'discharge code', 'disposition code', 'dis code', 'disch code', 'discd', 'discharge disposition', 'dc code']
     },
     {
-      key: 'admissionSource', label: 'Admission source', cpsi: '', requirement: 'recommended', degradable: true,
-      use: 'Numeric source-of-admission value, mapped through the editable reference table.',
+      key: 'admissionSource', label: 'Admission source', cpsi: 'origin_code', requirement: 'recommended', degradable: true,
+      use: 'Origin / source-of-admission code, mapped through the editable reference table.',
       degradedEffect: 'The admission-source summary is unavailable.',
-      aliases: ['admission source', 'admit source', 'source of admission', 'adm source', 'source code', 'admission source code', 'point of origin']
+      aliases: ['origin_code', 'origin code', 'origin', 'admission source', 'admit source', 'source of admission',
+        'adm source', 'source code', 'admission source code', 'point of origin']
     }
   ];
 

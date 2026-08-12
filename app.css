@@ -510,3 +510,5 @@ button.link { border: none; background: none; color: var(--accent); text-decorat
 @media (prefers-color-scheme: dark) {
   .headline-card, .visit { background: #202830; }
 }
+
+.inline-check { display: inline-flex; align-items: center; gap: .3rem; font-size: .82rem; color: var(--muted); white-space: nowrap; }

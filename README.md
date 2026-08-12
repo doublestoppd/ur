@@ -48,22 +48,43 @@ workstation.
 
 ## First-run setup
 
-The tool ships with the service codes (IP/OS/SB) and the eleven discharge codes from the
-specification. Two reference tables start **empty** because the hospital had not supplied
-them at design time:
+The hospital's own reference tables ship with the application:
 
-- **Insurance / payer codes** — until these are mapped, every account is payer `Unknown`, and
-  the Medicare-specific rules (IMM, MOON, two-midnight) produce nothing.
-- **Admission sources** — until these are mapped, the admission-source summary reports
-  `Unknown`.
+| Table | Contents |
+|---|---|
+| Service codes | IP, OS, SB |
+| Discharge codes | all 23, with the UB-04 patient discharge status in each label |
+| Origin (admission source) codes | all 7, read from the `origin_code` column |
+| Insurance codes | all 736 from the CPSI `inscomp1` list |
 
-On the *Rules & codes* step each tab offers to add every unmapped value found in the loaded
-file, so setup is: load a month, click **Add them for editing**, fill in the categories,
-then **Export configuration** to a JSON file and keep it somewhere backed up.
+**The payer categories on those 736 insurance codes are inferred from the plan names, not
+supplied by the hospital, so they need checking before the Medicare lists are trusted.** The
+rules screen makes that tractable: the insurance tab defaults to showing only the codes that
+actually appear in the loaded file — usually a dozen or two — and has a filter for "Medicare
+rows needing verification". Rows whose category was inferred carry a note saying so.
+
+The one to look at hardest is Medicare supplement / Medigap (AARP, Cigna Medicare Supplement).
+Those are classified as **Medicare FFS**, on the basis that the primary payer behind a
+supplement is Medicare — which is what makes the patient notice-eligible. If this hospital
+codes the account differently, change it, because that assignment decides the IMM, MOON, and
+two-midnight lists.
+
+Codes marked "DO NOT USE" in the hospital list ship **disabled** rather than omitted, so one
+appearing on a current account is reported as a retired code rather than as an unknown one.
+
+Once verified, **Export configuration** to a JSON file and keep it somewhere backed up.
 
 > Browser-local storage is offered as a convenience, but the JSON export is the canonical
 > copy. `file://` storage behavior varies, and a workstation rebuild or an IT policy can
 > clear it without warning.
+
+### Codes are case-sensitive
+
+The insurance table contains 21 pairs that differ only in case and mean different payers —
+`DCg` is Humana Women's Clinic, `DCG` is Lake Village Rehab Family Clinic. Lookup therefore
+matches the code exactly first. If there is no exact match it will accept a single
+case-only or leading-zero-only match (spreadsheets do mangle both) and report that it did;
+if more than one row could match, it refuses and says so rather than picking a payer.
 
 ---
 
@@ -183,6 +204,7 @@ vendor/xlsx-LICENSE.txt
 src/core/       ur.js               namespace, versions, enumerations, external references
                 util.js             wall-clock datetime arithmetic, statistics, formatting
 src/config/     defaultMappings.js  built-in reference data and thresholds (user-editable)
+                insuranceCodes.js   the hospital's 736-code insurance table
                 calculationRules.js THE CALCULATION RULE REGISTRY - build/read this first
                 reviewRules.js      review-queue trigger registry
                 dataQualityRules.js data-quality check registry with default severities

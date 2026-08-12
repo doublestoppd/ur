@@ -243,7 +243,7 @@ describe('payer, disposition, and mortality', function () {
     assert.ok(m.payer.ADMSRC_001.available);
     assert.ok(m.payer.ADMSRC_001.rows.length > 0);
     var labels = m.payer.ADMSRC_001.rows.map(function (r) { return r.label; });
-    assert.ok(labels.indexOf('Physician referral') >= 0);
+    assert.ok(labels.indexOf('HOME') >= 0, 'origin code 01 resolves to HOME');
   });
 
   test('day-of-week counts are produced for admissions and discharges', function () {

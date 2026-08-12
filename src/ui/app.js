@@ -570,25 +570,88 @@
     return wrap;
   }
 
+  /*
+   * The insurance table carries 736 codes, so it is filtered rather than dumped:
+   * rendering every row as editable inputs would be unusable, and the rows that
+   * matter are the ones that actually appear in the loaded data.
+   */
+  var INSURANCE_RENDER_LIMIT = 250;
+
   function renderInsuranceCodes() {
     var wrap = el('div');
-    wrap.appendChild(el('p', { class: 'hint', text: 'Payer category drives the Medicare notice and two-midnight review rules. An unmapped code reports as Unknown and is excluded from those rules rather than being guessed.' }));
+    wrap.appendChild(el('p', { class: 'hint', text:
+      'Payer category drives the Medicare notice and two-midnight review rules. An unmapped code reports as Unknown and is excluded from those rules rather than being guessed. ' +
+      'Codes are CASE-SENSITIVE: this table contains pairs such as DCg and DCG that differ only in case and mean different payers.' }));
     var notice = unmappedNotice('insurance', 'insuranceCodes', UR.defaultMappings.blankInsurance);
     if (notice) { wrap.appendChild(notice); }
 
     var counts = frequencies('insurance');
+    var hasData = false;
+    for (var k in counts) { if (Object.prototype.hasOwnProperty.call(counts, k)) { hasData = true; break; } }
+    if (ui.insuranceOnlyPresent === undefined) { ui.insuranceOnlyPresent = hasData; }
+
+    var controls = el('div', { class: 'filter-row' }, [
+      el('input', {
+        type: 'search', value: ui.insuranceFilter || '',
+        placeholder: 'Filter by code or plan name',
+        oninput: function (ev) { ui.insuranceFilter = ev.target.value; renderRules(); }
+      }),
+      el('label', { class: 'inline-check' }, [
+        el('input', {
+          type: 'checkbox', checked: ui.insuranceOnlyPresent ? true : null,
+          disabled: hasData ? null : true,
+          onchange: function (ev) { ui.insuranceOnlyPresent = ev.target.checked; renderRules(); }
+        }),
+        doc.createTextNode(' Only codes found in the loaded data')
+      ]),
+      el('label', { class: 'inline-check' }, [
+        el('input', {
+          type: 'checkbox', checked: ui.insuranceNeedsCheck ? true : null,
+          onchange: function (ev) { ui.insuranceNeedsCheck = ev.target.checked; renderRules(); }
+        }),
+        doc.createTextNode(' Only Medicare rows needing verification')
+      ])
+    ]);
+    wrap.appendChild(controls);
+
+    var query = String(ui.insuranceFilter || '').toLowerCase();
+    var matching = [];
+    ui.config.insuranceCodes.forEach(function (row, index) {
+      var count = counts[util.codeKey(row.code)] || 0;
+      if (ui.insuranceOnlyPresent && !count) { return; }
+      if (ui.insuranceNeedsCheck) {
+        var medicare = row.category === UR.PAYER_CATEGORY.MEDICARE_FFS || row.category === UR.PAYER_CATEGORY.MEDICARE_ADVANTAGE;
+        if (!medicare || !row.note) { return; }
+      }
+      if (query) {
+        var hay = (row.code + ' ' + (row.label || '') + ' ' + row.category).toLowerCase();
+        if (hay.indexOf(query) < 0) { return; }
+      }
+      matching.push({ row: row, index: index, count: count });
+    });
+    matching.sort(function (a, b) { return b.count - a.count; });
+
+    var shown = matching.slice(0, INSURANCE_RENDER_LIMIT);
+    wrap.appendChild(el('p', { class: 'config-status', text:
+      'Showing ' + shown.length + ' of ' + matching.length + ' matching row(s), out of ' +
+      ui.config.insuranceCodes.length + ' codes in the table.' +
+      (matching.length > shown.length ? ' Narrow the filter to reach the rest.' : '') }));
+
     var categories = UR.PAYER_CATEGORY_LIST.map(function (c) { return { value: c, label: c }; });
-    var rows = ui.config.insuranceCodes.map(function (row, i) {
+    var rows = shown.map(function (entry) {
+      var row = entry.row;
       return [
         editText(row, 'code', function () { markConfigChanged(); }),
         editText(row, 'label', function () { markConfigChanged(); }),
         editSelect(row, 'category', categories, function () { markConfigChanged(); }),
-        counts[util.codeKey(row.code)] || 0,
+        entry.count,
         editCheckbox(row, 'enabled', function () { markConfigChanged(); }),
-        removeButton('insuranceCodes', i)
+        row.note ? el('span', { class: 'muted', text: row.note }) : '',
+        removeButton('insuranceCodes', entry.index)
       ];
     });
-    wrap.appendChild(table(['Code', 'Display name', 'Payer category', 'Rows in data', 'Enabled', ''], rows, { numeric: ['Rows in data'] }));
+    wrap.appendChild(table(['Code', 'Display name', 'Payer category', 'Rows in data', 'Enabled', 'Note', ''],
+      rows, { numeric: ['Rows in data'], scroll: rows.length > 20 }));
     wrap.appendChild(addButton('insuranceCodes', function () { return UR.defaultMappings.blankInsurance(''); }));
     return wrap;
   }

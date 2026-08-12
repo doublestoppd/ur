@@ -12,19 +12,34 @@ ways: where this tool and the old workbook disagree, the disagreement is the fin
 
 ## 1. Reference mappings (do this first)
 
+The hospital's service codes, all 23 discharge codes, all 7 origin codes, and all 736
+insurance codes ship with the application. What still needs checking is the **payer category
+on each insurance code**, because the source list gave a code and a plan name but no category
+— the categories were inferred from the names.
+
 | Check | Where | Done |
 |---|---|---|
 | Every service code in a real export appears in the Code Inventory with a deliberate status | Validate step → Code inventory | |
 | Codes marked *Unrecognized* are either mapped or explicitly set to Ignore | Rules & codes → Service codes | |
-| All eleven discharge codes match current hospital usage | Rules & codes → Discharge codes | |
-| Code `V` still means SB → IP locally (it is a hospital-specific reading; the published meaning is transfer to a CAH) | Rules & codes → Discharge codes | |
-| Every insurance code is mapped to a payer category, especially Medicare FFS vs Medicare Advantage | Rules & codes → Insurance / payer codes | |
-| Admission-source values are mapped, and the correct raw CPSI column is identified (the field name was not established at design time) | Map fields + Rules & codes | |
+| All 23 discharge codes match current hospital usage | Rules & codes → Discharge codes | |
+| Code `V` still means SB → IP locally (the published meaning of 66 is transfer to another CAH) | Rules & codes → Discharge codes | |
+| Code `Z` (10 ADMIT TO OBSERVATION) really is used as an internal status change; disable the row if not | Rules & codes → Discharge codes | |
+| **Every insurance code appearing in the data has the right payer category** — tick "Only codes found in the loaded data" | Rules & codes → Insurance / payer codes | |
+| **Medicare supplement / Medigap rows** (AARP, Cigna Medicare Supplement) are classified as Medicare FFS. Confirm that matches how this hospital codes them | Rules & codes → filter "Medicare rows needing verification" | |
+| **Medicare Advantage rows** are genuinely MA and not commercial or Medicaid | same filter | |
+| Any account reported with a *retired* insurance code is investigated — the code says "do not use" | Validate step → diagnostics | |
+| `origin_code` is the right column, and origin values resolve (note that OBSERVATION is published as `6`, not `06`) | Map fields + Code inventory | |
 | Configuration exported to JSON and stored somewhere backed up | Rules & codes → Export configuration | |
 
-An unmapped payer code is not a cosmetic problem: it silently removes accounts from the
-IMM, MOON, and two-midnight review lists. The tool reports these as warnings rather than
-guessing — resolve them before relying on those lists.
+An unmapped or wrongly categorized payer code is not cosmetic: it silently adds or removes
+accounts from the IMM, MOON, and two-midnight review lists. The tool reports unmapped and
+retired codes as warnings rather than guessing — resolve them before relying on those lists.
+
+**Codes are case-sensitive.** The insurance table contains 21 pairs differing only in case
+that mean different payers (`DCg` Humana Women's Clinic vs `DCG` Lake Village Rehab). If a
+code arrives in the wrong case the tool will match it only when there is exactly one
+candidate, and will say that it did; when two rows could match it refuses and reports an
+ambiguous code rather than picking a payer.
 
 ---
 

@@ -46,6 +46,36 @@
     return contentParts(e);
   }
 
+  /*
+   * Report how a reference code was resolved when it was not an exact match.
+   *
+   * With 736 insurance codes - 21 pairs of which differ only in case and mean
+   * different payers - silently accepting a near match would attribute accounts
+   * to the wrong payer. An inexact match is applied but reported; an ambiguous
+   * one is refused.
+   */
+  function reportCodeMatch(diag, encounter, lookup, kindLabel, rawValue) {
+    if (!lookup || !lookup.match || lookup.match === 'exact') { return; }
+    if (lookup.match === 'ambiguous') {
+      var codes = [];
+      for (var i = 0; i < lookup.candidates.length; i++) { codes.push(lookup.candidates[i].code); }
+      diag.addFor('DQ_CODE_AMBIGUOUS', encounter, {
+        message: kindLabel + ' "' + rawValue + '" on account ' + encounter.account +
+                 ' matches ' + lookup.candidates.length + ' reference entries when case or leading zeros are ignored (' +
+                 codes.join(', ') + '). No mapping was applied; these are different codes and the tool will not guess between them.',
+        value: rawValue
+      });
+      return;
+    }
+    diag.addFor('DQ_CODE_INEXACT', encounter, {
+      message: kindLabel + ' "' + rawValue + '" on account ' + encounter.account + ' matched reference entry "' +
+               lookup.row.code + '"' + (lookup.match === 'numeric'
+                 ? ' by numeric value; a leading zero was lost somewhere between the export and the reference table.'
+                 : ' by letter case only.'),
+      value: rawValue
+    });
+  }
+
   function normalizeOne(row, ctx) {
     var mapping = ctx.mapping;
     var config = ctx.config;
@@ -121,6 +151,7 @@
     /* ------------------------------------------------------- service class */
     e.serviceRaw = parsers.parseText(cell('service'));
     var svc = cfgSchema.serviceBehavior(config, e.serviceRaw);
+    reportCodeMatch(diag, e, svc, 'Service code', e.serviceRaw);
     e.serviceClass = svc.behavior;
     e.serviceLabel = svc.row ? svc.row.label : '';
     if (e.serviceClass === UR.SERVICE.UNKNOWN) {
@@ -272,10 +303,20 @@
           message: 'Account ' + e.account + ' has no insurance code. Payer category is Unknown.'
         });
       } else {
-        var ins = cfgSchema.insuranceCode(config, e.insuranceRaw);
-        if (ins && ins.enabled !== false && ins.category) {
+        var insLookup = cfgSchema.insuranceLookup(config, e.insuranceRaw);
+        reportCodeMatch(diag, e, insLookup, 'Insurance code', e.insuranceRaw);
+        var ins = insLookup.row;
+        if (ins && ins.enabled !== false && ins.category && ins.category !== UR.PAYER_CATEGORY.UNKNOWN) {
           e.payerCategory = ins.category;
           e.payerLabel = ins.label || '';
+        } else if (ins && ins.enabled === false) {
+          e.payerLabel = ins.label || '';
+          diag.addFor('DQ_CODE_RETIRED', e, {
+            message: 'Insurance code "' + e.insuranceRaw + '" (' + (ins.label || 'no description') +
+                     ') is marked retired in the reference table. Account ' + e.account +
+                     ' groups under Unknown and is excluded from Medicare-specific review rules.',
+            value: e.insuranceRaw
+          });
         } else {
           diag.addFor('DQ_INS_UNKNOWN', e, {
             message: 'Insurance code "' + e.insuranceRaw + '" is not mapped to a payer category. Account ' + e.account + ' groups under Unknown and is excluded from Medicare-specific review rules.',
@@ -288,7 +329,9 @@
     /* ------------------------------------------------------- discharge code */
     e.dischargeCodeRaw = parsers.parseText(cell('dischargeCode'));
     if (e.dischargeCodeRaw !== '') {
-      var dc = cfgSchema.dischargeCode(config, e.dischargeCodeRaw);
+      var dcLookup = cfgSchema.dischargeLookup(config, e.dischargeCodeRaw);
+      reportCodeMatch(diag, e, dcLookup, 'Discharge code', e.dischargeCodeRaw);
+      var dc = dcLookup.row;
       if (dc && dc.enabled !== false) {
         e.dischargeCodeLabel = dc.label || '';
         e.dispositionCategory = dc.category || 'Other';
@@ -319,7 +362,9 @@
     /* ----------------------------------------------------- admission source */
     e.admissionSourceRaw = parsers.parseText(cell('admissionSource'));
     if (mapping.admissionSource && e.admissionSourceRaw !== '') {
-      var src = cfgSchema.admissionSource(config, e.admissionSourceRaw);
+      var srcLookup = cfgSchema.admissionSourceLookup(config, e.admissionSourceRaw);
+      reportCodeMatch(diag, e, srcLookup, 'Admission source', e.admissionSourceRaw);
+      var src = srcLookup.row;
       if (src && src.enabled !== false) {
         e.admissionSourceLabel = src.label || '';
         e.admissionSourceCategory = src.category || '';

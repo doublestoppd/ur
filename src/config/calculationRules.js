@@ -653,7 +653,10 @@
       inclusions: ['Included service accounts with an admission-source value.'],
       exclusions: ['Runs where no admission-source column was mapped, which report the metric as unavailable.'],
       nullHandling: 'Blank or unmapped values report as Unknown and appear in the Code Inventory.',
-      notes: 'The raw CPSI field name for admission source was not established at design time; it is mapped canonically at import.',
+      notes: 'The hospital exports this as the `origin_code` column. Codes are 01 HOME, 02 CLINIC REFERRAL, ' +
+             '03 OTHER HEALTHCARE FAC, 04 EMERGENCY ROOM, 05 LAW ENFORCEMENT, 6 OBSERVATION, and 07 SWING BED. ' +
+             'OBSERVATION is published without a leading zero, and a numeric spreadsheet column drops the zeros ' +
+             'from the others, so code lookup falls back to a numeric comparison and reports when it does.',
       implementationKey: 'metrics.payer.admissionSources'
     }),
 
