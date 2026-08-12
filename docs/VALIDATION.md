@@ -20,7 +20,7 @@ decisions below are the ones you want.
 
 | Check | Where | Done |
 |---|---|---|
-| Every service code in a real export appears in the Code Inventory with a deliberate status | Validate step → Code inventory | |
+| Every service code in a real export appears in the Code Inventory with a deliberate status | Overview → Code inventory | |
 | Codes marked *Unrecognized* are either mapped or explicitly set to Ignore | Rules & codes → Service codes | |
 | All 23 discharge codes match current hospital usage | Rules & codes → Discharge codes | |
 | Code `V` still means SB → IP locally (the published meaning of 66 is transfer to another CAH) | Rules & codes → Discharge codes | |
@@ -28,8 +28,8 @@ decisions below are the ones you want.
 | Every insurance code appearing in the data still carries the right payer category — tick "Only codes found in the loaded data" | Rules & codes → Insurance / payer codes | |
 | The 20 Medicare FFS and 103 Medicare Advantage codes are still current: these alone decide the IMM, MOON, and two-midnight lists | Rules & codes → "Only Medicare rows" | |
 | **Medicare supplement / Medigap is classified as Commercial**, so a Medigap account is *not* an IMM or MOON candidate. Confirm that is still intended | same filter | |
-| Any account reported with a *retired* insurance code is investigated — the hospital marks 163 codes "Do Not Use / Inactive" and they ship disabled so their use is visible | Validate step → diagnostics | |
-| `origin_code` is the right column, and origin values resolve (note that OBSERVATION is published as `6`, not `06`) | Map fields + Code inventory | |
+| Any account reported with a *retired* insurance code is investigated — the hospital marks 163 codes "Do Not Use / Inactive" and they ship disabled so their use is visible | Overview → attention digest / Diagnostics | |
+| `origin_code` is the right column, and origin values resolve (note that OBSERVATION is published as `6`, not `06`) | Field Mapping + Overview → Code inventory | |
 | Configuration exported to JSON and stored somewhere backed up | Rules & codes → Export configuration | |
 
 An unmapped or wrongly categorized payer code is not cosmetic: it silently adds or removes
@@ -67,11 +67,12 @@ formula.
 
 **Where they disagree, check these first:**
 
-1. **The reporting period itself.** The Validate step shows the period, where it
-   came from, and the full span of the imported records. If the tool inferred a
-   period, it also reports which months it treated as prior context — long stays
-   that began before the reported month. Set the dates explicitly if the
-   inference does not match how the export was pulled.
+1. **The reporting period itself.** The Overview's Reporting period section
+   shows the period, where it came from, and the full span of the imported
+   records. If the tool inferred a period, it also reports which months it
+   treated as prior context — long stays that began before the reported month.
+   Set the dates explicitly if the inference does not match how the export was
+   pulled.
 2. **Period basis.** *Rules & codes → Processing options → Discharged-stay period basis.*
    `discharge` counts a stay in the month it ended; `admission` counts it in the month it
    began. The old workbook may use the other one.

@@ -96,6 +96,20 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fo
 .steps button[disabled] { opacity: .45; cursor: not-allowed; }
 .steps button.active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
 
+/* The setup screens sit apart and read quieter than the working screens. */
+.nav-sep { width: 1px; align-self: stretch; background: var(--line); margin: 0 .5rem; }
+.nav-group-label {
+  align-self: center;
+  color: var(--muted);
+  font-size: .72rem;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin-right: .15rem;
+}
+.steps button.nav-setup { border-color: transparent; background: none; }
+.steps button.nav-setup:hover:not([disabled]) { border-color: var(--accent); }
+.steps button.nav-setup.active { background: var(--accent-soft); border-color: var(--accent); }
+
 main { padding: 1.25rem 1.5rem 3rem; max-width: 1500px; }
 
 .step {
@@ -238,7 +252,7 @@ button.link { border: none; background: none; color: var(--accent); text-decorat
 }
 .metric-card .metric-label { font-size: .78rem; color: var(--muted); display: block; }
 .metric-card .metric-value { font-size: 1.35rem; font-weight: 600; font-variant-numeric: tabular-nums; }
-.metric-card .metric-rule { font-size: .72rem; color: var(--muted); font-family: ui-monospace, Menlo, Consolas, monospace; }
+.metric-card .metric-rule { display: block; font-size: .72rem; color: var(--muted); font-family: ui-monospace, Menlo, Consolas, monospace; }
 .metric-card .metric-note { font-size: .76rem; color: var(--muted); display: block; margin-top: .2rem; }
 .metric-card button.link { font-size: .76rem; }
 
@@ -436,6 +450,58 @@ button.link { border: none; background: none; color: var(--accent); text-decorat
 .metric-rule-cell code { color: var(--muted); }
 .metric-rule-cell button.link { margin-left: .4rem; font-size: .74rem; }
 
+/* ------------------------------------------------- overview and review */
+
+.overview-status-line { color: var(--muted); font-size: .85rem; margin: .2rem 0 .6rem; }
+
+.attn-list { display: flex; flex-direction: column; gap: .35rem; margin: .6rem 0 .9rem; }
+.attn-item {
+  display: flex;
+  align-items: baseline;
+  gap: .55rem;
+  padding: .45rem .6rem;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #fbfcfd;
+  font-size: .88rem;
+}
+.attn-item .pill { flex: none; }
+.attn-msg { flex: 1 1 auto; }
+.attn-item button.link { flex: none; white-space: nowrap; font-size: .84rem; }
+
+.attn-ok {
+  margin: .6rem 0;
+  padding: .5rem .7rem;
+  border-left: 4px solid var(--info);
+  background: var(--info-bg);
+  color: var(--info);
+  border-radius: 0 4px 4px 0;
+  font-size: .88rem;
+}
+
+/* Collapsed detail cards: everything is still here, one click down. */
+details.fold {
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  margin: .6rem 0;
+  background: #fbfcfd;
+}
+details.fold > summary {
+  padding: .55rem .75rem;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: .9rem;
+}
+details.fold > summary .fold-count { color: var(--muted); font-weight: 400; white-space: pre-wrap; }
+details.fold[open] > summary { border-bottom: 1px solid var(--line); }
+.fold-body { padding: .2rem .75rem .75rem; }
+.fold-body h3:first-child { margin-top: .6rem; }
+details.fold .period-picker { margin: .6rem .75rem .75rem; }
+
+.review-table tbody tr { cursor: pointer; }
+.review-table tbody tr:hover td { background: var(--accent-soft); }
+.review-reason { font-size: .82rem; margin: .12rem 0; }
+
 /* -------------------------------------------------------- accounts view */
 
 .account-layout {
@@ -508,7 +574,7 @@ button.link { border: none; background: none; color: var(--accent); text-decorat
 }
 
 @media (prefers-color-scheme: dark) {
-  .headline-card, .visit { background: #202830; }
+  .headline-card, .visit, .attn-item, details.fold { background: #202830; }
 }
 
 .inline-check { display: inline-flex; align-items: center; gap: .3rem; font-size: .82rem; color: var(--muted); white-space: nowrap; }

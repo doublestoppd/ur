@@ -25,19 +25,27 @@
     state: null,
     activeRulesTab: 'serviceCodes',
     configStatus: '',
-    selectedAccount: null
+    selectedAccount: null,
+    periodTouched: false   /* the user actually edited the period inputs */
   };
 
+  /*
+   * Two navigation groups. "Work" is where a run is read and acted on; "Setup"
+   * holds the screens that only need attention when something changes. The old
+   * numbered wizard implied six mandatory stops; in routine monthly use the
+   * happy path is drop a file, read the Overview, work the queue, export.
+   */
   var STEPS = [
-    { id: 'import', label: '1. Import' },
-    { id: 'map', label: '2. Map fields' },
-    { id: 'rules', label: '3. Rules & codes' },
-    { id: 'validate', label: '4. Validate' },
-    { id: 'results', label: '5. Results' },
-    { id: 'accounts', label: 'Accounts' },
-    { id: 'graphs', label: 'Graphs' },
-    { id: 'export', label: '6. Export' },
-    { id: 'calcref', label: 'Calculation Reference' }
+    { id: 'overview', label: 'Overview', group: 'work' },
+    { id: 'results', label: 'Metrics', group: 'work' },
+    { id: 'review', label: 'Review Queue', group: 'work' },
+    { id: 'accounts', label: 'Accounts', group: 'work' },
+    { id: 'graphs', label: 'Graphs', group: 'work' },
+    { id: 'export', label: 'Export', group: 'work' },
+    { id: 'import', label: 'Import', group: 'setup' },
+    { id: 'map', label: 'Field Mapping', group: 'setup' },
+    { id: 'rules', label: 'Rules & Codes', group: 'setup' },
+    { id: 'calcref', label: 'Reference', group: 'setup' }
   ];
 
   /* ------------------------------------------------------------- DOM helpers */
@@ -105,17 +113,25 @@
     if (id === 'import') { return true; }
     if (id === 'calcref') { return true; }
     if (id === 'map' || id === 'rules') { return ui.sources.length > 0; }
+    if (id === 'overview') { return !!ui.state || ui.sources.length > 0; }
     return !!ui.state && !ui.state.blocked;
   }
 
   function renderNav(active) {
     var nav = $('step-nav');
     clear(nav);
+    var lastGroup = null;
     STEPS.forEach(function (s) {
+      if (lastGroup && s.group !== lastGroup) {
+        nav.appendChild(el('span', { class: 'nav-sep', 'aria-hidden': 'true' }));
+        nav.appendChild(el('span', { class: 'nav-group-label', text: 'Setup' }));
+      }
+      lastGroup = s.group;
       var available = stepAvailable(s.id) || s.id === active;
       nav.appendChild(el('button', {
         type: 'button',
-        class: s.id === active ? 'active' : '',
+        'data-step': s.id,
+        class: (s.id === active ? 'active ' : '') + 'nav-' + s.group,
         disabled: available ? null : true,
         onclick: function () { if (available) { goTo(s.id); } }
       }, [s.label]));
@@ -131,8 +147,9 @@
     showStep(id);
     if (id === 'map') { renderMapping(); }
     if (id === 'rules') { renderRules(); }
-    if (id === 'validate') { renderValidate(); }
+    if (id === 'overview') { renderOverview(); }
     if (id === 'results') { renderResults(); }
+    if (id === 'review') { renderReview(); }
     if (id === 'accounts') { renderAccounts(); }
     if (id === 'graphs') { renderGraphs(); }
     if (id === 'export') { renderExport(); }
@@ -175,7 +192,31 @@
       results.forEach(function (r) { ui.files.push(r); });
       rebuildSources();
       renderFileList();
+      /* A fresh import gets a fresh period inference: a range typed for the
+       * previous file set must not silently clamp the new one. */
+      $('period-start').value = '';
+      $('period-end').value = '';
+      ui.periodTouched = false;
+      tryAutoProcess();
     });
+  }
+
+  /*
+   * The routine monthly path: drop the file, read the Overview. The mapping
+   * screen appears only when the mapper actually needs a human decision - a
+   * required column missing or two columns equally plausible. Everything the
+   * screen would have said on a clean run is still reachable from Setup.
+   */
+  function tryAutoProcess() {
+    if (!ui.sources.length) { return; }
+    var validation = UR.headerMapper.validateMapping(ui.sources[0].mapping, ui.acknowledged);
+    var ambiguous = ui.autoResult && ui.autoResult.ambiguities.length > 0;
+    if (validation.ok && !ambiguous) {
+      ui.state = null;
+      goTo('overview');
+    } else {
+      goTo('map');
+    }
   }
 
   /* Pick one data sheet per file and apply the current field selection. */
@@ -294,6 +335,9 @@
           ui.files.splice(index, 1);
           ui.selection = {};
           ui.state = null;
+          $('period-start').value = '';
+          $('period-end').value = '';
+          ui.periodTouched = false;
           rebuildSources();
           renderFileList();
         }
@@ -302,6 +346,7 @@
     });
 
     $('btn-to-mapping').disabled = ui.sources.length === 0;
+    $('btn-adjust-mapping').hidden = ui.sources.length === 0;
     renderNav('import');
   }
 
@@ -325,15 +370,14 @@
     clear(messages);
 
     var validation = UR.headerMapper.validateMapping(ui.sources.length ? ui.sources[0].mapping : {}, ui.acknowledged);
+    var ambiguities = ui.autoResult ? ui.autoResult.ambiguities : [];
 
-    if (ui.autoResult && ui.autoResult.ambiguities.length) {
-      ui.autoResult.ambiguities.forEach(function (a) {
-        messages.appendChild(el('div', { class: 'msg msg-warning' }, [
-          el('strong', { text: 'Ambiguous header - choose manually' }),
-          doc.createTextNode(a.reason + ' Candidates: ' + a.columns.join(', ') + '.')
-        ]));
-      });
-    }
+    ambiguities.forEach(function (a) {
+      messages.appendChild(el('div', { class: 'msg msg-warning' }, [
+        el('strong', { text: 'Ambiguous header - choose manually' }),
+        doc.createTextNode(a.reason + ' Candidates: ' + a.columns.join(', ') + '.')
+      ]));
+    });
     validation.blocking.forEach(function (b) {
       messages.appendChild(el('div', { class: 'msg msg-blocking' }, [
         el('strong', { text: 'Blocking' }), doc.createTextNode(b.message)
@@ -346,7 +390,7 @@
     });
 
     var headers = ui.sources.length ? ui.sources[0].headers : [];
-    var host = $('mapping-table');
+    var host = $('mapping-body');
     clear(host);
 
     var thead = el('thead', null, [el('tr', null,
@@ -401,8 +445,33 @@
       body.appendChild(row);
     });
 
-    host.appendChild(thead);
-    host.appendChild(body);
+    var wrapped = el('div', { class: 'table-wrap' }, [el('table', null, [thead, body])]);
+
+    /*
+     * On a clean run the table is reference material, not a task: lead with the
+     * one line that matters and keep the full assignment list one click away.
+     * Any ambiguity, blocker, or degraded capability keeps the table open.
+     */
+    var clean = validation.ok && !validation.blocking.length &&
+                !validation.warnings.length && !ambiguities.length;
+    if (clean) {
+      var mappedCount = 0;
+      UR.headerMapper.FIELDS.forEach(function (f) {
+        if (ui.sources.length && ui.sources[0].mapping[f.key]) { mappedCount++; }
+      });
+      host.appendChild(el('p', { class: 'attn-ok', text:
+        'Every column resolved: ' + mappedCount + ' of ' + UR.headerMapper.FIELDS.length +
+        ' canonical fields matched, nothing needs a decision.' }));
+      var d = el('details', { class: 'fold', open: ui.mappingFoldOpen ? true : null }, [
+        el('summary', null, ['Show every field assignment']),
+        el('div', { class: 'fold-body' }, [wrapped])
+      ]);
+      d.addEventListener('toggle', function () { ui.mappingFoldOpen = d.open; });
+      host.appendChild(d);
+    } else {
+      host.appendChild(wrapped);
+    }
+
     $('btn-to-rules').disabled = !validation.ok;
   }
 
@@ -823,13 +892,19 @@
     }, ['Add row']);
   }
 
-  /* ---------------------------------------------------------- 4. validate */
+  /* ------------------------------------------------------------- overview */
 
   function process() {
     var options = {};
     var startValue = $('period-start').value;
     var endValue = $('period-end').value;
-    if (startValue && endValue) {
+    /*
+     * The Overview back-fills the date inputs with the inferred period so they
+     * are editable, so a filled input alone does not mean the user chose it.
+     * Only a period the user actually touched outranks the inference -
+     * otherwise every reprocess would relabel the same dates "chosen by user".
+     */
+    if (ui.periodTouched && startValue && endValue) {
       options.periodStart = parseDateInput(startValue);
       options.periodEnd = parseDateInput(endValue);
     }
@@ -842,37 +917,104 @@
     return util.mkDT(Number(parts[0]), Number(parts[1]), Number(parts[2]), 0, 0);
   }
 
-  function renderValidate() {
+  /*
+   * Send the user where a digest item is fixed. Rules items pick their tab,
+   * accounts items arrive with the right filter preset, and expand items open
+   * a fold further down the Overview itself.
+   */
+  function runAttentionAction(action) {
+    if (!action) { return; }
+    if (action.expand) {
+      var node = $(action.expand);
+      if (node) {
+        node.open = true;
+        if (node.scrollIntoView) { node.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+      }
+      return;
+    }
+    if (action.tab) { ui.activeRulesTab = action.tab; }
+    if (action.view === 'accounts') {
+      $('account-search').value = action.search || '';
+      $('account-service').value = '';
+      $('account-status').value = action.status || '';
+    }
+    if (action.view) { goTo(action.view); }
+  }
+
+  /* A collapsed card: full detail preserved, one click below the digest. */
+  function fold(id, label, countText, buildBody, open) {
+    var body = el('div', { class: 'fold-body' });
+    buildBody(body);
+    return el('details', { class: 'fold', id: id, open: open ? true : null }, [
+      el('summary', null, [
+        label,
+        countText ? el('span', { class: 'fold-count', text: '  -  ' + countText }) : null
+      ]),
+      body
+    ]);
+  }
+
+  /* True when every canonical field resolved without any human decision. */
+  function mappingWasAutomatic() {
+    if (!ui.sources.length) { return false; }
+    var validation = UR.headerMapper.validateMapping(ui.sources[0].mapping, ui.acknowledged);
+    if (!validation.ok || (ui.autoResult && ui.autoResult.ambiguities.length)) { return false; }
+    var manual = false;
+    UR.headerMapper.FIELDS.forEach(function (f) {
+      var m = ui.sources[0].mapping[f.key];
+      if (m && m.basis === 'Chosen by user') { manual = true; }
+    });
+    return !manual;
+  }
+
+  function renderOverview() {
     if (!ui.state) { process(); }
     var state = ui.state;
 
-    if (state.period) {
-      if (!$('period-start').value) { $('period-start').value = util.fmtISODate(state.period.startDT); }
-      if (!$('period-end').value) { $('period-end').value = util.fmtISODate(new Date(state.period.endExclusiveDT.getTime() - 1)); }
-      var hint = state.periodSource + ': ' + state.period.label +
-        ' | occupancy as of ' + util.fmtDateTime(state.period.asOf);
-      /*
-       * Only mention the data span when records actually fall outside the
-       * period. A span that sits inside it is not a discrepancy worth flagging.
-       */
-      var span = state.dataSpan;
-      if (span && (span.startDT.getTime() < state.period.startDT.getTime() ||
-                   span.endExclusiveDT.getTime() > state.period.endExclusiveDT.getTime())) {
-        hint += ' | imported records span ' + span.label +
-          ' (records outside the period are kept as context and excluded from period counts)';
-      }
-      $('period-hint').textContent = hint;
-    } else if (state.inferredPeriod) {
-      $('period-hint').textContent = 'Detected range ' + state.inferredPeriod.label;
+    /* ------------------------------------------------------- status line */
+    var status = $('overview-status');
+    clear(status);
+    var names = ui.sources.map(function (s) { return s.fileName; }).join(', ');
+    /* A blocked run stops before the row census is taken. */
+    var rowTotal = state.counts ? state.counts.imported
+      : ui.sources.reduce(function (n, s) { return n + s.rows.length; }, 0);
+    status.appendChild(el('p', { class: 'overview-status-line', text:
+      'Processed ' + rowTotal + ' row(s) from ' + names +
+      (mappingWasAutomatic()
+        ? ' - every column was recognized automatically.'
+        : ' - using the assignments on the Field Mapping screen.') }));
+
+    /* -------------------------------------------------- attention digest */
+    var attn = $('overview-attention');
+    clear(attn);
+    var items = UR.attention.build(state);
+    if (!UR.attention.hasProblems(items)) {
+      attn.appendChild(el('p', { class: 'attn-ok', text:
+        'No data problems: every code was recognized and nothing was excluded by a data issue.' }));
+    }
+    if (items.length) {
+      var list = el('div', { class: 'attn-list' });
+      items.forEach(function (it) {
+        list.appendChild(el('div', { class: 'attn-item' }, [
+          pill(it.severity, it.severity.toLowerCase()),
+          el('span', { class: 'attn-msg', text: it.message }),
+          it.action ? el('button', {
+            type: 'button', class: 'link',
+            onclick: function () { runAttentionAction(it.action); }
+          }, [it.action.expand ? 'Show' : 'Open']) : null
+        ]));
+      });
+      attn.appendChild(list);
     }
 
+    /* ------------------------------------------------------ summary grid */
     var summary = $('validate-summary');
     clear(summary);
 
     if (state.blocked) {
       summary.appendChild(el('div', { class: 'msg msg-blocking' }, [
         el('strong', { text: 'Processing stopped' }),
-        doc.createTextNode('One or more blocking issues must be resolved before any metric can be calculated.')
+        doc.createTextNode('Fix the blocking item(s) above - each one links to the screen where it is resolved - and the run picks up from there.')
       ]));
     } else {
       var counts = state.counts;
@@ -888,22 +1030,56 @@
       summary.appendChild(el('p', { class: 'hint', text: state.summaryLines.join('  |  ') }));
     }
 
+    /* ---------------------------------------------------- period fold */
+    var periodSummary = $('ov-period').querySelector('summary');
+    if (state.period) {
+      if (!$('period-start').value) { $('period-start').value = util.fmtISODate(state.period.startDT); }
+      if (!$('period-end').value) { $('period-end').value = util.fmtISODate(new Date(state.period.endExclusiveDT.getTime() - 1)); }
+      periodSummary.textContent = 'Reporting period - ' + state.period.label + ' (' + state.periodSource.toLowerCase() + ')';
+      var hint = state.periodSource + ': ' + state.period.label +
+        ' | occupancy as of ' + util.fmtDateTime(state.period.asOf);
+      /*
+       * Only mention the data span when records actually fall outside the
+       * period. A span that sits inside it is not a discrepancy worth flagging.
+       */
+      var span = state.dataSpan;
+      if (span && (span.startDT.getTime() < state.period.startDT.getTime() ||
+                   span.endExclusiveDT.getTime() > state.period.endExclusiveDT.getTime())) {
+        hint += ' | imported records span ' + span.label +
+          ' (records outside the period are kept as context and excluded from period counts)';
+      }
+      $('period-hint').textContent = hint;
+    } else {
+      periodSummary.textContent = 'Reporting period';
+      if (state.inferredPeriod) {
+        $('period-hint').textContent = 'Detected range ' + state.inferredPeriod.label;
+      }
+    }
+
+    /* ------------------------------------- diagnostics / inventory / trans */
     var host = $('validate-diagnostics');
     clear(host);
     var byRule = state.diagnostics.byRule(6);
+    var dqCounts = state.diagnostics.counts();
+    var dqParts = [];
+    UR.SEVERITY_ORDER.forEach(function (sev) {
+      if (dqCounts[sev]) { dqParts.push(dqCounts[sev] + ' ' + sev.toLowerCase()); }
+    });
 
-    host.appendChild(el('h3', { text: 'Diagnostics' }));
-    if (!byRule.length) {
-      host.appendChild(el('p', { class: 'msg msg-info', text: 'No diagnostic was raised for this run.' }));
-    } else {
+    host.appendChild(fold('ov-diagnostics', 'Diagnostics',
+      byRule.length ? dqParts.join(', ') : 'none raised', function (body) {
+      if (!byRule.length) {
+        body.appendChild(el('p', { class: 'msg msg-info', text: 'No diagnostic was raised for this run.' }));
+        return;
+      }
       UR.SEVERITY_ORDER.forEach(function (severity) {
         var group = byRule.filter(function (g) { return g.severity === severity; });
         if (!group.length) { return; }
-        host.appendChild(el('h3', null, [
+        body.appendChild(el('h3', null, [
           pill(severity, severity.toLowerCase()),
           doc.createTextNode(' ' + group.length + ' rule(s)')
         ]));
-        host.appendChild(table(['Rule ID', 'Finding', 'Count', 'Sample accounts', 'Effect', ''],
+        body.appendChild(table(['Rule ID', 'Finding', 'Count', 'Sample accounts', 'Effect', ''],
           group.map(function (g) {
             var rule = UR.dataQualityRules.byId(g.ruleId);
             return [
@@ -915,24 +1091,65 @@
             ];
           }), { numeric: ['Count'] }));
       });
-    }
+    }, state.blocked));
 
-    if (state.codeInventory && state.codeInventory.length) {
-      host.appendChild(el('h3', { text: 'Code inventory' }));
-      host.appendChild(el('p', { class: 'hint', text: 'Every distinct code encountered, with the behavior applied. Resolve anything marked Unrecognized before treating a run as final.' }));
-      state.codeInventory.forEach(function (section) {
-        host.appendChild(el('h3', { text: section.type + (section.mapped ? '' : ' (column not mapped)') }));
-        host.appendChild(table(['Value', 'Count', 'Configured meaning', 'Behavior', 'Status', 'Sample accounts'],
+    var invSections = state.codeInventory || [];
+    var distinct = 0, unrecognized = 0;
+    invSections.forEach(function (s) {
+      s.rows.forEach(function (r) {
+        distinct++;
+        if (r.status === UR.codeInventory.STATUS.UNRECOGNIZED) { unrecognized++; }
+      });
+    });
+    host.appendChild(fold('ov-inventory', 'Code inventory',
+      !invSections.length ? 'not reached'
+        : distinct + ' distinct value(s)' + (unrecognized ? ', ' + unrecognized + ' unrecognized' : ', all recognized'),
+      function (body) {
+      if (!invSections.length) {
+        body.appendChild(el('p', { class: 'hint', text: 'No code inventory: processing did not reach the code-scanning stage.' }));
+        return;
+      }
+      body.appendChild(el('p', { class: 'hint', text: 'Every distinct code encountered, with the behavior applied. Resolve anything marked Unrecognized before treating a run as final.' }));
+      invSections.forEach(function (section) {
+        body.appendChild(el('h3', { text: section.type + (section.mapped ? '' : ' (column not mapped)') }));
+        body.appendChild(table(['Value', 'Count', 'Configured meaning', 'Behavior', 'Status', 'Sample accounts'],
           section.rows.map(function (r) {
             return [r.value, r.count, r.mappedTo || '', r.behavior,
               r.status === UR.codeInventory.STATUS.UNRECOGNIZED ? pill(r.status, 'warning') : r.status,
               r.samples.join(', ')];
           }), { numeric: ['Count'], scroll: section.rows.length > 12 }));
       });
-    }
+    }));
+
+    var transitions = state.transitions || [];
+    var accepted = 0;
+    transitions.forEach(function (t) {
+      if (t.confidence === UR.LINK_CONFIDENCE.CONFIRMED || t.confidence === UR.LINK_CONFIDENCE.PROBABLE) { accepted++; }
+    });
+    host.appendChild(fold('ov-transitions', 'Transitions',
+      transitions.length ? transitions.length + ' attempted, ' + accepted + ' accepted' : 'none attempted',
+      function (body) {
+      if (!transitions.length) {
+        body.appendChild(el('p', { class: 'hint', text: 'No account carried a transition discharge code, and no unexplained same-day service change was detected.' }));
+        return;
+      }
+      body.appendChild(el('p', { class: 'hint', text: 'Every attempted internal status change, accepted or refused. Open an account in the Accounts view to see one patient at a time.' }));
+      body.appendChild(table(['Prior account', 'Next account', 'Services', 'Discharge code', 'Gap (min)', 'Confidence', 'Episode', 'Issue'],
+        transitions.map(function (t) {
+          var from = null;
+          state.encounters.forEach(function (e) { if (e.rowId === t.fromRowId) { from = e; } });
+          return [t.fromAccount, t.toAccount || (t.candidateAccounts || []).join(', '),
+            t.fromService + ' -> ' + (t.toService || t.expectedService || '?'), t.dischargeCode,
+            t.gapMinutes === null ? '' : util.round(t.gapMinutes, 0),
+            t.confidence === UR.LINK_CONFIDENCE.CONFIRMED ? t.confidence : pill(t.confidence, t.confidence === UR.LINK_CONFIDENCE.PROBABLE ? 'info' : 'warning'),
+            from ? (from.episodeId || '') : '', t.issue];
+        }), { scroll: transitions.length > 12 }));
+    }));
 
     $('btn-to-results').disabled = !!state.blocked;
-    renderNav('validate');
+    $('btn-overview-review').disabled = !!state.blocked;
+    $('btn-overview-export').disabled = !!state.blocked;
+    renderNav('overview');
   }
 
   function showDiagnosticDetail(ruleId) {
@@ -1028,7 +1245,7 @@
     var host = $('results-body');
     clear(host);
     if (state.blocked) {
-      host.appendChild(el('div', { class: 'msg msg-blocking', text: 'Processing was blocked. Return to Validate to see why.' }));
+      host.appendChild(el('div', { class: 'msg msg-blocking', text: 'Processing was blocked. Open the Overview to see why.' }));
       return;
     }
 
@@ -1127,35 +1344,6 @@
       metricRow('Medicare within ' + th.readmissionWindowDays[1] + ' days', readmits.medicare, '', 'Payer taken from the readmitting account', 'READMIT_MCR_001')
     ]);
 
-    /* -------------------------------------------------------- review queue */
-    host.appendChild(el('h3', { text: 'Review queue' }));
-    host.appendChild(el('p', { class: 'hint', text:
-      state.reviewQueue.rows.length + ' review row(s) across ' + state.reviewQueue.byAccount.length +
-      ' account(s). These identify cases to look at; they express no clinical, medical-necessity, denial, or compliance conclusion.' }));
-    host.appendChild(table(['Rule ID', 'Review reason', 'Accounts', ''],
-      UR.reviewRules.ids().map(function (id) {
-        var rule = UR.reviewRules.byId(id);
-        var count = state.reviewQueue.counts[id] || 0;
-        return [id, rule.name, count, count
-          ? el('button', { type: 'button', class: 'link', onclick: function () { showReviewRows(id); } }, ['Show accounts'])
-          : ''];
-      }), { numeric: ['Accounts'] }));
-
-    /* ---------------------------------------------------------- transitions */
-    host.appendChild(el('h3', { text: 'Transitions' }));
-    host.appendChild(el('p', { class: 'hint', text:
-      'Every attempted internal status change, accepted or refused. Open an account in the Accounts view to see one patient at a time.' }));
-    host.appendChild(table(['Prior account', 'Next account', 'Services', 'Discharge code', 'Gap (min)', 'Confidence', 'Episode', 'Issue'],
-      state.transitions.map(function (t) {
-        var from = null;
-        state.encounters.forEach(function (e) { if (e.rowId === t.fromRowId) { from = e; } });
-        return [t.fromAccount, t.toAccount || (t.candidateAccounts || []).join(', '),
-          t.fromService + ' -> ' + (t.toService || t.expectedService || '?'), t.dischargeCode,
-          t.gapMinutes === null ? '' : util.round(t.gapMinutes, 0),
-          t.confidence === UR.LINK_CONFIDENCE.CONFIRMED ? t.confidence : pill(t.confidence, t.confidence === UR.LINK_CONFIDENCE.PROBABLE ? 'info' : 'warning'),
-          from ? (from.episodeId || '') : '', t.issue];
-      }), { scroll: state.transitions.length > 12 }));
-
     renderNav('results');
   }
 
@@ -1177,19 +1365,102 @@
     return parts.join(', ');
   }
 
-  function showReviewRows(ruleId) {
-    var rule = UR.reviewRules.byId(ruleId);
-    var rows = ui.state.reviewQueue.rows.filter(function (r) { return r.ruleId === ruleId; });
-    var body = el('div');
-    body.appendChild(el('p', null, [el('strong', { text: rule.trigger })]));
-    body.appendChild(el('p', { class: 'hint', text: rule.notes }));
-    body.appendChild(table(['Account', 'MRN', 'Patient name', 'Service', 'Payer', 'Admit', 'Discharge', rule.id === 'RQ_DATA' ? 'Severity' : 'Measure', 'Detail'],
-      rows.map(function (r) {
-        return [r.account, r.mrn, r.patientName, r.service, r.payerCategory,
-          util.fmtDateTime(r.admit), r.isOpen ? '(open)' : util.fmtDateTime(r.discharge),
-          r.ruleId === 'RQ_DATA' ? (r.severity || '') : num(r.measure, 1), r.detail];
-      }), { scroll: true }));
-    openModal(ruleId + ' - ' + rule.name, body);
+  /* -------------------------------------------------------- review queue */
+
+  /* Jump to one account's full course in the Accounts view. */
+  function openAccount(account) {
+    ui.selectedAccount = account;
+    $('account-search').value = String(account);
+    $('account-service').value = '';
+    $('account-status').value = '';
+    goTo('accounts');
+  }
+
+  function renderReview() {
+    if (!ui.state) { process(); }
+    var state = ui.state;
+    var host = $('review-body');
+    clear(host);
+
+    if (state.blocked) {
+      $('review-count').textContent = '';
+      host.appendChild(el('div', { class: 'msg msg-blocking', text: 'Processing was blocked, so no review queue could be built. Open the Overview to see why.' }));
+      renderNav('review');
+      return;
+    }
+
+    /* Reason filter offers only the rules that produced rows this run. */
+    var select = $('review-rule');
+    var current = ui.reviewRuleFilter || '';
+    if (current && !(state.reviewQueue.counts[current] > 0)) { current = ''; ui.reviewRuleFilter = ''; }
+    clear(select);
+    select.appendChild(el('option', { value: '' }, ['All reasons']));
+    UR.reviewRules.ids().forEach(function (id) {
+      var count = state.reviewQueue.counts[id] || 0;
+      if (!count) { return; }
+      var rule = UR.reviewRules.byId(id);
+      select.appendChild(el('option', { value: id, selected: current === id ? true : null },
+        [rule.name + ' (' + count + ')']));
+    });
+    select.value = current;
+
+    var query = String($('review-search').value || '').toLowerCase();
+    var showNames = !ui.config.processing.excludePatientNames;
+
+    var all = state.reviewQueue.byAccount;
+    var rows = all.filter(function (r) {
+      if (current && r.ruleIds.split(', ').indexOf(current) < 0) { return false; }
+      if (query) {
+        var hay = (r.account + ' ' + (r.mrn || '') + ' ' + (r.patientName || '')).toLowerCase();
+        if (hay.indexOf(query) < 0) { return false; }
+      }
+      return true;
+    });
+
+    $('review-count').textContent = rows.length + ' of ' + all.length + ' account(s), ' +
+      state.reviewQueue.rows.length + ' reason(s) across the queue';
+
+    if (!all.length) {
+      host.appendChild(el('p', { class: 'attn-ok', text: 'The review queue is empty: no account met any objective trigger in this run.' }));
+      renderNav('review');
+      return;
+    }
+    if (!rows.length) {
+      host.appendChild(el('p', { class: 'hint', text: 'No account matches the current filter.' }));
+      renderNav('review');
+      return;
+    }
+
+    var thead = el('thead', null, [el('tr', null,
+      ['Account', showNames ? 'Patient' : 'MRN', 'Service', 'Payer', 'Admit', 'Discharge', 'Review for']
+        .map(function (h) { return el('th', { text: h }); }))]);
+
+    var tbody = el('tbody', null, rows.map(function (r) {
+      /* r.reasons is "Rule name: detail | Rule name: detail". */
+      var reasons = r.reasons.split(' | ').map(function (line) {
+        var cut = line.indexOf(': ');
+        return el('div', { class: 'review-reason' }, cut > 0
+          ? [el('strong', { text: line.slice(0, cut) }), doc.createTextNode(' - ' + line.slice(cut + 2))]
+          : [line]);
+      });
+      return el('tr', {
+        title: 'Open account ' + r.account + ' in the Accounts view',
+        onclick: function () { openAccount(r.account); }
+      }, [
+        el('td', null, [el('strong', { text: r.account })]),
+        el('td', { text: showNames ? (r.patientName || ('MRN ' + (r.mrn || '(none)'))) : (r.mrn || '(none)') }),
+        el('td', { text: r.service }),
+        el('td', { text: r.payerCategory }),
+        el('td', { text: util.fmtDateTime(r.admit) }),
+        el('td', { text: r.discharge ? util.fmtDateTime(r.discharge) : '(open)' }),
+        el('td', null, reasons)
+      ]);
+    }));
+
+    host.appendChild(el('div', { class: 'table-wrap' }, [
+      el('table', { class: 'review-table' }, [thead, tbody])
+    ]));
+    renderNav('review');
   }
 
   /* ----------------------------------------------------------- accounts */
@@ -1202,7 +1473,7 @@
 
     if (ui.state.blocked) {
       clear(detailHost);
-      listHost.appendChild(el('div', { class: 'msg msg-blocking', text: 'Processing was blocked, so no account list could be built. Return to Validate to see why.' }));
+      listHost.appendChild(el('div', { class: 'msg msg-blocking', text: 'Processing was blocked, so no account list could be built. Open the Overview to see why.' }));
       return;
     }
 
@@ -1406,7 +1677,7 @@
     clear(host);
 
     if (ui.state.blocked) {
-      host.appendChild(el('div', { class: 'msg msg-blocking', text: 'Processing was blocked, so there is nothing to graph. Return to Validate to see why.' }));
+      host.appendChild(el('div', { class: 'msg msg-blocking', text: 'Processing was blocked, so there is nothing to graph. Open the Overview to see why.' }));
       $('btn-export-all-png').disabled = true;
       ui.chartCards = [];
       return;
@@ -1605,14 +1876,21 @@
     });
     $('file-input').addEventListener('change', function (e) { handleFiles(e.target.files); });
 
-    $('btn-to-mapping').addEventListener('click', function () { goTo('map'); });
+    $('btn-to-mapping').addEventListener('click', tryAutoProcess);
+    $('btn-adjust-mapping').addEventListener('click', function () { goTo('map'); });
     $('btn-back-import').addEventListener('click', function () { goTo('import'); });
-    $('btn-to-rules').addEventListener('click', function () { goTo('rules'); });
+    $('btn-to-rules').addEventListener('click', function () { ui.state = null; goTo('overview'); });
     $('btn-back-map').addEventListener('click', function () { goTo('map'); });
-    $('btn-to-validate').addEventListener('click', function () { ui.state = null; goTo('validate'); });
-    $('btn-back-rules').addEventListener('click', function () { goTo('rules'); });
+    $('btn-to-validate').addEventListener('click', function () { ui.state = null; goTo('overview'); });
     $('btn-to-results').addEventListener('click', function () { goTo('results'); });
-    $('btn-back-validate').addEventListener('click', function () { goTo('validate'); });
+    $('btn-back-validate').addEventListener('click', function () { goTo('overview'); });
+    $('btn-overview-review').addEventListener('click', function () { goTo('review'); });
+    $('btn-overview-export').addEventListener('click', function () { goTo('export'); });
+    $('btn-results-review').addEventListener('click', function () { goTo('review'); });
+    $('btn-review-overview').addEventListener('click', function () { goTo('overview'); });
+    $('btn-review-export').addEventListener('click', function () { goTo('export'); });
+    $('review-search').addEventListener('input', renderReview);
+    $('review-rule').addEventListener('change', function (ev) { ui.reviewRuleFilter = ev.target.value; renderReview(); });
     $('btn-to-export').addEventListener('click', function () { goTo('export'); });
     $('btn-back-results').addEventListener('click', function () { goTo('results'); });
     $('btn-to-graphs').addEventListener('click', function () { goTo('graphs'); });
@@ -1629,7 +1907,9 @@
         status.textContent = done === total ? 'Saved ' + total + ' PNG file(s).' : 'Saved ' + done + ' of ' + total + '...';
       });
     });
-    $('btn-reprocess').addEventListener('click', function () { ui.state = null; renderValidate(); });
+    $('period-start').addEventListener('change', function () { ui.periodTouched = true; });
+    $('period-end').addEventListener('change', function () { ui.periodTouched = true; });
+    $('btn-reprocess').addEventListener('click', function () { ui.state = null; renderOverview(); });
     $('btn-export').addEventListener('click', exportWorkbook);
 
     $('opt-exclude-names').addEventListener('change', function (e) {

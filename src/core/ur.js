@@ -12,7 +12,7 @@
   var UR = global.UR = global.UR || {};
 
   /* Application version. Reported in the exported Run Metadata worksheet. */
-  UR.APP_VERSION = '1.0.0';
+  UR.APP_VERSION = '1.1.0';
 
   /* Version of the bundled calculation rule registry as a whole. Individual
    * rules also carry their own version (spec 15.3). */

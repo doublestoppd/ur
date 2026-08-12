@@ -20,18 +20,17 @@
 </header>
 
 <p class="phi-banner">
-  Patient data stays in this browser tab's memory for this run only. It is never written to browser storage and never leaves this workstation.
-  Only reference mappings and thresholds are saved locally.
+  Patient data stays in this tab's memory for this run only &mdash; never in browser storage, never off this workstation. Only mappings and thresholds are saved.
 </p>
 
 <nav class="steps" id="step-nav" aria-label="Processing steps"></nav>
 
 <main>
 
-  <!-- ============================================================ 1. IMPORT -->
+  <!-- ============================================================== IMPORT -->
   <section class="step" id="step-import">
-    <h2>1. Import CPSI export</h2>
-    <p class="hint">Select or drop one or more CPSI Ad Hoc exports (.xlsx, .xls, or .csv). Multiple months may be imported together.</p>
+    <h2>Import</h2>
+    <p class="hint">Drop one or more CPSI Ad Hoc exports (.xlsx, .xls, or .csv). Known column names are recognized and processing starts automatically; the mapping and rules screens open only when something needs a decision.</p>
 
     <div class="dropzone" id="dropzone">
       <p><strong>Drop files here</strong> or</p>
@@ -41,31 +40,30 @@
     <div id="file-list"></div>
 
     <div class="actions">
-      <button type="button" class="primary" id="btn-to-mapping" disabled>Continue to field mapping</button>
+      <button type="button" class="primary" id="btn-to-mapping" disabled>Process</button>
+      <button type="button" class="link" id="btn-adjust-mapping" hidden>Adjust field mapping first</button>
     </div>
   </section>
 
-  <!-- =============================================================== 2. MAP -->
+  <!-- ======================================================= FIELD MAPPING -->
   <section class="step" id="step-map" hidden>
-    <h2>2. Map fields</h2>
+    <h2>Field mapping</h2>
     <p class="hint">
-      Known CPSI field names are mapped automatically. Where two source columns are equally plausible, the tool does not choose &mdash; select the correct column below.
-      Sample values are shown from the loaded file and are never saved.
+      Which source column feeds each canonical field. Where two columns are equally plausible the tool does not choose &mdash; pick one below. Sample values come from the loaded file and are never saved.
     </p>
     <div id="mapping-messages"></div>
-    <div class="table-wrap"><table id="mapping-table"></table></div>
+    <div id="mapping-body"></div>
     <div class="actions">
-      <button type="button" id="btn-back-import">Back</button>
-      <button type="button" class="primary" id="btn-to-rules">Continue to rules &amp; codes</button>
+      <button type="button" id="btn-back-import">Back to import</button>
+      <button type="button" class="primary" id="btn-to-rules">Apply mapping &amp; process</button>
     </div>
   </section>
 
-  <!-- ============================================================= 3. RULES -->
+  <!-- =============================================================== RULES -->
   <section class="step" id="step-rules" hidden>
-    <h2>3. Rules &amp; reference codes</h2>
+    <h2>Rules &amp; codes</h2>
     <p class="hint">
-      Reference mappings and operational thresholds are editable here. Core calculation formulas are not editable in the interface; they are centralized in the
-      calculation rule registry and documented in the <a href="#" id="link-calcref-from-rules">Calculation Reference</a>.
+      Reference mappings and thresholds, editable. Calculation formulas are not editable here &mdash; they live in the rule registry, documented in the <a href="#" id="link-calcref-from-rules">Calculation Reference</a>.
     </p>
 
     <div class="tabs" id="rules-tabs"></div>
@@ -82,37 +80,63 @@
     </div>
 
     <div class="actions">
-      <button type="button" id="btn-back-map">Back</button>
-      <button type="button" class="primary" id="btn-to-validate">Validate &amp; process</button>
+      <button type="button" id="btn-back-map">Field mapping</button>
+      <button type="button" class="primary" id="btn-to-validate">Apply &amp; reprocess</button>
     </div>
   </section>
 
-  <!-- ========================================================== 4. VALIDATE -->
-  <section class="step" id="step-validate" hidden>
-    <h2>4. Validate</h2>
-    <div class="period-picker">
-      <label>Reporting period start <input type="date" id="period-start"></label>
-      <label>Reporting period end <input type="date" id="period-end"></label>
-      <button type="button" id="btn-reprocess">Apply &amp; reprocess</button>
-      <span class="hint" id="period-hint"></span>
-    </div>
+  <!-- ============================================================ OVERVIEW -->
+  <section class="step" id="step-overview" hidden>
+    <h2>Overview</h2>
+    <div id="overview-status"></div>
+    <div id="overview-attention"></div>
     <div id="validate-summary"></div>
+    <details class="fold" id="ov-period">
+      <summary>Reporting period</summary>
+      <div class="period-picker">
+        <label>Start <input type="date" id="period-start"></label>
+        <label>End <input type="date" id="period-end"></label>
+        <button type="button" id="btn-reprocess">Apply &amp; reprocess</button>
+        <span class="hint" id="period-hint"></span>
+      </div>
+    </details>
     <div id="validate-diagnostics"></div>
     <div class="actions">
-      <button type="button" id="btn-back-rules">Back to rules</button>
-      <button type="button" class="primary" id="btn-to-results">View results</button>
+      <button type="button" class="primary" id="btn-to-results">Metrics</button>
+      <button type="button" id="btn-overview-review">Review queue</button>
+      <button type="button" id="btn-overview-export">Export workbook</button>
     </div>
   </section>
 
-  <!-- =========================================================== 5. RESULTS -->
+  <!-- ============================================================= METRICS -->
   <section class="step" id="step-results" hidden>
-    <h2>5. Results</h2>
+    <h2>Metrics</h2>
     <div id="results-body"></div>
     <div class="actions">
-      <button type="button" id="btn-back-validate">Back</button>
-      <button type="button" id="btn-accounts-from-results">Browse accounts</button>
-      <button type="button" id="btn-to-graphs">View graphs</button>
-      <button type="button" class="primary" id="btn-to-export">Continue to export</button>
+      <button type="button" id="btn-back-validate">Overview</button>
+      <button type="button" id="btn-results-review">Review queue</button>
+      <button type="button" id="btn-accounts-from-results">Accounts</button>
+      <button type="button" id="btn-to-graphs">Graphs</button>
+      <button type="button" class="primary" id="btn-to-export">Export</button>
+    </div>
+  </section>
+
+  <!-- ============================================================== REVIEW -->
+  <section class="step" id="step-review" hidden>
+    <h2>Review queue</h2>
+    <p class="hint">
+      Accounts that met an objective trigger, one row per account with every reason attached. Select a row to open the full patient course.
+      No row expresses a clinical, medical-necessity, denial, or compliance conclusion.
+    </p>
+    <div class="filter-row">
+      <input type="search" id="review-search" placeholder="Search account, MRN, or patient name">
+      <select id="review-rule"><option value="">All reasons</option></select>
+      <span class="config-status" id="review-count"></span>
+    </div>
+    <div id="review-body"></div>
+    <div class="actions">
+      <button type="button" id="btn-review-overview">Overview</button>
+      <button type="button" class="primary" id="btn-review-export">Export workbook</button>
     </div>
   </section>
 
@@ -120,9 +144,7 @@
   <section class="step" id="step-accounts" hidden>
     <h2>Accounts</h2>
     <p class="hint">
-      Every account that was imported, including the ones excluded from the metrics. Select one to see the complete patient course:
-      each source cell exactly as it arrived beside the value the tool derived from it, every status transition it accepted or refused, and every
-      judgement it made. This view exists so the interpretation can be checked against the chart, account by account.
+      Every imported account, including the excluded ones. Select one to see the whole patient course &mdash; each source cell beside the value the tool derived from it &mdash; so the interpretation can be checked against the chart.
     </p>
     <div class="filter-row">
       <input type="search" id="account-search" placeholder="Search account, MRN, patient name, or episode">
@@ -154,8 +176,7 @@
   <section class="step" id="step-graphs" hidden>
     <h2>Graphs</h2>
     <p class="hint">
-      Every graph is drawn from the same calculated metrics as the results and the workbook, and names the Rule IDs behind it.
-      Each one can be saved as a PNG on a light background, sized to drop into a document. Hover a graph for values, or open its data table.
+      Drawn from the same metrics as the workbook, each labelled with its Rule IDs. Hover for values; every graph exports to PNG.
     </p>
     <div class="actions" id="graphs-actions">
       <button type="button" id="btn-export-all-png">Export all graphs as PNG</button>
@@ -164,9 +185,9 @@
     <div id="graphs-body" class="chart-grid"></div>
   </section>
 
-  <!-- ============================================================ 6. EXPORT -->
+  <!-- ============================================================== EXPORT -->
   <section class="step" id="step-export" hidden>
-    <h2>6. Export workbook</h2>
+    <h2>Export workbook</h2>
     <div id="export-summary"></div>
     <label class="checkbox">
       <input type="checkbox" id="opt-exclude-names"> Exclude patient names from the exported detail and review sheets
@@ -248,6 +269,7 @@
 <script src="src/metrics/chartData.js"></script>
 <script src="src/quality/validators.js"></script>
 <script src="src/quality/codeInventory.js"></script>
+<script src="src/quality/attention.js"></script>
 <script src="src/review/reviewQueue.js"></script>
 <script src="src/pipeline.js"></script>
 <script src="src/export/zipPatch.js"></script>

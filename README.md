@@ -31,8 +31,22 @@ being treated as official compliance reporting.
 **On the hospital workstation:** copy the whole folder and open `index.html` in the browser.
 Nothing to install; no administrator rights, npm, Node, or Python needed.
 
-The six-step flow is: **Import → Map fields → Rules & codes → Validate → Results → Export**,
-with **Accounts**, **Graphs**, and **Calculation Reference** tabs reachable at any point after processing.
+The routine monthly flow is two actions: **drop the export file, read the Overview.** Files
+whose columns are recognized process immediately; the Field Mapping screen appears only when
+the mapper actually needs a decision (a required column missing, or two columns equally
+plausible).
+
+The **Overview** leads with an attention digest — the short list of things that genuinely
+need a person, each line carrying a count and a button that jumps to the screen where it is
+fixed. A clean run says so in one line. The full detail is never removed: diagnostics, the
+code inventory, the transition log, and the reporting-period controls sit in collapsed
+sections on the same page.
+
+From there the working pages are **Metrics**, **Review Queue** (one row per account with
+every trigger reason attached — selecting a row opens the full patient course), **Accounts**,
+**Graphs**, and **Export**. The navigation keeps them separate from the **Setup** screens
+(Import, Field Mapping, Rules & Codes, Calculation Reference), which only need attention when
+something changes.
 
 ### Running the tests (development only)
 
@@ -181,7 +195,7 @@ This is the view to have open beside the charting system during the pilot.
 ## Graphs
 
 The Graphs tab draws fourteen charts from the same calculated metrics as the
-results page and the workbook, each labelled with the Rule IDs behind it: daily
+Metrics page and the workbook, each labelled with the Rule IDs behind it: daily
 midnight census, admissions by service and month, service accounts against
 episodes, acute LOS against the 96-hour line, LOS distribution, observation
 duration bands, transitions, readmissions, payer mix, disposition, admission
@@ -234,6 +248,7 @@ src/metrics/    scope.js            reporting period, month windows, qualifying-
                 inpatient.js observation.js swingBed.js census.js payer.js
                 chartData.js        metric -> chart specifications (no drawing code)
 src/quality/    validators.js codeInventory.js diagnostics.js
+                attention.js        the Overview digest: what needs a person, with actions
 src/review/     reviewQueue.js      objective account-level review queue
 src/export/     workbookBuilder.js  the 17-worksheet compiled workbook
                 calculationReferenceSheet.js
@@ -241,7 +256,7 @@ src/export/     workbookBuilder.js  the 17-worksheet compiled workbook
 src/pipeline.js                     the deterministic processing pipeline
 src/ui/app.js                       user interface controller
 src/ui/charts.js                    canvas chart renderer and PNG export
-tests/                              runner, harness, synthetic fixtures, 181 tests
+tests/                              runner, harness, synthetic fixtures, 287 tests
 docs/VALIDATION.md                  pilot validation checklist
 ```
 
