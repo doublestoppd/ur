@@ -578,6 +578,11 @@
       ]),
       plot,
       el('div', { class: 'chart-actions' }, [
+        opts.onExpand ? el('button', {
+          type: 'button', class: 'link',
+          title: 'Open a larger version of this graph',
+          onclick: function () { opts.onExpand(spec); }
+        }, ['Expand']) : null,
         el('button', {
           type: 'button', class: 'link',
           title: 'Saves a PNG on a light background, sized for a document',
@@ -627,15 +632,21 @@
       /* Draw after layout so each canvas can measure its container. */
       cards.forEach(function (c) { c.redraw(); });
 
-      if (charts._resize) { global.removeEventListener('resize', charts._resize); }
-      charts._resize = debounce(function () { cards.forEach(function (c) { c.redraw(); }); }, 150);
-      global.addEventListener('resize', charts._resize);
+      /*
+       * A transient render (the Expand modal) draws once and must not steal
+       * the resize/theme handlers from the chart grid behind it.
+       */
+      if (!opts.transient) {
+        if (charts._resize) { global.removeEventListener('resize', charts._resize); }
+        charts._resize = debounce(function () { cards.forEach(function (c) { c.redraw(); }); }, 150);
+        global.addEventListener('resize', charts._resize);
 
-      if (global.matchMedia) {
-        var mq = global.matchMedia('(prefers-color-scheme: dark)');
-        var onTheme = function () { cards.forEach(function (c) { c.redraw(); }); };
-        if (mq.addEventListener) { mq.addEventListener('change', onTheme); }
-        else if (mq.addListener) { mq.addListener(onTheme); }
+        if (global.matchMedia) {
+          var mq = global.matchMedia('(prefers-color-scheme: dark)');
+          var onTheme = function () { cards.forEach(function (c) { c.redraw(); }); };
+          if (mq.addEventListener) { mq.addEventListener('change', onTheme); }
+          else if (mq.addListener) { mq.addListener(onTheme); }
+        }
       }
 
       return cards;

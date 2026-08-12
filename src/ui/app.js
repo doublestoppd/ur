@@ -185,6 +185,37 @@
     }, [id]);
   }
 
+  /*
+   * An account number is always a jump to that account's full course in the
+   * Accounts view. Works from anywhere, including inside a modal - the modal
+   * is closed first.
+   */
+  function accountLink(account) {
+    var text = account === null || account === undefined ? '' : String(account);
+    if (!text) { return doc.createTextNode(''); }
+    return el('button', {
+      type: 'button', class: 'account-link',
+      title: 'Open account ' + text + ' in the Accounts view',
+      onclick: function () { closeModal(); openAccount(text); }
+    }, [text]);
+  }
+
+  /* A list of account numbers -> a span of individual account links. */
+  function accountLinkList(accounts) {
+    var list = Object.prototype.toString.call(accounts) === '[object Array]'
+      ? accounts : String(accounts || '').split(',');
+    var wrap = el('span');
+    var first = true;
+    list.forEach(function (a) {
+      var text = String(a).trim();
+      if (!text) { return; }
+      if (!first) { wrap.appendChild(doc.createTextNode(', ')); }
+      first = false;
+      wrap.appendChild(accountLink(text));
+    });
+    return wrap;
+  }
+
   /* "CAH96_001, IP_GT4_001" -> a span of individual rule links. */
   function ruleLinkList(text) {
     var wrap = el('span');
@@ -1123,7 +1154,7 @@
           group.map(function (g) {
             var rule = UR.dataQualityRules.byId(g.ruleId);
             return [
-              ruleLink(g.ruleId), g.name, g.count, g.samples.join(', '), rule ? rule.effect : '',
+              ruleLink(g.ruleId), g.name, g.count, accountLinkList(g.samples), rule ? rule.effect : '',
               el('button', {
                 type: 'button', class: 'link',
                 onclick: function () { showDiagnosticDetail(g.ruleId); }
@@ -1156,7 +1187,7 @@
           section.rows.map(function (r) {
             return [r.value, r.count, r.mappedTo || '', r.behavior,
               r.status === UR.codeInventory.STATUS.UNRECOGNIZED ? pill(r.status, 'warning') : r.status,
-              r.samples.join(', ')];
+              accountLinkList(r.samples)];
           }), { numeric: ['Count'], scroll: section.rows.length > 12 }));
       });
     }));
@@ -1178,7 +1209,7 @@
         transitions.map(function (t) {
           var from = null;
           state.encounters.forEach(function (e) { if (e.rowId === t.fromRowId) { from = e; } });
-          return [t.fromAccount, t.toAccount || (t.candidateAccounts || []).join(', '),
+          return [accountLink(t.fromAccount), t.toAccount ? accountLink(t.toAccount) : accountLinkList(t.candidateAccounts || []),
             t.fromService + ' -> ' + (t.toService || t.expectedService || '?'), t.dischargeCode,
             t.gapMinutes === null ? '' : util.round(t.gapMinutes, 0),
             t.confidence === UR.LINK_CONFIDENCE.CONFIRMED ? t.confidence : pill(t.confidence, t.confidence === UR.LINK_CONFIDENCE.PROBABLE ? 'info' : 'warning'),
@@ -1200,7 +1231,7 @@
       body.appendChild(el('p', null, [el('strong', { text: rule.description }), doc.createTextNode(' ' + rule.effect)]));
     }
     body.appendChild(table(['Account', 'MRN', 'Service', 'Message', 'Source file', 'Row'],
-      items.map(function (d) { return [d.account, d.mrn, d.service, d.message, d.sourceFile, d.sourceRow]; }),
+      items.map(function (d) { return [accountLink(d.account), d.mrn, d.service, d.message, d.sourceFile, d.sourceRow]; }),
       { scroll: true }));
     openModal(ruleId + ' - ' + (rule ? rule.name : ''), body);
   }
@@ -1226,7 +1257,7 @@
     body.appendChild(table(
       ['Account', 'MRN', 'Patient name', 'Service', 'Admit', 'Discharge', 'LOS hours', 'Midnights', 'Payer', 'Discharge code', 'Episode'],
       encounters.map(function (e) {
-        return [e.account, e.mrn, e.name, e.serviceClass, util.fmtDateTime(e.admitDT),
+        return [accountLink(e.account), e.mrn, e.name, e.serviceClass, util.fmtDateTime(e.admitDT),
           e.isOpen ? '(open)' : util.fmtDateTime(e.dischargeDT), num(e.durationHours, 1),
           e.midnights, e.payerCategory, e.dischargeCodeRaw, e.episodeId || ''];
       }), { scroll: true }));
@@ -1603,7 +1634,7 @@
       host.appendChild(table(
         ['Episode', 'Service sequence', 'Accounts', 'First admit', 'Final discharge', 'Total elapsed', 'Final disposition'],
         dossier.episodes.map(function (ep) {
-          return [ep.episodeId, ep.serviceSequence.join(' -> '), ep.accounts.join(', '),
+          return [ep.episodeId, ep.serviceSequence.join(' -> '), accountLinkList(ep.accounts),
             util.fmtDateTime(ep.startDT), ep.isOpen ? '(open)' : util.fmtDateTime(ep.endDT),
             ep.elapsedHours === null ? '-' : util.round(ep.elapsedHours, 1) + 'h (' + util.round(ep.elapsedDays, 2) + 'd)',
             ep.finalDisposition || '-'];
@@ -1621,8 +1652,8 @@
         dossier.transitions.map(function (t) {
           var accepted = t.confidence === UR.LINK_CONFIDENCE.CONFIRMED || t.confidence === UR.LINK_CONFIDENCE.PROBABLE;
           return [
-            t.fromAccount,
-            t.toAccount || (t.candidateAccounts || []).join(', ') || '-',
+            accountLink(t.fromAccount),
+            t.toAccount ? accountLink(t.toAccount) : ((t.candidateAccounts || []).length ? accountLinkList(t.candidateAccounts) : '-'),
             t.fromService + ' -> ' + (t.toService || t.expectedService || '?'),
             t.dischargeCode || '-',
             t.gapMinutes === null || t.gapMinutes === undefined ? '-' : util.round(t.gapMinutes, 0) + ' min',
@@ -1643,7 +1674,7 @@
           var within = [];
           Object.keys(r.within).forEach(function (k) { if (r.within[k]) { within.push(k + ' days'); } });
           return [r.priorEpisodeId, util.fmtDateTime(r.priorFinalDischarge), r.priorDisposition,
-            r.newIPAccount, util.fmtDateTime(r.newEpisodeStart), util.round(r.daysBetween, 2),
+            accountLink(r.newIPAccount), util.fmtDateTime(r.newEpisodeStart), util.round(r.daysBetween, 2),
             within.join(', ') || 'none'];
         })));
     }
@@ -1675,7 +1706,7 @@
       if (visit.transitions.length) {
         body.appendChild(el('h5', { text: 'Transitions touching this visit' }));
         body.appendChild(table(['From', 'To', 'Gap', 'Result', 'Reason'], visit.transitions.map(function (t) {
-          return [t.fromAccount, t.toAccount || (t.candidateAccounts || []).join(', ') || '-',
+          return [accountLink(t.fromAccount), t.toAccount ? accountLink(t.toAccount) : ((t.candidateAccounts || []).length ? accountLinkList(t.candidateAccounts) : '-'),
             t.gapMinutes === null || t.gapMinutes === undefined ? '-' : util.round(t.gapMinutes, 0) + ' min',
             t.confidence, t.issue || 'Accepted.'];
         })));
@@ -1737,9 +1768,26 @@
     ui.chartCards = UR.charts.render(host, specs, {
       download: download,
       periodLabel: util.fmtISODate(ui.state.period.startDT),
-      onRuleClick: openRuleReference
+      onRuleClick: openRuleReference,
+      onExpand: expandChart
     });
     renderNav('graphs');
+  }
+
+  /*
+   * A large single-chart view in the modal: the full modal width instead of a
+   * grid cell, with the same tooltips, PNG export, and data table. Rendered
+   * as transient so it never steals the grid's resize handling.
+   */
+  function expandChart(spec) {
+    var body = el('div', { class: 'chart-expand' });
+    openModal(spec.title, body);
+    UR.charts.render(body, [spec], {
+      download: download,
+      periodLabel: ui.state && ui.state.period ? util.fmtISODate(ui.state.period.startDT) : '',
+      onRuleClick: function (id) { closeModal(); openRuleReference(id); },
+      transient: true
+    });
   }
 
   /* ------------------------------------------------------------ 6. export */

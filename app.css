@@ -261,7 +261,9 @@ button.link { border: none; background: none; color: var(--accent); text-decorat
 .filter-row { display: flex; gap: .5rem; margin: .5rem 0 1rem; flex-wrap: wrap; }
 .filter-row input[type="search"] { flex: 1 1 320px; }
 
-/* A displayed rule id is always a jump into the Calculation Reference. */
+/* A displayed rule id jumps to the Calculation Reference; a displayed
+ * account number jumps to that account in the Accounts view. */
+.account-link,
 .rule-link {
   border: none;
   background: none;
@@ -273,6 +275,7 @@ button.link { border: none; background: none; color: var(--accent); text-decorat
   text-underline-offset: 2px;
   cursor: pointer;
 }
+.account-link:hover,
 .rule-link:hover { text-decoration-style: solid; }
 .metric-rule-cell .rule-link { font-size: .74rem; color: var(--muted); }
 .metric-rule-cell .rule-link:hover { color: var(--accent); }
@@ -415,6 +418,11 @@ button.link { border: none; background: none; color: var(--accent); text-decorat
   .chart-card { background: #1d242b; }   /* the validated dark chart surface */
   .chart-tooltip { background: #e6ecf1; color: #151a1f; }
 }
+
+/* The Expand modal: one chart at full modal width. The card keeps its own
+ * background - that is the surface the chart palette was validated against. */
+.chart-expand .chart-card { border: none; padding: .25rem 0 0; }
+.chart-expand .chart-card figcaption h4 { display: none; }  /* the modal title already names it */
 
 @media print {
   .chart-grid { grid-template-columns: 1fr; }
