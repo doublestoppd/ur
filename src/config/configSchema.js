@@ -79,6 +79,15 @@
       var base = configSchema.defaults();
       var cfg = base;
 
+      /* Captured before takeArray overwrites them: used to warn when an older
+       * export silently replaces a shipped hospital table with a smaller one. */
+      var shippedTableSizes = {
+        serviceCodes: base.serviceCodes.length,
+        dischargeCodes: base.dischargeCodes.length,
+        insuranceCodes: base.insuranceCodes.length,
+        admissionSources: base.admissionSources.length
+      };
+
       function takeArray(key, validator) {
         if (raw[key] === undefined) {
           warnings.push('No ' + key + ' in the file; built-in defaults retained.');
@@ -129,6 +138,20 @@
       takeArray('admissionSources', function (row, i) {
         if (row.code === undefined || row.code === null || row.code === '') { return 'admissionSources[' + i + '] has no code.'; }
         return null;
+      });
+
+      /*
+       * A configuration exported before the hospital tables shipped carries the
+       * small starter tables, and importing it would silently downgrade the
+       * built-in 736-code insurance list. The import still wins - that is what
+       * import is for - but the shrinkage is called out so it is a choice.
+       */
+      ['insuranceCodes', 'dischargeCodes', 'admissionSources'].forEach(function (key) {
+        if (raw[key] !== undefined && isPlainArray(raw[key]) &&
+            isPlainArray(cfg[key]) && cfg[key].length < shippedTableSizes[key]) {
+          warnings.push('The imported ' + key + ' table has ' + cfg[key].length + ' row(s); this build ships ' +
+            shippedTableSizes[key] + '. If the file predates the built-in hospital tables, Reset to defaults restores them.');
+        }
       });
 
       /* Scalar setting groups: merge over defaults, type-check known numbers. */

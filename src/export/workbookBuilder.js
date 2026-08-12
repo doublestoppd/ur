@@ -416,7 +416,8 @@
       if (state.transitions.length === 0) { rows.push(['No internal status transition was attempted for this data.']); }
       rows.push([]);
       rows.push(['Confirmed = single expected successor inside the configured gap. Probable = successor admits slightly before the prior discharge, within the overlap tolerance.']);
-      rows.push(['Ambiguous = more than one plausible successor; deliberately not linked. Missing successor = the discharge code expects a successor that does not exist.']);
+      rows.push(['Ambiguous = more than one plausible successor; deliberately not linked. Missing successor = the discharge code expects a successor and none exists within the tolerances.']);
+      rows.push(['Refused (timing) = the expected successor exists but its recorded admission precedes the discharge beyond the overlap tolerance; both accounts are named so the registration times can be corrected.']);
       rows.push(['Unlinked = a same-day service change with no transition discharge code; reported, never linked on timing alone.']);
       return makeSheet(rows, { autofilter: true, maxWidth: 60 });
     },

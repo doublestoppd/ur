@@ -418,18 +418,30 @@
     { key: 'processing', label: 'Processing options' }
   ];
 
-  /* Value frequency in the loaded data, shown beside each mapping row. */
-  function frequencies(fieldKey) {
+  /* Exact-case counts of the raw values in the loaded data for one field. */
+  function rawValueCounts(fieldKey) {
     var counts = {};
     ui.sources.forEach(function (source) {
       source.rows.forEach(function (row) {
-        var v = UR.spreadsheetReader.cellFor(row, source.mapping, fieldKey);
-        var key = util.codeKey(v);
-        if (key === '') { return; }
-        counts[key] = (counts[key] || 0) + 1;
+        var v = util.codeExact(UR.parsers.parseText(
+          UR.spreadsheetReader.cellFor(row, source.mapping, fieldKey)));
+        if (v === '') { return; }
+        counts[v] = (counts[v] || 0) + 1;
       });
     });
     return counts;
+  }
+
+  /*
+   * Attribute those values to the reference rows through the same lookup the
+   * engine uses, so the "rows in data" column and the unmapped notice can never
+   * disagree with what processing actually did. Keying by upper-cased code -
+   * the previous behaviour - pooled the counts of case pairs like DCg/DCG onto
+   * both rows, and reported a numeric origin column ("1" vs table code "01") as
+   * unmapped even though the engine resolves it.
+   */
+  function attributedCounts(fieldKey, listKey) {
+    return util.attributeCounts(ui.config[listKey], rawValueCounts(fieldKey));
   }
 
   function renderRules() {
@@ -484,34 +496,44 @@
     renderRules();
   }
 
-  function unmappedNotice(fieldKey, listKey, factory) {
-    var counts = frequencies(fieldKey);
-    var missing = Object.keys(counts).filter(function (code) {
-      return !ui.config[listKey].some(function (r) { return util.codeKey(r.code) === code; });
-    });
-    if (!missing.length) { return null; }
-    return el('div', { class: 'msg msg-warning' }, [
-      el('strong', { text: missing.length + ' value(s) in the loaded data are not mapped' }),
-      doc.createTextNode(missing.join(', ') + '. '),
-      el('button', {
+  function unmappedNotice(att, listKey, factory) {
+    var addable = att.unmatched.filter(function (u) { return !u.ambiguous; });
+    var ambiguous = att.unmatched.filter(function (u) { return u.ambiguous; });
+    if (!addable.length && !ambiguous.length) { return null; }
+
+    var parts = [];
+    if (addable.length) {
+      parts.push(el('strong', { text: addable.length + ' value(s) in the loaded data are not mapped' }));
+      parts.push(doc.createTextNode(addable.map(function (u) { return u.value; }).join(', ') + '. '));
+      parts.push(el('button', {
         type: 'button', class: 'link',
         onclick: function () {
-          missing.forEach(function (code) { ui.config[listKey].push(factory(code)); });
-          markConfigChanged('Added ' + missing.length + ' unmapped value(s) for editing.');
+          addable.forEach(function (u) { ui.config[listKey].push(factory(u.value)); });
+          markConfigChanged('Added ' + addable.length + ' unmapped value(s) for editing.');
         }
-      }, ['Add them for editing'])
-    ]);
+      }, ['Add them for editing']));
+    }
+    if (ambiguous.length) {
+      /* Adding a new row here is precisely the wrong repair: the value already
+       * half-matches several existing codes, and a new row would shadow them. */
+      parts.push(el('div', { class: 'muted' }, [
+        doc.createTextNode('Also ' + ambiguous.length + ' value(s) matching more than one existing code once case or leading zeros are ignored: ' +
+          ambiguous.map(function (u) { return u.value; }).join(', ') +
+          '. Correct the export or the existing rows rather than adding new ones.')
+      ]));
+    }
+    return el('div', { class: 'msg msg-warning' }, parts);
   }
 
   function renderServiceCodes() {
     var wrap = el('div');
     wrap.appendChild(el('p', { class: 'hint', text: 'IP, OS, and SB are included by default. Every other code is excluded; mark a code as Ignore to record that the exclusion is intentional rather than an unknown.' }));
-    var notice = unmappedNotice('service', 'serviceCodes', function (code) {
+    var att = attributedCounts('service', 'serviceCodes');
+    var notice = unmappedNotice(att, 'serviceCodes', function (code) {
       return { code: code, label: '', behavior: UR.SERVICE.IGNORED, enabled: true };
     });
     if (notice) { wrap.appendChild(notice); }
 
-    var counts = frequencies('service');
     var rows = ui.config.serviceCodes.map(function (row, i) {
       return [
         editText(row, 'code', function () { markConfigChanged(); }),
@@ -522,7 +544,7 @@
           { value: UR.SERVICE.SB, label: 'Include as SB (swing bed)' },
           { value: UR.SERVICE.IGNORED, label: 'Explicitly ignore' }
         ], function () { markConfigChanged(); }),
-        counts[util.codeKey(row.code)] || 0,
+        att.byCode[util.codeExact(row.code)] || 0,
         editCheckbox(row, 'enabled', function () { markConfigChanged(); }),
         removeButton('serviceCodes', i)
       ];
@@ -537,12 +559,12 @@
   function renderDischargeCodes() {
     var wrap = el('div');
     wrap.appendChild(el('p', { class: 'hint', text: 'A transition target means the code implies an internal status change and a following account of that service. The published meaning of a code is kept in the label even when the hospital assigns a local workflow interpretation.' }));
-    var notice = unmappedNotice('dischargeCode', 'dischargeCodes', function (code) {
+    var att = attributedCounts('dischargeCode', 'dischargeCodes');
+    var notice = unmappedNotice(att, 'dischargeCodes', function (code) {
       return { code: code, label: '', category: 'Other', transitionTo: null, enabled: true };
     });
     if (notice) { wrap.appendChild(notice); }
 
-    var counts = frequencies('dischargeCode');
     var categories = UR.defaultMappings.DISCHARGE_CATEGORIES.map(function (c) { return { value: c, label: c }; });
     var targets = [{ value: '', label: 'None (true discharge)' }].concat(
       UR.INCLUDED_SERVICES.map(function (s) { return { value: s, label: 'Internal transition to ' + s }; }));
@@ -557,7 +579,7 @@
           markConfigChanged();
         }),
         row.transitionFrom ? row.transitionFrom.join(', ') : 'any',
-        counts[util.codeKey(row.code)] || 0,
+        att.byCode[util.codeExact(row.code)] || 0,
         editCheckbox(row, 'enabled', function () { markConfigChanged(); }),
         removeButton('dischargeCodes', i)
       ];
@@ -584,12 +606,12 @@
       'an unmapped code reports as Unknown and is excluded from those rules rather than being guessed. ' +
       'Codes are CASE-SENSITIVE: this table contains pairs such as DCg and DCG that differ only in case and mean different payers. ' +
       'Rows the hospital marks Do Not Use are shipped disabled, so one appearing on a current account is reported rather than absorbed.' }));
-    var notice = unmappedNotice('insurance', 'insuranceCodes', UR.defaultMappings.blankInsurance);
+    var att = attributedCounts('insurance', 'insuranceCodes');
+    var notice = unmappedNotice(att, 'insuranceCodes', UR.defaultMappings.blankInsurance);
     if (notice) { wrap.appendChild(notice); }
 
-    var counts = frequencies('insurance');
-    var hasData = false;
-    for (var k in counts) { if (Object.prototype.hasOwnProperty.call(counts, k)) { hasData = true; break; } }
+    var hasData = att.unmatched.length > 0;
+    for (var k in att.byCode) { if (Object.prototype.hasOwnProperty.call(att.byCode, k)) { hasData = true; break; } }
     if (ui.insuranceOnlyPresent === undefined) { ui.insuranceOnlyPresent = hasData; }
 
     var controls = el('div', { class: 'filter-row' }, [
@@ -620,7 +642,7 @@
     var query = String(ui.insuranceFilter || '').toLowerCase();
     var matching = [];
     ui.config.insuranceCodes.forEach(function (row, index) {
-      var count = counts[util.codeKey(row.code)] || 0;
+      var count = att.byCode[util.codeExact(row.code)] || 0;
       if (ui.insuranceOnlyPresent && !count) { return; }
       if (ui.insuranceNeedsCheck) {
         var medicare = row.category === UR.PAYER_CATEGORY.MEDICARE_FFS ||
@@ -663,16 +685,16 @@
   function renderAdmissionSources() {
     var wrap = el('div');
     wrap.appendChild(el('p', { class: 'hint', text: 'No default admission-source mappings were supplied by the hospital. Values found in the data are inventoried and stay Unknown until mapped here.' }));
-    var notice = unmappedNotice('admissionSource', 'admissionSources', UR.defaultMappings.blankAdmissionSource);
+    var att = attributedCounts('admissionSource', 'admissionSources');
+    var notice = unmappedNotice(att, 'admissionSources', UR.defaultMappings.blankAdmissionSource);
     if (notice) { wrap.appendChild(notice); }
 
-    var counts = frequencies('admissionSource');
     var rows = ui.config.admissionSources.map(function (row, i) {
       return [
         editText(row, 'code', function () { markConfigChanged(); }),
         editText(row, 'label', function () { markConfigChanged(); }),
         editText(row, 'category', function () { markConfigChanged(); }),
-        counts[util.codeKey(row.code)] || 0,
+        att.byCode[util.codeExact(row.code)] || 0,
         editCheckbox(row, 'enabled', function () { markConfigChanged(); }),
         removeButton('admissionSources', i)
       ];

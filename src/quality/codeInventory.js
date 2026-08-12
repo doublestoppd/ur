@@ -73,9 +73,12 @@
         }
         var dc = cfgSchema.dischargeCode(config, row.rawValue);
         row.mappedTo = dc ? dc.label : '';
-        row.behavior = dc
-          ? (dc.transitionTo ? 'Internal transition -> ' + dc.transitionTo : 'Disposition: ' + (dc.category || 'Other'))
-          : 'Disposition unknown; no transition assumed';
+        /* A disabled row is described as the engine treats it, not as it would
+         * behave if enabled - the inventory must never disagree with the run. */
+        row.behavior = !dc ? 'Disposition unknown; no transition assumed'
+          : (dc.enabled === false
+            ? 'Disabled in the reference table; treated as unrecognized (no disposition, no transition)'
+            : (dc.transitionTo ? 'Internal transition -> ' + dc.transitionTo : 'Disposition: ' + (dc.category || 'Other')));
         row.status = dc ? (dc.enabled === false ? STATUS.IGNORED : STATUS.USED) : STATUS.UNRECOGNIZED;
       }
       sections.push({ type: 'Discharge code', field: 'dischargeCode', mapped: !!mapping.dischargeCode, rows: disRows });
@@ -86,7 +89,10 @@
         row = insRows[i];
         var ins = row.value === '(blank)' ? null : cfgSchema.insuranceCode(config, row.rawValue);
         row.mappedTo = ins ? (ins.label || '') : '';
-        row.behavior = ins && ins.category ? 'Payer category: ' + ins.category : 'Payer category: Unknown';
+        row.behavior = !ins || !ins.category ? 'Payer category: Unknown'
+          : (ins.enabled === false
+            ? 'Retired code - accounts group under Unknown (stored category: ' + ins.category + ')'
+            : 'Payer category: ' + ins.category);
         row.status = ins && ins.category ? (ins.enabled === false ? STATUS.IGNORED : STATUS.USED) : STATUS.UNRECOGNIZED;
       }
       sections.push({ type: 'Insurance code', field: 'insurance', mapped: !!mapping.insurance, rows: insRows });
@@ -97,7 +103,10 @@
         row = srcRows[i];
         var src = row.value === '(blank)' ? null : cfgSchema.admissionSource(config, row.rawValue);
         row.mappedTo = src ? (src.label || '') : '';
-        row.behavior = src && src.category ? 'Category: ' + src.category : 'Unmapped';
+        row.behavior = !src ? 'Unmapped'
+          : (src.enabled === false
+            ? 'Disabled in the reference table; reports as Unknown'
+            : (src.category ? 'Category: ' + src.category : 'Mapped, no category'));
         row.status = src ? (src.enabled === false ? STATUS.IGNORED : STATUS.USED) : STATUS.UNRECOGNIZED;
       }
       sections.push({ type: 'Admission source', field: 'admissionSource', mapped: !!mapping.admissionSource, rows: srcRows });

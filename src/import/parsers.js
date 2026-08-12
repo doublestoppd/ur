@@ -156,10 +156,15 @@
 
       var text = String(raw).trim();
 
-      /* Excel time fraction, e.g. 0.605555 = 14:32. */
+      /* Excel time fraction, e.g. 0.605555 = 14:32. A fraction within half a
+       * minute of 1.0 rounds to 1440; wrapping that to 0 - the old behaviour -
+       * would turn a 23:59:59.6 discharge into midnight the SAME day, moving
+       * the timestamp back a full day. Clamp to 23:59 instead, losing at most
+       * one minute. */
       if (/^0?\.\d+$/.test(text)) {
         var frac = Number(text);
-        return ok(Math.round(frac * 1440) % 1440);
+        var fracMinutes = Math.round(frac * 1440);
+        return ok(fracMinutes >= 1440 ? 1439 : fracMinutes);
       }
 
       /* HH:MM[:SS] with optional meridiem. */

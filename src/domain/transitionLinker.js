@@ -89,6 +89,7 @@
           var disMs = from.dischargeDT.getTime();
           var candidates = [];
           var wrongService = [];
+          var farOverlap = [];
 
           for (var b = 0; b < list.length; b++) {
             var to = list[b];
@@ -96,15 +97,28 @@
             if (!to.admitDT) { continue; }
             var gapMinutes = (to.admitDT.getTime() - disMs) / 60000;
             if (gapMinutes > maxGapMin) { continue; }
-            if (gapMinutes < -overlapTolMin) { continue; }
             var sameDay = util.dayIndex(to.admitDT) === util.dayIndex(from.dischargeDT);
             if (requireSameDay && !sameDay) { continue; }
+            if (gapMinutes < -overlapTolMin) {
+              /*
+               * The expected successor exists but its admission is recorded
+               * EARLIER than this discharge by more than the tolerance -
+               * registration entered contradictory times. Collected so the
+               * refusal can name both accounts instead of surfacing as a
+               * "missing successor" beside an unrelated "unexplained overlap".
+               */
+              if (to.serviceClass === from.transitionTo) {
+                farOverlap.push({ enc: to, gapMinutes: gapMinutes });
+              }
+              continue;
+            }
             if (to.serviceClass !== from.transitionTo) {
               wrongService.push({ enc: to, gapMinutes: gapMinutes });
               continue;
             }
             candidates.push({ enc: to, gapMinutes: gapMinutes, sameDay: sameDay });
           }
+          farOverlap.sort(function (x, y) { return Math.abs(x.gapMinutes) - Math.abs(y.gapMinutes); });
 
           /* Step 4: smallest nonnegative gap first; overlaps rank last. */
           candidates.sort(function (x, y) {
@@ -117,6 +131,31 @@
           for (var c = 0; c < candidates.length; c++) { rec.candidateAccounts.push(candidates[c].enc.account); }
 
           if (candidates.length === 0) {
+            if (farOverlap.length) {
+              var far = farOverlap[0];
+              rec.confidence = LC.REFUSED;
+              rec.toAccount = far.enc.account;
+              rec.toRowId = far.enc.rowId;
+              rec.toService = far.enc.serviceClass;
+              rec.toAdmit = far.enc.admitDT;
+              rec.gapMinutes = far.gapMinutes;
+              rec.sameDay = true;
+              rec.issue = 'The expected successor exists, but its admission is recorded ' +
+                          util.round(-far.gapMinutes, 0) + ' minutes BEFORE this discharge - beyond the ' +
+                          overlapTolMin + '-minute overlap tolerance. The registration times contradict the transition.';
+              for (var fo = 0; fo < farOverlap.length; fo++) { rec.candidateAccounts.push(farOverlap[fo].enc.account); }
+              diag.addFor('DQ_TRANS_OVERLAP_EXCEEDED', from, {
+                message: 'Account ' + from.account + ' (' + from.serviceClass + ', code "' + from.dischargeCodeRaw +
+                         '") expects a following ' + from.transitionTo + ' account. Account ' + far.enc.account +
+                         ' (' + far.enc.serviceClass + ') admits ' + util.round(-far.gapMinutes, 0) +
+                         ' minutes BEFORE the discharge of ' + from.account + ', beyond the ' + overlapTolMin +
+                         '-minute overlap tolerance, so no link was made and the accounts stay in separate episodes. ' +
+                         'If this is a genuine transition, the registration times disagree: correct the admission/discharge ' +
+                         'times in the source system, or raise the overlap tolerance in Transition settings, and reprocess.'
+              });
+              transitions.push(rec);
+              continue;
+            }
             if (wrongService.length) {
               rec.issue = 'A subsequent account exists inside the timing tolerance but carries service ' +
                           wrongService[0].enc.serviceClass + ' instead of the expected ' + from.transitionTo + '.';
@@ -221,6 +260,15 @@
         }
 
         /* ------------------- overlapping accounts not explained by a link */
+        /* Pairs already reported by the specific refused-transition diagnostic
+         * are not re-reported by the generic overlap scan. */
+        var refusedPairs = {};
+        for (var rp = 0; rp < transitions.length; rp++) {
+          if (transitions[rp].confidence === LC.REFUSED && transitions[rp].toRowId) {
+            refusedPairs[transitions[rp].fromRowId + '|' + transitions[rp].toRowId] = true;
+            refusedPairs[transitions[rp].toRowId + '|' + transitions[rp].fromRowId] = true;
+          }
+        }
         for (var x = 0; x < list.length; x++) {
           for (var y = x + 1; y < list.length; y++) {
             var e1 = list[x], e2 = list[y];
@@ -231,6 +279,7 @@
             if (overlap * 60 <= overlapTolMin) { continue; }
             var linked = (e1.linkNext && e1.linkNext.rowId === e2.rowId) || (e2.linkNext && e2.linkNext.rowId === e1.rowId);
             if (linked) { continue; }
+            if (refusedPairs[e1.rowId + '|' + e2.rowId]) { continue; }
             diag.addFor('DQ_OVERLAP_UNEXPLAINED', e1, {
               message: 'Accounts ' + e1.account + ' (' + e1.serviceClass + ') and ' + e2.account + ' (' + e2.serviceClass +
                        ') for MRN ' + e1.mrn + ' overlap by ' + util.round(overlap, 2) +

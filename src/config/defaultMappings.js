@@ -120,9 +120,19 @@
     /* Maximum positive gap, in minutes, between a discharge and the successor
      * admission for an automatic link (spec 7.2). */
     maxGapMinutes: 120,
-    /* A successor that starts slightly BEFORE the prior discharge links only as
-     * "probable" and always raises a warning (spec 7.2, 8.3 step 6). */
-    overlapToleranceMinutes: 15,
+    /*
+     * A successor that starts BEFORE the prior discharge links only as
+     * "probable" and always raises a warning (spec 8.3 step 6).
+     *
+     * The spec's initial default was 15 minutes; live data showed registration
+     * entering the IP admission up to ~45 minutes before the SB discharge on a
+     * genuine SB -> IP transition, so the default is 60 (spec B.1: adjust the
+     * centralized configuration when observed exports conflict with the
+     * document, with the rule version updated - see TRANS_001 v1.1). The
+     * discharge code remains the driving signal: a wider tolerance never links
+     * anything that lacks a transition code, and ambiguity still refuses.
+     */
+    overlapToleranceMinutes: 60,
     /* Require the successor admission to fall on the same wall-clock calendar
      * date as the prior discharge (spec 7.2). */
     requireSameCalendarDate: true,

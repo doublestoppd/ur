@@ -85,6 +85,10 @@
     PROBABLE: 'Probable',
     AMBIGUOUS: 'Ambiguous',
     MISSING: 'Missing successor',
+    /* A coded transition whose only matching successor overlaps the prior
+     * discharge beyond the tolerance: the successor exists, but the recorded
+     * times contradict the transition, so no link is made. */
+    REFUSED: 'Refused (timing)',
     UNLINKED: 'Unlinked'
   };
 

@@ -306,6 +306,46 @@
       return result;
     },
 
+    /*
+     * Attribute observed raw values to reference-table rows using the same
+     * lookup the engine uses (findByCode), so a screen showing "rows in data"
+     * beside each mapping can never disagree with what the engine actually did.
+     *
+     * Keying counts by upper-cased code - the previous behaviour - was wrong
+     * twice over: case pairs like DCg/DCG pooled their counts onto both rows,
+     * and a numeric origin column ("1" against table code "01") was reported as
+     * unmapped even though the engine resolves it, inviting the user to add a
+     * blank duplicate row that would then shadow the real mapping.
+     *
+     * valueCounts: { rawValue: occurrences }.
+     * Returns { byCode, unmatched } where byCode is keyed by the EXACT code of
+     * the row each value resolved to, and unmatched lists values no single row
+     * matched - with `ambiguous: true` when several rows matched a fallback, a
+     * case where adding a new row is precisely the wrong repair.
+     */
+    attributeCounts: function (rows, valueCounts) {
+      var byCode = {};
+      var unmatched = [];
+      for (var value in valueCounts) {
+        if (!Object.prototype.hasOwnProperty.call(valueCounts, value)) { continue; }
+        var found = util.findByCode(rows, value);
+        if (found.row) {
+          var key = util.codeExact(found.row.code);
+          byCode[key] = (byCode[key] || 0) + valueCounts[value];
+        } else {
+          unmatched.push({
+            value: value,
+            count: valueCounts[value],
+            ambiguous: found.match === 'ambiguous'
+          });
+        }
+      }
+      unmatched.sort(function (a, b) {
+        return b.count - a.count || (a.value < b.value ? -1 : 1);
+      });
+      return { byCode: byCode, unmatched: unmatched };
+    },
+
     contains: function (arr, v) {
       for (var i = 0; i < arr.length; i++) { if (arr[i] === v) { return true; } }
       return false;

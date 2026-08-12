@@ -97,10 +97,19 @@ in minutes — so a disagreement with the chart can be traced to the rule that c
 | A known real `OS → IP → SB → IP` course appears as one episode with the right sequence | Episodes worksheet |
 | A patient who genuinely returned the same day appears as **two** episodes | Episodes worksheet |
 
-If the 120-minute maximum gap or the same-calendar-date requirement is rejecting real
-transitions, adjust them in *Rules & codes → Transition settings* and reprocess. Widening
-them also widens the chance of a wrong link, so change one setting at a time and re-check the
-Transitions worksheet.
+**Contradictory registration times.** Live data has shown registration entering the successor
+admission *before* the prior discharge on a genuine transition (IP admitted 08:10, SB
+discharged 08:55). The overlap tolerance therefore defaults to 60 minutes: such a pair links
+as **Probable**, joins the episode, and is flagged for verification. An overlap *beyond* the
+tolerance is refused as **Refused (timing)** with both accounts named — the finding tells you
+to either correct the times in CPSI or raise the tolerance and reprocess. Note that on an
+accepted overlap link the overlapping minutes remain in both segments' durations and
+occupancy until the source times are fixed; correcting registration is the real repair.
+
+If the 120-minute maximum gap, the 60-minute overlap tolerance, or the same-calendar-date
+requirement is rejecting real transitions, adjust them in *Rules & codes → Transition
+settings* and reprocess. Widening them also widens the chance of a wrong link, so change one
+setting at a time and re-check the Transitions worksheet.
 
 ---
 

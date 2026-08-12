@@ -111,6 +111,14 @@ code is *reported* as a possible uncoded transition and left unlinked. Two plaus
 successors are flagged Ambiguous and left unlinked. A missing expected successor is flagged.
 The tool never guesses.
 
+**Contradictory registration times are tolerated up to a point, and named past it.** Live
+data showed registration entering the IP admission ~45 minutes *before* the SB discharge on a
+genuine SB → IP transition, so the overlap tolerance defaults to 60 minutes (raised from the
+spec's 15 per its own B.1 directive; `TRANS_001` v1.1): such a pair links as Probable and is
+flagged for verification. Beyond the tolerance the link is *refused* — but the finding names
+both accounts and says exactly what to do (fix the times in CPSI, or raise the tolerance),
+instead of a "missing successor" beside an unrelated "unexplained overlap".
+
 **The reporting period comes from where the data actually is.** A one-month
 export from a hospital with swing beds contains admissions from earlier months,
 because long stays discharge inside the reported month. Taking the earliest

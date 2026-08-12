@@ -63,10 +63,11 @@
 
     rule({
       id: 'TRANS_001',
+      version: '1.1',
       name: 'Internal status-transition linkage',
       classification: C.HOSPITAL,
       definition: 'An account whose discharge code implies an internal status change is linked to the next same-MRN account carrying the expected service, when the timing satisfies the configured tolerances.',
-      formula: 'For a discharging account with a transition discharge code: consider same-MRN accounts of the expected target service admitted at or after the discharge datetime minus the overlap tolerance; require the same calendar date when configured; choose the smallest nonnegative gap within the maximum gap. Exactly one candidate links as Confirmed; a candidate starting before the discharge but inside the overlap tolerance links as Probable with a warning; two or more plausible candidates are flagged Ambiguous and left unlinked; none is flagged Missing Expected Successor.',
+      formula: 'For a discharging account with a transition discharge code: consider same-MRN accounts of the expected target service admitted at or after the discharge datetime minus the overlap tolerance; require the same calendar date when configured; choose the smallest nonnegative gap within the maximum gap. Exactly one candidate links as Confirmed; a candidate starting before the discharge but inside the overlap tolerance links as Probable with a warning; two or more plausible candidates are flagged Ambiguous and left unlinked; a same-day candidate of the expected service overlapping BEYOND the tolerance is flagged Refused (timing) with both accounts named; none at all is flagged Missing Expected Successor.',
       inputs: ['MRN', 'Service code', 'Admission datetime', 'Discharge datetime', 'Discharge code'],
       inclusions: ['Discharge codes configured with a transition target, restricted by source service where configured (B: OS -> IP; Q: IP/OS -> SB; V: SB -> IP).'],
       exclusions: ['Timing alone never creates a link. A same-day service change with no transition discharge code is reported as a possible uncoded transition and left unlinked (spec 8.3 step 9).'],
@@ -78,7 +79,14 @@
       ],
       nullHandling: 'Missing MRN, admission datetime, or discharge datetime disables linkage for that account and raises a warning.',
       sourceRefs: ['HOSP'],
-      notes: 'Code V is a hospital-specific reading; the published meaning is transfer to a Critical Access Hospital.',
+      notes: 'Code V is a hospital-specific reading; the published meaning is transfer to a Critical Access Hospital. ' +
+             'v1.1: the overlap-tolerance default was raised from the specification\'s 15 minutes to 60 after live data showed ' +
+             'registration entering the IP admission ~45 minutes before the SB discharge on a genuine SB -> IP transition ' +
+             '(spec B.1: adjust centralized configuration when observed exports conflict with the document). A coded transition ' +
+             'whose only matching successor overlaps beyond the tolerance is now refused with both accounts named ' +
+             '(DQ_TRANS_OVERLAP_EXCEEDED) instead of surfacing as a missing successor beside an unrelated overlap warning. ' +
+             'When a Probable overlap link IS accepted, the overlapping minutes remain in both segments\' durations and occupancy ' +
+             'until the source times are corrected.',
       implementationKey: 'transitionLinker.linkTransitions'
     }),
 

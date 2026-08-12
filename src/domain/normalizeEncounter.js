@@ -195,6 +195,14 @@
         var at = parsers.parseTime(admitTimeRaw);
         if (at.ok) {
           admitMinutes = at.value;
+        } else if (admitDateRes.timeFromDate !== null && admitDateRes.timeFromDate !== undefined) {
+          /* The date cell carried its own HH:MM; better than assuming midnight. */
+          admitMinutes = admitDateRes.timeFromDate;
+          diag.addFor('DQ_DATE_UNPARSEABLE', e, {
+            message: 'Account ' + e.account + ': admission time "' + String(admitTimeRaw) + '" could not be read (' + at.reason +
+                     '). Using the time embedded in the admission date cell instead.',
+            value: String(admitTimeRaw)
+          });
         } else {
           diag.addFor('DQ_DATE_UNPARSEABLE', e, {
             message: 'Account ' + e.account + ': admission time "' + String(admitTimeRaw) + '" could not be read (' + at.reason + '). Midnight assumed.',
@@ -246,6 +254,13 @@
           var dt = parsers.parseTime(disTimeRaw);
           if (dt.ok) {
             disMinutes = dt.value;
+          } else if (disDateRes.timeFromDate !== null && disDateRes.timeFromDate !== undefined) {
+            disMinutes = disDateRes.timeFromDate;
+            diag.addFor('DQ_DATE_UNPARSEABLE', e, {
+              message: 'Account ' + e.account + ': discharge time "' + String(disTimeRaw) + '" could not be read (' + dt.reason +
+                       '). Using the time embedded in the discharge date cell instead.',
+              value: String(disTimeRaw)
+            });
           } else {
             diag.addFor('DQ_DATE_UNPARSEABLE', e, {
               message: 'Account ' + e.account + ': discharge time "' + String(disTimeRaw) + '" could not be read (' + dt.reason + '). Midnight assumed.',

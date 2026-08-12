@@ -199,9 +199,9 @@
       id: 'RQ_TRANSITION', version: '1.0', priority: 20,
       name: 'Transition inconsistency',
       classification: C.DATA_QUALITY,
-      trigger: 'Expected successor missing, ambiguous candidates, unexpected service, or suspicious timing.',
-      definition: 'Lists accounts whose internal status transition could not be reconstructed cleanly, so the affected metrics can be interpreted correctly.',
-      formula: 'link.confidence in {Ambiguous, Missing successor} OR probable overlap link OR gap > transition.suspiciousGapMinutes OR possible uncoded same-day transition',
+      trigger: 'Expected successor missing, ambiguous candidates, unexpected service, contradictory registration times, or suspicious timing.',
+      definition: 'Lists accounts whose internal status transition could not be reconstructed cleanly, so the affected metrics can be interpreted correctly. A refused link names the candidate successor whose recorded admission precedes the discharge beyond the overlap tolerance, so contradictory registration times can be corrected at the source.',
+      formula: 'link.confidence in {Ambiguous, Missing successor, Refused (timing)} OR probable overlap link OR gap > transition.suspiciousGapMinutes OR possible uncoded same-day transition',
       thresholds: [
         t('Maximum transition gap (minutes)', 'transition.maxGapMinutes'),
         t('Suspicious gap threshold (minutes)', 'transition.suspiciousGapMinutes'),

@@ -183,6 +183,7 @@
         var t = ctx.transitions[i];
         var problem = (t.confidence === UR.LINK_CONFIDENCE.AMBIGUOUS ||
                        t.confidence === UR.LINK_CONFIDENCE.MISSING ||
+                       t.confidence === UR.LINK_CONFIDENCE.REFUSED ||
                        t.confidence === UR.LINK_CONFIDENCE.UNLINKED ||
                        t.confidence === UR.LINK_CONFIDENCE.PROBABLE ||
                        (t.gapMinutes !== null && t.gapMinutes > ctx.config.transition.suspiciousGapMinutes));
