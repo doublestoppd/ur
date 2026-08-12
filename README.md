@@ -31,7 +31,8 @@ being treated as official compliance reporting.
 **On the hospital workstation:** copy the whole folder and open `index.html` in the browser.
 Nothing to install; no administrator rights, npm, Node, or Python needed.
 
-The six-step flow is: **Import → Map fields → Rules & codes → Validate → Results → Export**.
+The six-step flow is: **Import → Map fields → Rules & codes → Validate → Results → Export**,
+with a **Graphs** tab and a **Calculation Reference** page reachable at any point after processing.
 
 ### Running the tests (development only)
 
@@ -84,6 +85,17 @@ code is *reported* as a possible uncoded transition and left unlinked. Two plaus
 successors are flagged Ambiguous and left unlinked. A missing expected successor is flagged.
 The tool never guesses.
 
+**The reporting period comes from where the data actually is.** A one-month
+export from a hospital with swing beds contains admissions from earlier months,
+because long stays discharge inside the reported month. Taking the earliest
+admission as the period start would report a one-month export as a quarter, so
+the default period is inferred from where activity concentrates: the busiest
+calendar month, extended only through adjacent months carrying at least
+`processing.periodInferenceShare` (20%) of it. Months left out are kept as
+context for episode and readmission logic, reported as an Info diagnostic, and
+excluded from period counts. The full data span is always displayed beside the
+period, and the date controls override the inference entirely.
+
 **Two patient-day methods, on purpose.** The inherited workbook's definition is uncertain and
 patient-day conventions differ, so both a time-weighted method (`PD_EQ_001`) and a midnight
 census method (`PD_MN_001`) are calculated and exported. Neither is labelled the official
@@ -98,6 +110,34 @@ check has a stable Rule ID and full metadata in `src/config/`. The in-app Calcul
 Reference page and the exported Calculation Reference worksheet are *generated* from it;
 they are never a separately maintained copy. Thresholds are rendered from the configuration
 actually used for the run, so the exported reference always matches the numbers beside it.
+
+---
+
+## Graphs
+
+The Graphs tab draws fourteen charts from the same calculated metrics as the
+results page and the workbook, each labelled with the Rule IDs behind it: daily
+midnight census, admissions by service and month, service accounts against
+episodes, acute LOS against the 96-hour line, LOS distribution, observation
+duration bands, transitions, readmissions, payer mix, disposition, admission
+source, day of week, review queue, and diagnostics by severity.
+
+- **Export PNG** on any chart, or **Export all graphs as PNG** for the set. Images
+  render at 2x on a light background with the title and subtitle baked in, so
+  they drop straight into a document whatever theme the screen is using.
+- Hover any chart for values; **Show data table** gives the same numbers as text.
+- Charts are drawn on a canvas rather than SVG, so the exported PNG is produced
+  by the same drawing code as the screen and nothing has to be serialized.
+
+A note on the observation chart: the `OS_24/36/48` metrics are cumulative (a
+50-hour stay counts in all three), while a distribution has to be exclusive, so
+the chart cuts non-overlapping bands from the same thresholds. It will not match
+the metric counts, and says so in its subtitle.
+
+Colour is assigned by identity in a fixed slot order and validated for
+colour-vision separation and contrast against both the light and dark chart
+surfaces. A chart with one measure uses one colour, because there is no identity
+to encode; severity uses the reserved status colours and never a series slot.
 
 ---
 
@@ -123,8 +163,9 @@ src/domain/     normalizeEncounter.js raw rows -> canonical encounters + diagnos
                 transitionLinker.js   internal status-transition reconstruction
                 episodeBuilder.js     continuous episode assembly
                 readmissionDetector.js internal readmission indicators
-src/metrics/    scope.js            reporting period and qualifying-record filters
+src/metrics/    scope.js            reporting period, month windows, qualifying-record filters
                 inpatient.js observation.js swingBed.js census.js payer.js
+                chartData.js        metric -> chart specifications (no drawing code)
 src/quality/    validators.js codeInventory.js diagnostics.js
 src/review/     reviewQueue.js      objective account-level review queue
 src/export/     workbookBuilder.js  the 17-worksheet compiled workbook
@@ -132,6 +173,7 @@ src/export/     workbookBuilder.js  the 17-worksheet compiled workbook
                 zipPatch.js         adds frozen header panes after the workbook is written
 src/pipeline.js                     the deterministic processing pipeline
 src/ui/app.js                       user interface controller
+src/ui/charts.js                    canvas chart renderer and PNG export
 tests/                              runner, harness, synthetic fixtures, 181 tests
 docs/VALIDATION.md                  pilot validation checklist
 ```

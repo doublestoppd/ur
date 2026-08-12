@@ -42,8 +42,12 @@
       return scope.makePeriod(start, new Date(nextMonth.getTime() - util.MS_PER_DAY), nextMonth);
     },
 
-    /* Widest period covering all usable admission datetimes in the data. */
-    inferPeriod: function (encounters) {
+    /*
+     * The full span of activity in the imported data: earliest admission to
+     * latest discharge. This is a fact about the file, reported to the user -
+     * it is NOT a good default reporting period (see inferReportingPeriod).
+     */
+    dataSpan: function (encounters) {
       var min = null, max = null;
       for (var i = 0; i < encounters.length; i++) {
         var e = encounters[i];
@@ -54,6 +58,140 @@
       }
       if (!min) { return null; }
       return scope.makePeriod(min, max, max);
+    },
+
+    /*
+     * The calendar months a reporting period touches, in order, each clamped to
+     * the period itself.
+     *
+     * Trend rows come from the PERIOD, never from "every month any record
+     * touches": a swing-bed stay admitted two months earlier is context, not a
+     * reporting month, and letting it create a column produces a gap-toothed
+     * trend (Jun, then Aug) that a reader would take for a real sequence.
+     */
+    monthsIn: function (period) {
+      var out = [];
+      var cursor = util.mkDT(period.startDT.getUTCFullYear(), period.startDT.getUTCMonth() + 1, 1, 0, 0);
+      var guard = 0;
+      while (cursor.getTime() < period.endExclusiveDT.getTime() && guard++ < 600) {
+        var whole = scope.monthPeriod(cursor);
+        var start = whole.startDT.getTime() > period.startDT.getTime() ? whole.startDT : period.startDT;
+        var endExclusive = whole.endExclusiveDT.getTime() < period.endExclusiveDT.getTime()
+          ? whole.endExclusiveDT : period.endExclusiveDT;
+        var end = new Date(endExclusive.getTime() - 1);
+        out.push({
+          key: util.monthKey(whole.startDT),
+          label: util.monthLabel(util.monthKey(whole.startDT)),
+          partial: start.getTime() !== whole.startDT.getTime() || endExclusive.getTime() !== whole.endExclusiveDT.getTime(),
+          period: {
+            startDT: start,
+            endDT: end,
+            endExclusiveDT: endExclusive,
+            days: Math.round((endExclusive.getTime() - start.getTime()) / util.MS_PER_DAY),
+            asOf: period.asOf.getTime() < endExclusive.getTime() ? period.asOf : endExclusive,
+            label: util.fmtDate(start) + ' - ' + util.fmtDate(end)
+          }
+        });
+        cursor = whole.endExclusiveDT;
+      }
+      return out;
+    },
+
+    /* Activity per calendar month: an admission and a discharge each count once. */
+    monthActivity: function (encounters) {
+      var counts = {};
+      var keys = [];
+      function bump(dt) {
+        if (!dt) { return; }
+        var k = util.monthKey(dt);
+        if (counts[k] === undefined) { counts[k] = 0; keys.push(k); }
+        counts[k]++;
+      }
+      for (var i = 0; i < encounters.length; i++) {
+        var e = encounters[i];
+        if (!e.metricEligible) { continue; }
+        bump(e.admitDT);
+        if (!e.isOpen) { bump(e.dischargeDT); }
+      }
+      keys.sort();
+      return { counts: counts, keys: keys };
+    },
+
+    /* 'YYYY-MM' one month later. */
+    nextMonthKey: function (key) {
+      var parts = String(key).split('-');
+      var y = Number(parts[0]);
+      var m = Number(parts[1]);
+      return m === 12 ? (y + 1) + '-01' : y + '-' + util.pad2(m + 1);
+    },
+
+    prevMonthKey: function (key) {
+      var parts = String(key).split('-');
+      var y = Number(parts[0]);
+      var m = Number(parts[1]);
+      return m === 1 ? (y - 1) + '-12' : y + '-' + util.pad2(m - 1);
+    },
+
+    /*
+     * Default reporting period inferred from the data.
+     *
+     * The full data span is the wrong default. A swing-bed patient admitted in
+     * June and discharged in August puts a June admission datetime in a file the
+     * user thinks of as "August", and taking the earliest admission would then
+     * report a one-month export as a quarter.
+     *
+     * So: count activity per calendar month, start from the busiest month, and
+     * extend outwards only through adjacent months that carry at least
+     * `processing.periodInferenceShare` of that peak. A handful of long stays
+     * reaching back into an earlier month cannot drag the period with them,
+     * while a genuine multi-month export keeps all of its months.
+     *
+     * Returns { period, keptMonths, droppedMonths, activity }. The user can
+     * always override the result with the date controls.
+     */
+    inferReportingPeriod: function (encounters, config) {
+      var activity = scope.monthActivity(encounters);
+      if (!activity.keys.length) { return null; }
+
+      var share = config && config.processing && typeof config.processing.periodInferenceShare === 'number'
+        ? config.processing.periodInferenceShare : 0.2;
+
+      var peakKey = activity.keys[0];
+      var k, i;
+      for (i = 1; i < activity.keys.length; i++) {
+        k = activity.keys[i];
+        if (activity.counts[k] > activity.counts[peakKey]) { peakKey = k; }
+      }
+      var floor = activity.counts[peakKey] * share;
+
+      var kept = [peakKey];
+      var cursor = scope.prevMonthKey(peakKey);
+      while (activity.counts[cursor] !== undefined && activity.counts[cursor] >= floor) {
+        kept.unshift(cursor);
+        cursor = scope.prevMonthKey(cursor);
+      }
+      cursor = scope.nextMonthKey(peakKey);
+      while (activity.counts[cursor] !== undefined && activity.counts[cursor] >= floor) {
+        kept.push(cursor);
+        cursor = scope.nextMonthKey(cursor);
+      }
+
+      var dropped = [];
+      for (i = 0; i < activity.keys.length; i++) {
+        if (!util.contains(kept, activity.keys[i])) { dropped.push(activity.keys[i]); }
+      }
+
+      var firstParts = kept[0].split('-');
+      var lastParts = kept[kept.length - 1].split('-');
+      var start = util.mkDT(Number(firstParts[0]), Number(firstParts[1]), 1, 0, 0);
+      var lastMonth = scope.monthPeriod(util.mkDT(Number(lastParts[0]), Number(lastParts[1]), 1, 0, 0));
+
+      return {
+        period: scope.makePeriod(start, lastMonth.endDT, lastMonth.endExclusiveDT),
+        keptMonths: kept,
+        droppedMonths: dropped,
+        activity: activity
+      };
     },
 
     inPeriod: function (dt, period) {

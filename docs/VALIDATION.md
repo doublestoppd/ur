@@ -46,14 +46,19 @@ Run one month that the hospital has already compiled by hand, and compare:
 
 **Where they disagree, check these first:**
 
-1. **Period basis.** *Rules & codes → Processing options → Discharged-stay period basis.*
+1. **The reporting period itself.** The Validate step shows the period, where it
+   came from, and the full span of the imported records. If the tool inferred a
+   period, it also reports which months it treated as prior context — long stays
+   that began before the reported month. Set the dates explicitly if the
+   inference does not match how the export was pulled.
+2. **Period basis.** *Rules & codes → Processing options → Discharged-stay period basis.*
    `discharge` counts a stay in the month it ended; `admission` counts it in the month it
    began. The old workbook may use the other one.
-2. **Internal transitions.** A course of `OS → IP` is two service accounts and one episode.
+3. **Internal transitions.** A course of `OS → IP` is two service accounts and one episode.
    `ADM_SVC_001` counts the accounts; `EPISODE_CNT_001` counts the episode.
-3. **Open encounters.** Excluded from discharged-stay ALOS always; included in occupancy only
+4. **Open encounters.** Excluded from discharged-stay ALOS always; included in occupancy only
    through the as-of datetime, and only when that option is on.
-4. **Rows the tool excluded.** The Data Quality worksheet lists every one with a reason.
+5. **Rows the tool excluded.** The Data Quality worksheet lists every one with a reason.
 
 ---
 

@@ -321,3 +321,65 @@ button.link { border: none; background: none; color: var(--accent); text-decorat
   .tabs button { background: #1b2229; }
   .tabs button.active { background: #232b33; }
 }
+
+/* ------------------------------------------------------------------ charts */
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(430px, 1fr));
+  gap: .85rem;
+  margin-top: .5rem;
+}
+
+.chart-card {
+  margin: 0;
+  padding: .75rem .85rem .6rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;                 /* the chart surface the palette was validated against */
+  min-width: 0;                     /* let the canvas shrink inside the grid track */
+}
+.chart-card figcaption { margin-bottom: .4rem; }
+.chart-card h4 { margin: 0; font-size: .95rem; }
+.chart-subtitle { margin: .2rem 0 0; font-size: .78rem; color: var(--muted); }
+.chart-rules {
+  display: inline-block;
+  margin-top: .25rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: .7rem;
+  color: var(--muted);
+}
+
+.chart-plot { position: relative; }
+.chart-canvas { display: block; width: 100%; }
+
+.chart-tooltip {
+  position: absolute;
+  pointer-events: none;
+  background: var(--ink);
+  color: var(--panel);
+  padding: .2rem .45rem;
+  border-radius: 4px;
+  font-size: .75rem;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  z-index: 2;
+}
+.chart-tooltip[hidden] { display: none; }
+
+.chart-actions { display: flex; gap: .8rem; align-items: center; flex-wrap: wrap; margin-top: .3rem; }
+.chart-actions button.link { font-size: .78rem; }
+.chart-status { font-size: .75rem; color: var(--muted); }
+.chart-table { margin-top: .5rem; }
+.chart-table[hidden] { display: none; }
+.chart-table table { font-size: .78rem; }
+
+@media (prefers-color-scheme: dark) {
+  .chart-card { background: #1d242b; }   /* the validated dark chart surface */
+  .chart-tooltip { background: #e6ecf1; color: #151a1f; }
+}
+
+@media print {
+  .chart-grid { grid-template-columns: 1fr; }
+  .chart-actions, .steps, .app-header, .dropzone { display: none; }
+}

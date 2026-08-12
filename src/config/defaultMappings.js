@@ -122,7 +122,15 @@
     excludePatientNames: false,
     /* Duplicate account numbers with identical content are collapsed; conflicting
      * duplicates are never merged silently (spec 6.3, T17). */
-    deduplicateIdenticalRows: true
+    deduplicateIdenticalRows: true,
+    /*
+     * Share of the busiest month's activity a neighbouring month must carry
+     * before the inferred reporting period extends into it. Stops a few long
+     * swing-bed stays that began months earlier from stretching a one-month
+     * export across a quarter. Only affects the DEFAULT period; the user can
+     * always set the dates explicitly.
+     */
+    periodInferenceShare: 0.2
   };
 
   UR.defaultMappings = {

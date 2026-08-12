@@ -110,8 +110,23 @@
     <div id="results-body"></div>
     <div class="actions">
       <button type="button" id="btn-back-validate">Back</button>
+      <button type="button" id="btn-to-graphs">View graphs</button>
       <button type="button" class="primary" id="btn-to-export">Continue to export</button>
     </div>
+  </section>
+
+  <!-- ============================================================ GRAPHS -->
+  <section class="step" id="step-graphs" hidden>
+    <h2>Graphs</h2>
+    <p class="hint">
+      Every graph is drawn from the same calculated metrics as the results and the workbook, and names the Rule IDs behind it.
+      Each one can be saved as a PNG on a light background, sized to drop into a document. Hover a graph for values, or open its data table.
+    </p>
+    <div class="actions" id="graphs-actions">
+      <button type="button" id="btn-export-all-png">Export all graphs as PNG</button>
+      <span class="config-status" id="graphs-status"></span>
+    </div>
+    <div id="graphs-body" class="chart-grid"></div>
   </section>
 
   <!-- ============================================================ 6. EXPORT -->
@@ -123,6 +138,7 @@
     </label>
     <div class="actions">
       <button type="button" id="btn-back-results">Back</button>
+      <button type="button" id="btn-graphs-from-export">View graphs</button>
       <button type="button" class="primary" id="btn-export">Generate .xlsx workbook</button>
       <span class="config-status" id="export-status"></span>
     </div>
@@ -192,6 +208,7 @@
 <script src="src/metrics/swingBed.js"></script>
 <script src="src/metrics/census.js"></script>
 <script src="src/metrics/payer.js"></script>
+<script src="src/metrics/chartData.js"></script>
 <script src="src/quality/validators.js"></script>
 <script src="src/quality/codeInventory.js"></script>
 <script src="src/review/reviewQueue.js"></script>
@@ -199,6 +216,7 @@
 <script src="src/export/zipPatch.js"></script>
 <script src="src/export/calculationReferenceSheet.js"></script>
 <script src="src/export/workbookBuilder.js"></script>
+<script src="src/ui/charts.js"></script>
 <script src="src/ui/app.js"></script>
 </body>
 </html>

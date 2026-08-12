@@ -33,6 +33,7 @@
     { id: 'rules', label: '3. Rules & codes' },
     { id: 'validate', label: '4. Validate' },
     { id: 'results', label: '5. Results' },
+    { id: 'graphs', label: 'Graphs' },
     { id: 'export', label: '6. Export' },
     { id: 'calcref', label: 'Calculation Reference' }
   ];
@@ -124,13 +125,19 @@
   }
 
   function goTo(id) {
+    /*
+     * Reveal the section before rendering into it. A hidden section has zero
+     * width, so anything that measures its container - the charts especially -
+     * would lay itself out against nothing.
+     */
+    showStep(id);
     if (id === 'map') { renderMapping(); }
     if (id === 'rules') { renderRules(); }
     if (id === 'validate') { renderValidate(); }
     if (id === 'results') { renderResults(); }
+    if (id === 'graphs') { renderGraphs(); }
     if (id === 'export') { renderExport(); }
     if (id === 'calcref') { renderCalcRef(); }
-    showStep(id);
   }
 
   /* ----------------------------------------------------------------- modal */
@@ -735,7 +742,19 @@
     if (state.period) {
       if (!$('period-start').value) { $('period-start').value = util.fmtISODate(state.period.startDT); }
       if (!$('period-end').value) { $('period-end').value = util.fmtISODate(new Date(state.period.endExclusiveDT.getTime() - 1)); }
-      $('period-hint').textContent = 'Period ' + state.period.label + ' | occupancy as of ' + util.fmtDateTime(state.period.asOf);
+      var hint = state.periodSource + ': ' + state.period.label +
+        ' | occupancy as of ' + util.fmtDateTime(state.period.asOf);
+      /*
+       * Only mention the data span when records actually fall outside the
+       * period. A span that sits inside it is not a discrepancy worth flagging.
+       */
+      var span = state.dataSpan;
+      if (span && (span.startDT.getTime() < state.period.startDT.getTime() ||
+                   span.endExclusiveDT.getTime() > state.period.endExclusiveDT.getTime())) {
+        hint += ' | imported records span ' + span.label +
+          ' (records outside the period are kept as context and excluded from period counts)';
+      }
+      $('period-hint').textContent = hint;
     } else if (state.inferredPeriod) {
       $('period-hint').textContent = 'Detected range ' + state.inferredPeriod.label;
     }
@@ -981,6 +1000,31 @@
     openModal(ruleId + ' - ' + rule.name, body);
   }
 
+  /* ------------------------------------------------------------- graphs */
+
+  function renderGraphs() {
+    if (!ui.state) { process(); }
+    var host = $('graphs-body');
+    var status = $('graphs-status');
+    clear(host);
+
+    if (ui.state.blocked) {
+      host.appendChild(el('div', { class: 'msg msg-blocking', text: 'Processing was blocked, so there is nothing to graph. Return to Validate to see why.' }));
+      $('btn-export-all-png').disabled = true;
+      ui.chartCards = [];
+      return;
+    }
+    $('btn-export-all-png').disabled = false;
+    status.textContent = '';
+
+    var specs = UR.chartData.all(ui.state);
+    ui.chartCards = UR.charts.render(host, specs, {
+      download: download,
+      periodLabel: util.fmtISODate(ui.state.period.startDT)
+    });
+    renderNav('graphs');
+  }
+
   /* ------------------------------------------------------------ 6. export */
 
   function renderExport() {
@@ -1174,6 +1218,16 @@
     $('btn-back-validate').addEventListener('click', function () { goTo('validate'); });
     $('btn-to-export').addEventListener('click', function () { goTo('export'); });
     $('btn-back-results').addEventListener('click', function () { goTo('results'); });
+    $('btn-to-graphs').addEventListener('click', function () { goTo('graphs'); });
+    $('btn-graphs-from-export').addEventListener('click', function () { goTo('graphs'); });
+    $('btn-export-all-png').addEventListener('click', function () {
+      var status = $('graphs-status');
+      if (!ui.chartCards || !ui.chartCards.length) { return; }
+      status.textContent = 'Saving graphs...';
+      UR.charts.exportAll(ui.chartCards, download, function (done, total) {
+        status.textContent = done === total ? 'Saved ' + total + ' PNG file(s).' : 'Saved ' + done + ' of ' + total + '...';
+      });
+    });
     $('btn-reprocess').addEventListener('click', function () { ui.state = null; renderValidate(); });
     $('btn-export').addEventListener('click', exportWorkbook);
 

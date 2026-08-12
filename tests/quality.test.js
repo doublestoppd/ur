@@ -271,3 +271,118 @@ describe('diagnostics', function () {
     assert.includes(text, 'blocking');
   });
 });
+
+describe('reporting period inference', function () {
+
+  /* A one-month export from a hospital with swing beds contains admissions from
+   * earlier months, because long stays discharge inside the reported month. */
+  function longStayMatrix() {
+    var rows = [fixtures.HEADERS.slice()];
+    /* Twenty ordinary August encounters. */
+    for (var i = 0; i < 20; i++) {
+      var day = 1 + (i % 20);
+      var d = (day < 10 ? '0' : '') + day;
+      rows.push(['20' + i, 'AUG' + i, 'AUGUST, TEST', 'IP', '08/' + d + '/2026', 800, '08/' + d + '/2026', 1600, 'BCBS', 'H', 1]);
+    }
+    /* Two swing-bed patients admitted in June, discharged in August. */
+    rows.push(['3001', 'SB1', 'LONG, TEST', 'SB', '06/12/2026', 900, '08/04/2026', 1100, 'BCBS', 'H', 1]);
+    rows.push(['3002', 'SB2', 'LONG, TEST', 'SB', '06/28/2026', 900, '08/09/2026', 1100, 'BCBS', 'H', 1]);
+    return rows;
+  }
+
+  test('a one-month export is not stretched across a quarter by long stays', function () {
+    var s = fixtures.run(UR, { matrix: longStayMatrix(), periodStart: null, periodEnd: null, asOf: null });
+    assert.equal(s.period.label, '08/01/2026 - 08/31/2026', 'the period is the month the data is about');
+    assert.equal(UR.util.fmtDate(s.dataSpan.startDT), '06/12/2026', 'while the true data span is still reported');
+    assert.deepEqual(s.suggestedPeriod.droppedMonths, ['2026-06']);
+  });
+
+  test('the months treated as context are explained, not silently dropped', function () {
+    var s = fixtures.run(UR, { matrix: longStayMatrix(), periodStart: null, periodEnd: null, asOf: null });
+    var notice = s.diagnostics.all().filter(function (d) {
+      return d.ruleId === 'DQ_OUT_OF_PERIOD' && d.message.indexOf('concentrates') >= 0;
+    });
+    assert.equal(notice.length, 1, 'the inference is reported');
+    assert.includes(notice[0].message, 'Jun 2026');
+    assert.includes(notice[0].message, 'Set the dates explicitly');
+  });
+
+  test('a genuine multi-month export keeps every month', function () {
+    var rows = [fixtures.HEADERS.slice()];
+    ['06', '07', '08'].forEach(function (mm, idx) {
+      for (var i = 0; i < 10; i++) {
+        var day = (i < 9 ? '0' : '') + (i + 1);
+        rows.push(['4' + idx + i, 'M' + mm + i, 'MULTI, TEST', 'IP', mm + '/' + day + '/2026', 800, mm + '/' + day + '/2026', 1600, 'BCBS', 'H', 1]);
+      }
+    });
+    var s = fixtures.run(UR, { matrix: rows, periodStart: null, periodEnd: null, asOf: null });
+    assert.equal(s.period.label, '06/01/2026 - 08/31/2026');
+    assert.deepEqual(s.suggestedPeriod.droppedMonths, []);
+    assert.equal(s.monthly.length, 3, 'and each month gets its own trend row');
+  });
+
+  test('an explicit period always wins over the inference', function () {
+    var s = fixtures.run(UR, {
+      matrix: longStayMatrix(),
+      periodStart: UR.util.mkDT(2026, 6, 1, 0, 0),
+      periodEnd: UR.util.mkDT(2026, 8, 31, 0, 0)
+    });
+    assert.equal(s.period.label, '06/01/2026 - 08/31/2026');
+    assert.equal(s.periodSource, 'Chosen by user');
+  });
+
+  test('a stray mistyped date cannot drag the period with it', function () {
+    var rows = longStayMatrix();
+    rows.push(['3003', 'TYPO', 'TYPO, TEST', 'IP', '08/15/2027', 800, '08/16/2027', 900, 'BCBS', 'H', 1]);
+    var s = fixtures.run(UR, { matrix: rows, periodStart: null, periodEnd: null, asOf: null });
+    assert.equal(s.period.label, '08/01/2026 - 08/31/2026');
+    assert.ok(UR.util.contains(s.suggestedPeriod.droppedMonths, '2027-08'), 'the outlier month is reported as context');
+  });
+});
+
+describe('monthly trend rows', function () {
+
+  test('trend rows come from the reporting period, not from context months', function () {
+    var rows = [fixtures.HEADERS.slice()];
+    for (var i = 0; i < 12; i++) {
+      var d = (i < 9 ? '0' : '') + (i + 1);
+      rows.push(['50' + i, 'AUG' + i, 'AUGUST, TEST', 'IP', '08/' + d + '/2026', 800, '08/' + d + '/2026', 1600, 'BCBS', 'H', 1]);
+    }
+    /* One swing-bed stay admitted in June: context, never a trend column. */
+    rows.push(['5100', 'SBJUN', 'LONG, TEST', 'SB', '06/12/2026', 900, '08/04/2026', 1100, 'BCBS', 'H', 1]);
+
+    var s = fixtures.run(UR, { matrix: rows, periodStart: null, periodEnd: null, asOf: null });
+    assert.equal(s.monthly.length, 1, 'one reporting month, not a Jun/Aug pair with July missing');
+    assert.equal(s.monthly[0].label, 'Aug 2026');
+  });
+
+  test('a multi-month period produces contiguous months, including empty ones', function () {
+    var rows = [fixtures.HEADERS.slice()];
+    rows.push(['5200', 'JUN1', 'A, TEST', 'IP', '06/10/2026', 800, '06/12/2026', 800, 'BCBS', 'H', 1]);
+    rows.push(['5201', 'AUG1', 'B, TEST', 'IP', '08/10/2026', 800, '08/12/2026', 800, 'BCBS', 'H', 1]);
+    var s = fixtures.run(UR, {
+      matrix: rows,
+      periodStart: UR.util.mkDT(2026, 6, 1, 0, 0),
+      periodEnd: UR.util.mkDT(2026, 8, 31, 0, 0)
+    });
+    var labels = s.monthly.map(function (m) { return m.label; });
+    assert.deepEqual(labels, ['Jun 2026', 'Jul 2026', 'Aug 2026'],
+      'July appears as a zero month rather than being skipped, so the trend reads correctly');
+    assert.equal(s.monthly[1].metrics.inpatient.IP_ADM_001.value, 0);
+  });
+
+  test('a partial month is clamped to the period and flagged', function () {
+    var rows = [fixtures.HEADERS.slice()];
+    rows.push(['5300', 'M1', 'A, TEST', 'IP', '08/05/2026', 800, '08/06/2026', 800, 'BCBS', 'H', 1]);
+    rows.push(['5301', 'M2', 'B, TEST', 'IP', '08/20/2026', 800, '08/21/2026', 800, 'BCBS', 'H', 1]);
+    var s = fixtures.run(UR, {
+      matrix: rows,
+      periodStart: UR.util.mkDT(2026, 8, 10, 0, 0),
+      periodEnd: UR.util.mkDT(2026, 8, 31, 0, 0)
+    });
+    assert.equal(s.monthly.length, 1);
+    assert.equal(s.monthly[0].partial, true, 'the month is marked partial');
+    assert.equal(s.monthly[0].period.days, 22, 'and covers only the selected days');
+    assert.equal(s.monthly[0].metrics.inpatient.IP_ADM_001.value, 1, 'the 08/05 admission is outside the period');
+  });
+});

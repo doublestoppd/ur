@@ -25,22 +25,6 @@
     };
   }
 
-  /* Distinct months spanned by the included admissions, oldest first. */
-  function monthKeys(encounters) {
-    var seen = {};
-    var keys = [];
-    for (var i = 0; i < encounters.length; i++) {
-      var e = encounters[i];
-      if (!e.metricEligible || !e.admitDT) { continue; }
-      var k = util.monthKey(e.admitDT);
-      if (!seen[k]) { seen[k] = e.admitDT; keys.push(k); }
-    }
-    keys.sort();
-    var out = [];
-    for (var j = 0; j < keys.length; j++) { out.push({ key: keys[j], sample: seen[keys[j]] }); }
-    return out;
-  }
-
   var pipeline = {
 
     /*
@@ -88,17 +72,35 @@
       }
 
       /* --------------------------------------------------- reporting period */
-      var inferred = scope.inferPeriod(state.encounters);
+      var span = scope.dataSpan(state.encounters);
+      var suggested = scope.inferReportingPeriod(state.encounters, config);
+      state.dataSpan = span;
+      state.suggestedPeriod = suggested;
+      state.inferredPeriod = suggested ? suggested.period : span;
+
       if (opts.periodStart && opts.periodEnd) {
         state.period = scope.makePeriod(opts.periodStart, opts.periodEnd, opts.asOf);
-      } else if (inferred) {
-        state.period = inferred;
+        state.periodSource = 'Chosen by user';
+      } else if (suggested) {
+        state.period = suggested.period;
+        state.periodSource = 'Inferred from the imported data';
+        if (suggested.droppedMonths.length) {
+          diag.add('DQ_OUT_OF_PERIOD', {
+            message: 'The imported data touches ' + suggested.activity.keys.length + ' calendar month(s) (' +
+              util.monthLabel(suggested.activity.keys[0]) + ' to ' +
+              util.monthLabel(suggested.activity.keys[suggested.activity.keys.length - 1]) +
+              '), but activity concentrates in ' + suggested.keptMonths.map(util.monthLabel).join(', ') +
+              '. The reporting period defaulted to those month(s); ' +
+              suggested.droppedMonths.map(util.monthLabel).join(', ') +
+              ' contributed too few records to be part of the period and is treated as prior context. ' +
+              'Set the dates explicitly if that is wrong.'
+          });
+        }
       } else {
         diag.add('DQ_DATE_COLUMN', { message: 'No usable admission datetime exists, so a reporting period cannot be established.' });
         state.blocked = true;
         return state;
       }
-      state.inferredPeriod = inferred;
       if (!state.period.asOf) { state.period.asOf = state.period.endExclusiveDT; }
 
       /*
@@ -106,8 +108,8 @@
        * activity in the data, capped at the end of the period, so occupancy is
        * never projected past what the export can support.
        */
-      if (!opts.asOf && inferred) {
-        var latest = inferred.asOf;
+      if (!opts.asOf && span) {
+        var latest = span.asOf;
         state.period.asOf = latest.getTime() < state.period.endExclusiveDT.getTime() ? latest : state.period.endExclusiveDT;
       }
 
@@ -133,18 +135,21 @@
         sbip: state.metrics.swingBed.SBIP_001.value
       };
 
-      /* --------------------------------------------- monthly trend series */
-      var months = monthKeys(state.encounters);
+      /*
+       * Monthly trend series: one row per calendar month of the REPORTING
+       * PERIOD, clamped to it. Months that only appear because a long stay
+       * reaches back into them are context, not reporting months.
+       */
+      var months = scope.monthsIn(state.period);
       for (var m = 0; m < months.length; m++) {
-        var mPeriod = scope.monthPeriod(months[m].sample);
-        if (mPeriod.asOf.getTime() > state.period.asOf.getTime()) { mPeriod.asOf = state.period.asOf; }
         state.monthly.push({
           key: months[m].key,
-          label: util.monthLabel(months[m].key),
-          period: mPeriod,
-          metrics: calculateAll(state.encounters, state.transitions, state.episodes, config, mPeriod),
+          label: months[m].label,
+          partial: months[m].partial,
+          period: months[m].period,
+          metrics: calculateAll(state.encounters, state.transitions, state.episodes, config, months[m].period),
           /* Attributed to the month the readmitting episode began. */
-          readmissions: pipeline.readmissionsInPeriod(state, mPeriod)
+          readmissions: pipeline.readmissionsInPeriod(state, months[m].period)
         });
       }
 

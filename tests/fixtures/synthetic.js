@@ -120,15 +120,24 @@ function buildConfig(UR) {
   return config;
 }
 
-/* Run the full pipeline over the fixture set for August 2026. */
+/*
+ * Run the full pipeline over the fixture set, defaulting to August 2026.
+ * Passing an option explicitly as null opts out of the default, so a test can
+ * exercise the tool's own period inference.
+ */
 function run(UR, options) {
   var opts = options || {};
   var config = opts.config || buildConfig(UR);
   var source = buildSource(UR, opts);
+
+  function opt(key, fallback) {
+    return Object.prototype.hasOwnProperty.call(opts, key) ? opts[key] : fallback;
+  }
+
   return UR.pipeline.process([source], config, {
-    periodStart: opts.periodStart || UR.util.mkDT(2026, 8, 1, 0, 0),
-    periodEnd: opts.periodEnd || UR.util.mkDT(2026, 8, 31, 0, 0),
-    asOf: opts.asOf || UR.util.mkDT(2026, 9, 1, 0, 0)
+    periodStart: opt('periodStart', UR.util.mkDT(2026, 8, 1, 0, 0)),
+    periodEnd: opt('periodEnd', UR.util.mkDT(2026, 8, 31, 0, 0)),
+    asOf: opt('asOf', UR.util.mkDT(2026, 9, 1, 0, 0))
   });
 }
 
