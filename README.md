@@ -66,6 +66,15 @@ workstation. A green suite also rebuilds `dist/ur-compiler.html` automatically, 
 single-file distribution can never drift from the sources; the build is deterministic
 (content-hash stamped, no timestamps), so an unchanged rebuild never dirties the file.
 
+To make the rebuild unconditional — covering even a commit made without running the tests —
+enable the bundled pre-commit hook once per clone:
+
+```
+git config core.hooksPath .githooks
+```
+
+It rebuilds and stages `dist/ur-compiler.html` on every commit (a no-op when nothing changed).
+
 ---
 
 ## First-run setup

@@ -1,0 +1,8 @@
+#!/bin/sh
+# Rebuild the single-file distribution and stage it, so a commit can never
+# carry a dist/ur-compiler.html that is stale against the sources. The build
+# is deterministic, so this is a no-op when nothing changed.
+#
+# Enable once per clone:  git config core.hooksPath .githooks
+node build/standalone.js || exit 1
+git add dist/ur-compiler.html
