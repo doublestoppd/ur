@@ -61,7 +61,7 @@
 
       var transitions = [];
 
-      /* Only linkable records participate: included service, valid admit, MRN. */
+      /* Only linkable records participate: included service, valid admit, Patient ID. */
       var linkable = [];
       for (var i = 0; i < encounters.length; i++) {
         var e = encounters[i];
@@ -306,7 +306,7 @@
             if (refusedPairs[e1.rowId + '|' + e2.rowId]) { continue; }
             diag.addFor('DQ_OVERLAP_UNEXPLAINED', e1, {
               message: 'Accounts ' + e1.account + ' (' + e1.serviceClass + ') and ' + e2.account + ' (' + e2.serviceClass +
-                       ') for MRN ' + e1.mrn + ' overlap by ' + util.round(overlap, 2) +
+                       ') for patient ' + e1.mrn + ' overlap by ' + util.round(overlap, 2) +
                        ' hours with no internal transition explaining it. Occupancy metrics may double-count this patient.'
             });
           }

@@ -77,7 +77,7 @@ describe('code lookup is case-sensitive', function () {
     ];
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['8801', 'AMB1', 'CASE, TEST', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'dcg', 'H', '01']
+      [21, 'AMB1', 'CASE, TEST', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'dcg', 'H', '01']
     ];
     var s = fixtures.run(UR, { matrix: matrix, config: config });
     assert.equal(s.encounters[0].payerCategory, UR.PAYER_CATEGORY.UNKNOWN, 'no payer is guessed');
@@ -96,11 +96,13 @@ describe('origin codes', function () {
     assert.equal(observation.label, 'OBSERVATION');
   });
 
-  test('origin_code is recognized as the admission-source column', function () {
-    var auto = UR.headerMapper.autoMap(['visit_mr_num', 'ipv1_num', 'visit_servicecd_key', 'ipv1_ad_date', 'origin_code']);
-    assert.equal(auto.mapping.admissionSource.header, 'origin_code');
+  test('ipv1_origin is the admission-source column, and origin_code still works', function () {
+    var auto = UR.headerMapper.autoMap(['ipv1_age_years', 'ipv1_num', 'visit_servicecd_key', 'ipv1_ad_date', 'ipv1_origin']);
+    assert.equal(auto.mapping.admissionSource.header, 'ipv1_origin');
     assert.equal(auto.mapping.admissionSource.confidence, UR.headerMapper.CONFIDENCE.EXACT_CPSI,
-      'the raw field name is now established, so it matches exactly');
+      'the current raw field name matches exactly');
+    var legacy = UR.headerMapper.autoMap(['ipv1_age_years', 'ipv1_num', 'visit_servicecd_key', 'ipv1_ad_date', 'origin_code']);
+    assert.equal(legacy.mapping.admissionSource.header, 'origin_code', 'the previous header is still accepted as an alias');
   });
 
   /*
@@ -125,7 +127,7 @@ describe('origin codes', function () {
     config.admissionSources = [{ code: '01', label: 'HOME', category: 'Community', enabled: true }];
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['8802', 'NUM1', 'NUMERIC, TEST', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'H', 1]
+      [23, 'NUM1', 'NUMERIC, TEST', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'H', 1]
     ];
     var s = fixtures.run(UR, { matrix: matrix, config: config });
     assert.equal(s.encounters[0].admissionSourceLabel, 'HOME', 'the mapping is applied');
@@ -151,11 +153,11 @@ describe('discharge codes', function () {
     });
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['8810', 'D-E', 'A, TEST', 'IP', '08/02/2026', 600, '08/03/2026', 600, 'BCBS', 'E', '01'],
-      ['8811', 'D-F', 'B, TEST', 'IP', '08/04/2026', 600, '08/05/2026', 600, 'BCBS', 'F', '01'],
-      ['8812', 'D-G', 'C, TEST', 'IP', '08/06/2026', 600, '08/07/2026', 600, 'BCBS', 'G', '01'],
-      ['8813', 'D-J', 'D, TEST', 'IP', '08/08/2026', 600, '08/09/2026', 600, 'BCBS', 'J', '01'],
-      ['8814', 'D-H', 'E, TEST', 'IP', '08/10/2026', 600, '08/11/2026', 600, 'BCBS', 'H', '01']
+      [25, 'D-E', 'A, TEST', 'IP', '08/02/2026', 600, '08/03/2026', 600, 'BCBS', 'E', '01'],
+      [27, 'D-F', 'B, TEST', 'IP', '08/04/2026', 600, '08/05/2026', 600, 'BCBS', 'F', '01'],
+      [29, 'D-G', 'C, TEST', 'IP', '08/06/2026', 600, '08/07/2026', 600, 'BCBS', 'G', '01'],
+      [31, 'D-J', 'D, TEST', 'IP', '08/08/2026', 600, '08/09/2026', 600, 'BCBS', 'J', '01'],
+      [33, 'D-H', 'E, TEST', 'IP', '08/10/2026', 600, '08/11/2026', 600, 'BCBS', 'H', '01']
     ];
     var s = fixtures.run(UR, { matrix: matrix });
     assert.equal(s.metrics.payer.DEATH_001.value, 4, 'four death codes, one live discharge');
@@ -176,8 +178,8 @@ describe('discharge codes', function () {
 
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['8820', 'Z1', 'Z, TEST', 'IP', '08/10/2026', 600, '08/10/2026', 1200, 'BCBS', 'Z', '01'],
-      ['8820', 'Z2', 'Z, TEST', 'OS', '08/10/2026', 1210, '08/11/2026', 1000, 'BCBS', 'H', '6']
+      [35, 'Z1', 'Z, TEST', 'IP', '08/10/2026', 600, '08/10/2026', 1200, 'BCBS', 'Z', '01'],
+      [35, 'Z2', 'Z, TEST', 'OS', '08/10/2026', 1210, '08/11/2026', 1000, 'BCBS', 'H', '6']
     ];
     var s = fixtures.run(UR, { matrix: matrix });
     assert.equal(s.transitions[0].confidence, UR.LINK_CONFIDENCE.CONFIRMED);
@@ -189,7 +191,7 @@ describe('discharge codes', function () {
     /* V on an inpatient account means what the code says: an outward transfer. */
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['8830', 'V1', 'V, TEST', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'V', '01']
+      [37, 'V1', 'V, TEST', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'V', '01']
     ];
     var s = fixtures.run(UR, { matrix: matrix });
     assert.equal(s.encounters[0].transitionTo, null, 'no successor is expected from an IP account');
@@ -254,7 +256,7 @@ describe('insurance table', function () {
 
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['8870', 'GAP1', 'MEDIGAP, TEST', 'IP', '08/10/2026', 600, '08/11/2026', 1000, 'D4', 'H', '04']
+      [39, 'GAP1', 'MEDIGAP, TEST', 'IP', '08/10/2026', 600, '08/11/2026', 1000, 'D4', 'H', '04']
     ];
     var s = fixtures.run(UR, { matrix: matrix, config: UR.configSchema.defaults() });
     assert.equal(s.encounters[0].payerCategory, UR.PAYER_CATEGORY.COMMERCIAL);
@@ -294,7 +296,7 @@ describe('insurance table', function () {
     var config = UR.configSchema.defaults();
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['8840', 'RET1', 'RETIRED, TEST', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'MEC', 'H', '01']
+      [41, 'RET1', 'RETIRED, TEST', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'MEC', 'H', '01']
     ];
     var s = fixtures.run(UR, { matrix: matrix, config: config });
     assert.equal(s.encounters[0].payerCategory, UR.PAYER_CATEGORY.UNKNOWN);
@@ -310,10 +312,10 @@ describe('insurance table', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
       /* M = MEDICARE IP, M7 = HUMANA MCR ADV IP, B2 = BLUE CROSS -IP */
-      ['8850', 'MC1', 'FFS, TEST', 'IP', '08/10/2026', 600, '08/11/2026', 1000, 'M', 'H', '04'],
-      ['8851', 'MA1', 'ADV, TEST', 'IP', '08/12/2026', 600, '08/13/2026', 1000, 'M7', 'H', '04'],
-      ['8852', 'CM1', 'COM, TEST', 'IP', '08/14/2026', 600, '08/15/2026', 1000, 'B2', 'H', '04'],
-      ['8853', 'MO1', 'OBS, TEST', 'OS', '08/16/2026', 600, '08/18/2026', 600, 'MB', 'H', '04']
+      [43, 'MC1', 'FFS, TEST', 'IP', '08/10/2026', 600, '08/11/2026', 1000, 'M', 'H', '04'],
+      [45, 'MA1', 'ADV, TEST', 'IP', '08/12/2026', 600, '08/13/2026', 1000, 'M7', 'H', '04'],
+      [47, 'CM1', 'COM, TEST', 'IP', '08/14/2026', 600, '08/15/2026', 1000, 'B2', 'H', '04'],
+      [49, 'MO1', 'OBS, TEST', 'OS', '08/16/2026', 600, '08/18/2026', 600, 'MB', 'H', '04']
     ];
     var s = fixtures.run(UR, { matrix: matrix, config: config });
     var imm = s.reviewQueue.rows.filter(function (r) { return r.ruleId === 'RQ_IMM'; });
@@ -328,8 +330,8 @@ describe('insurance table', function () {
     var config = UR.configSchema.defaults();
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['8860', 'INV1', 'INV, TEST', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'M', 'H', '04'],
-      ['8861', 'INV2', 'INV, TEST', 'IP', '08/13/2026', 600, '08/15/2026', 600, 'NOPE', 'H', '04']
+      [51, 'INV1', 'INV, TEST', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'M', 'H', '04'],
+      [53, 'INV2', 'INV, TEST', 'IP', '08/13/2026', 600, '08/15/2026', 600, 'NOPE', 'H', '04']
     ];
     var s = fixtures.run(UR, { matrix: matrix, config: config });
     var insurance = s.codeInventory.filter(function (sec) { return sec.type === 'Insurance code'; })[0];

@@ -90,8 +90,8 @@ describe('data quality - exclusions are visible', function () {
   test('a conflicting duplicate account is excluded rather than merged', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['9401', 'D1', 'CONFLICT, TEST', 'IP', '08/10/2026', 600, '08/11/2026', 600, 'BCBS', 'H', 1],
-      ['9401', 'D1', 'CONFLICT, TEST', 'IP', '08/10/2026', 600, '08/14/2026', 600, 'BCBS', 'H', 1]
+      [21, 'D1', 'CONFLICT, TEST', 'IP', '08/10/2026', 600, '08/11/2026', 600, 'BCBS', 'H', 1],
+      [21, 'D1', 'CONFLICT, TEST', 'IP', '08/10/2026', 600, '08/14/2026', 600, 'BCBS', 'H', 1]
     ];
     var s = fixtures.run(UR, { matrix: matrix });
     assert.equal(s.accountConflicts, 1);
@@ -103,7 +103,7 @@ describe('data quality - exclusions are visible', function () {
   test('a discharge before admission beyond tolerance is an error and is excluded', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['9402', 'N1', 'NEGATIVE, TEST', 'IP', '08/10/2026', 1200, '08/10/2026', 800, 'BCBS', 'H', 1]
+      [23, 'N1', 'NEGATIVE, TEST', 'IP', '08/10/2026', 1200, '08/10/2026', 800, 'BCBS', 'H', 1]
     ];
     var s = fixtures.run(UR, { matrix: matrix });
     assert.equal(s.encounters[0].metricEligible, false);
@@ -115,7 +115,7 @@ describe('data quality - exclusions are visible', function () {
   test('a missing time is reported and midnight is assumed', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['9403', 'T1', 'NOTIME, TEST', 'IP', '08/10/2026', '', '08/12/2026', '', 'BCBS', 'H', 1]
+      [25, 'T1', 'NOTIME, TEST', 'IP', '08/10/2026', '', '08/12/2026', '', 'BCBS', 'H', 1]
     ];
     var s = fixtures.run(UR, { matrix: matrix });
     assert.equal(s.encounters[0].admitTimeAssumed, true);
@@ -123,22 +123,65 @@ describe('data quality - exclusions are visible', function () {
     assert.ok(ruleIds(s.diagnostics).DQ_TIME_MISSING >= 2, 'both ends are reported');
   });
 
-  test('a missing MRN blocks linkage but keeps the row usable for LOS', function () {
+  test('a missing age blocks linkage but keeps the row usable for LOS', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['', 'R1', 'NOMRN, TEST', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'H', 1]
+      ['', 'R1', 'NOAGE, TEST', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'H', 1]
     ];
     var s = fixtures.run(UR, { matrix: matrix });
     assert.equal(s.encounters[0].metricEligible, true, 'still counted in LOS metrics');
     assert.equal(s.metrics.inpatient.IP_ADM_001.value, 1);
-    assert.ok(ruleIds(s.diagnostics).DQ_MRN_MISSING >= 1);
+    assert.equal(s.encounters[0].mrn, '', 'no Patient ID could be derived');
+    assert.ok(ruleIds(s.diagnostics).DQ_PID_MISSING >= 1);
     assert.equal(s.readmissions.pairs.length, 0, 'but it cannot participate in readmission logic');
+  });
+
+  test('an unusable age value is reported with the value shown', function () {
+    var matrix = [
+      fixtures.HEADERS.slice(),
+      ['ancient', 'R2', 'BADAGE, TEST', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'H', 1]
+    ];
+    var s = fixtures.run(UR, { matrix: matrix });
+    var d = s.diagnostics.all().filter(function (x) { return x.ruleId === 'DQ_PID_MISSING'; });
+    assert.equal(d.length, 1);
+    assert.includes(d[0].message, '"ancient"');
+    assert.equal(s.encounters[0].mrn, '');
+  });
+
+  test('same name and age one year apart is flagged as a possible split patient', function () {
+    var matrix = [
+      fixtures.HEADERS.slice(),
+      [79, 'BD1', 'BIRTHDAY, TEST', 'IP', '08/01/2026', 600, '08/03/2026', 600, 'BCBS', 'H', 1],
+      [80, 'BD2', 'BIRTHDAY, TEST', 'IP', '08/20/2026', 600, '08/22/2026', 600, 'BCBS', 'H', 1]
+    ];
+    var s = fixtures.run(UR, { matrix: matrix });
+    assert.notEqual(s.encounters[0].mrn, s.encounters[1].mrn, 'treated as two patients, never merged on a guess');
+    var d = s.diagnostics.all().filter(function (x) { return x.ruleId === 'DQ_PID_SPLIT'; });
+    assert.equal(d.length, 1);
+    assert.includes(d[0].message, 'BD1');
+    assert.includes(d[0].message, 'BD2');
+    assert.includes(d[0].message, 'birthday');
+    assert.equal(s.readmissions.pairs.length, 0, 'and no readmission connects them while split');
+  });
+
+  test('name normalization forgives case and spacing, nothing more', function () {
+    var matrix = [
+      fixtures.HEADERS.slice(),
+      [61, 'NN1', 'SMITH, JOHN', 'IP', '08/01/2026', 600, '08/03/2026', 600, 'BCBS', 'H', 1],
+      [61, 'NN2', '  smith,  john ', 'IP', '08/20/2026', 600, '08/22/2026', 600, 'BCBS', 'H', 1],
+      [61, 'NN3', 'SMITH, JOHNNY', 'IP', '08/24/2026', 600, '08/26/2026', 600, 'BCBS', 'H', 1]
+    ];
+    var s = fixtures.run(UR, { matrix: matrix });
+    var byAcct = {};
+    s.encounters.forEach(function (e) { byAcct[e.account] = e; });
+    assert.equal(byAcct.NN1.mrn, byAcct.NN2.mrn, 'case and spacing noise is one patient');
+    assert.notEqual(byAcct.NN1.mrn, byAcct.NN3.mrn, 'a genuinely different name is a different patient');
   });
 
   test('a missing account number gets a traceable synthetic identifier', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['9404', '', 'NOACCT, TEST', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'H', 1]
+      [27, '', 'NOACCT, TEST', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'H', 1]
     ];
     var s = fixtures.run(UR, { matrix: matrix });
     assert.equal(s.encounters[0].accountSynthetic, true);
@@ -152,7 +195,7 @@ describe('data quality - blocking conditions', function () {
   test('no recognizable service code blocks the run', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['9501', 'Q1', 'X', 'QQ', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'H', 1]
+      [29, 'Q1', 'X', 'QQ', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'H', 1]
     ];
     var s = fixtures.run(UR, { matrix: matrix });
     assert.ok(s.blocked, 'processing stops');
@@ -163,7 +206,7 @@ describe('data quality - blocking conditions', function () {
   test('no parseable admission date blocks the run', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['9502', 'Q2', 'X', 'IP', 'not a date', 600, '08/12/2026', 600, 'BCBS', 'H', 1]
+      [31, 'Q2', 'X', 'IP', 'not a date', 600, '08/12/2026', 600, 'BCBS', 'H', 1]
     ];
     var s = fixtures.run(UR, { matrix: matrix });
     assert.ok(s.blocked);
@@ -252,8 +295,8 @@ describe('diagnostics', function () {
   test('out-of-period rows are retained for context and reported', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['9601', 'J1', 'JULY, TEST', 'IP', '07/10/2026', 600, '07/12/2026', 600, 'BCBS', 'H', 1],
-      ['9601', 'J2', 'AUG, TEST', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'H', 1]
+      [33, 'J1', 'PERIOD, TEST', 'IP', '07/10/2026', 600, '07/12/2026', 600, 'BCBS', 'H', 1],
+      [33, 'J2', 'PERIOD, TEST', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'H', 1]
     ];
     var s = fixtures.run(UR, { matrix: matrix });
     assert.equal(s.encounters.length, 2, 'the July row is retained');

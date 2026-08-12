@@ -49,26 +49,27 @@
     /* ------------------------------------------------ structural / linkage */
     rule({
       id: 'EPISODE_001',
+      version: '1.1',
       name: 'Continuous hospital episode construction',
       classification: C.HOSPITAL,
       definition: 'Source accounts connected by confirmed or probable internal status transitions are grouped under one generated Episode ID. Each source account keeps its own service-level length of stay.',
-      formula: 'Group accounts by MRN, sort by admission datetime then account number; join accounts joined by an accepted transition link into a single episode; an account with no accepted link forms an episode of one.',
-      inputs: ['MRN', 'Account number', 'Service code', 'Admission datetime', 'Discharge datetime', 'Discharge code'],
+      formula: 'Group accounts by derived Patient ID (assigned to each distinct patient name + age pair), sort by admission datetime then account number; join accounts joined by an accepted transition link into a single episode; an account with no accepted link forms an episode of one.',
+      inputs: ['Patient ID (derived from name and age)', 'Account number', 'Service code', 'Admission datetime', 'Discharge datetime', 'Discharge code'],
       inclusions: [COMMON_INCLUSIONS],
       exclusions: ['Excluded and unknown service codes never join an episode.', 'Ambiguous transitions are left unlinked rather than guessed.'],
-      nullHandling: 'A record without a usable MRN or admission datetime cannot be linked and forms a one-account episode with a data-quality warning.',
+      nullHandling: 'A record without a derivable Patient ID (name or age unusable) or admission datetime cannot be linked and forms a one-account episode with a data-quality warning.',
       notes: 'CPSI opens a new account when a patient changes status, so an OS -> IP -> SB course is four accounts and one episode. Episodes exist so internal transitions are never counted as readmissions.',
       implementationKey: 'episodeBuilder.buildEpisodes'
     }),
 
     rule({
       id: 'TRANS_001',
-      version: '1.1',
+      version: '1.2',
       name: 'Internal status-transition linkage',
       classification: C.HOSPITAL,
-      definition: 'An account whose discharge code implies an internal status change is linked to the next same-MRN account carrying the expected service, when the timing satisfies the configured tolerances.',
-      formula: 'For a discharging account with a transition discharge code: consider same-MRN accounts of the expected target service admitted at or after the discharge datetime minus the overlap tolerance; require the same calendar date when configured; choose the smallest nonnegative gap within the maximum gap. Exactly one candidate links as Confirmed; a candidate starting before the discharge but inside the overlap tolerance links as Probable with a warning; two or more plausible candidates are flagged Ambiguous and left unlinked; a same-day candidate of the expected service overlapping BEYOND the tolerance is flagged Refused (timing) with both accounts named; none at all is flagged Missing Expected Successor.',
-      inputs: ['MRN', 'Service code', 'Admission datetime', 'Discharge datetime', 'Discharge code'],
+      definition: 'An account whose discharge code implies an internal status change is linked to the next same-patient account (same derived Patient ID) carrying the expected service, when the timing satisfies the configured tolerances.',
+      formula: 'For a discharging account with a transition discharge code: consider same-patient accounts of the expected target service admitted at or after the discharge datetime minus the overlap tolerance; require the same calendar date when configured; choose the smallest nonnegative gap within the maximum gap. Exactly one candidate links as Confirmed; a candidate starting before the discharge but inside the overlap tolerance links as Probable with a warning; two or more plausible candidates are flagged Ambiguous and left unlinked; a same-day candidate of the expected service overlapping BEYOND the tolerance is flagged Refused (timing) with both accounts named; none at all is flagged Missing Expected Successor.',
+      inputs: ['Patient ID (derived from name and age)', 'Service code', 'Admission datetime', 'Discharge datetime', 'Discharge code'],
       inclusions: ['Discharge codes configured with a transition target, restricted by source service where configured (B: OS -> IP; Q: IP/OS -> SB; V: SB -> IP).'],
       exclusions: ['Timing alone never creates a link. A same-day service change with no transition discharge code is reported as a possible uncoded transition and left unlinked (spec 8.3 step 9).'],
       thresholds: [
@@ -77,7 +78,7 @@
         t('Same calendar date required', 'transition.requireSameCalendarDate'),
         t('Suspicious gap threshold (minutes)', 'transition.suspiciousGapMinutes')
       ],
-      nullHandling: 'Missing MRN, admission datetime, or discharge datetime disables linkage for that account and raises a warning.',
+      nullHandling: 'A missing Patient ID, admission datetime, or discharge datetime disables linkage for that account and raises a warning.',
       sourceRefs: ['HOSP'],
       notes: 'Code V is a hospital-specific reading; the published meaning is transfer to a Critical Access Hospital. ' +
              'v1.1: the overlap-tolerance default was raised from the specification\'s 15 minutes to 60 after live data showed ' +
@@ -643,25 +644,27 @@
 
     rule({
       id: 'PATIENT_CNT_001',
+      version: '1.1',
       name: 'Unique patients',
       classification: C.OPERATIONAL,
-      definition: 'Count of distinct MRNs represented among included encounters in the reporting period.',
-      formula: 'count(distinct MRN)',
-      inputs: ['MRN'],
+      definition: 'Count of distinct derived Patient IDs - one per distinct (patient name, age) pair - represented among included encounters in the reporting period.',
+      formula: 'count(distinct derived Patient ID)',
+      inputs: ['Patient ID (derived from name and age)'],
       inclusions: ['Included service accounts admitted in the period.'],
-      exclusions: ['Records with a missing MRN, which cannot be attributed to a patient.'],
-      nullHandling: 'Missing MRNs are counted separately as a data-quality warning rather than pooled into one pseudo-patient.',
+      exclusions: ['Records with no derivable Patient ID (name or age unusable), which cannot be attributed to a patient.'],
+      nullHandling: 'Records without a Patient ID are counted separately as a data-quality warning rather than pooled into one pseudo-patient.',
       implementationKey: 'metrics.census.uniquePatients'
     }),
 
     /* ------------------------------------------------ readmission indicators */
     rule({
       id: 'READMIT_7_001',
+      version: '1.1',
       name: 'Internal 7-day readmission indicator',
       classification: C.OPERATIONAL,
-      definition: 'A new acute inpatient episode for the same MRN beginning more than 0 and at most 7 days after the FINAL discharge of a prior continuous episode that contained acute inpatient care.',
-      formula: 'for each pair of consecutive episodes of one MRN containing acute IP care: daysBetween = newEpisodeStart - priorEpisodeFinalDischarge; flag when 0 < daysBetween <= 7',
-      inputs: ['EPISODE_001', 'MRN', 'Discharge datetime'],
+      definition: 'A new acute inpatient episode for the same patient (same derived Patient ID) beginning more than 0 and at most 7 days after the FINAL discharge of a prior continuous episode that contained acute inpatient care.',
+      formula: 'for each pair of consecutive episodes of one patient containing acute IP care: daysBetween = newEpisodeStart - priorEpisodeFinalDischarge; flag when 0 < daysBetween <= 7',
+      inputs: ['EPISODE_001', 'Patient ID (derived from name and age)', 'Discharge datetime'],
       inclusions: ['Prior episodes that contained at least one acute IP account and ended with a true discharge.', 'Subsequent episodes that contain acute IP care.'],
       exclusions: ['Internal OS/IP/SB status transitions inside one episode - by construction these are one episode and can never be a readmission.', 'Prior episodes still open at the end of the data.', 'Pairs whose prior episode cannot be dated.'],
       thresholds: [t('Short readmission window (days)', 'thresholds.readmissionWindowDays.0')],
@@ -672,11 +675,12 @@
 
     rule({
       id: 'READMIT_30_001',
+      version: '1.1',
       name: 'Internal 30-day readmission indicator',
       classification: C.OPERATIONAL,
       definition: 'The same logic as READMIT_7_001 using a window of more than 0 and at most 30 days.',
       formula: 'flag when 0 < daysBetween <= 30',
-      inputs: ['EPISODE_001', 'MRN', 'Discharge datetime'],
+      inputs: ['EPISODE_001', 'Patient ID (derived from name and age)', 'Discharge datetime'],
       inclusions: ['Same as READMIT_7_001.'],
       exclusions: ['Same as READMIT_7_001.'],
       thresholds: [t('Long readmission window (days)', 'thresholds.readmissionWindowDays.1')],
@@ -687,6 +691,7 @@
 
     rule({
       id: 'READMIT_MCR_001',
+      version: '1.1',
       name: 'Medicare 30-day readmission indicator',
       classification: C.OPERATIONAL,
       definition: 'The subset of READMIT_30_001 in which the readmitting acute inpatient account is mapped to Medicare FFS or Medicare Advantage. The two categories are also reported separately.',

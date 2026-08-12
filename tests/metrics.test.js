@@ -30,7 +30,7 @@ describe('inpatient metrics', function () {
   test('a stay of exactly 96 hours is not a long stay', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['9101', 'E96', 'EXACT, TEST', 'IP', '08/01/2026', 800, '08/05/2026', 800, 'BCBS', 'H', 1]
+      [21, 'E96', 'EXACT, TEST', 'IP', '08/01/2026', 800, '08/05/2026', 800, 'BCBS', 'H', 1]
     ];
     var s = fixtures.run(UR, { matrix: matrix });
     assert.close(s.encounters[0].durationHours, 96, 1e-9);
@@ -155,7 +155,7 @@ describe('patient days and census', function () {
   test('a stay wholly inside the period contributes its exact hours', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['9201', 'C1', 'CENSUS, TEST', 'IP', '08/10/2026', 600, '08/13/2026', 600, 'BCBS', 'H', 1]
+      [23, 'C1', 'CENSUS, TEST', 'IP', '08/10/2026', 600, '08/13/2026', 600, 'BCBS', 'H', 1]
     ];
     var s = fixtures.run(UR, { matrix: matrix });
     assert.close(s.metrics.census.PD_EQ_001.value, 3, 1e-9, '72 hours = 3 equivalent days');
@@ -167,7 +167,7 @@ describe('patient days and census', function () {
   test('a stay crossing the period boundary contributes only in-period time', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['9202', 'C2', 'SPAN, TEST', 'IP', '07/30/2026', 0, '08/03/2026', 0, 'BCBS', 'H', 1]
+      [25, 'C2', 'SPAN, TEST', 'IP', '07/30/2026', 0, '08/03/2026', 0, 'BCBS', 'H', 1]
     ];
     var s = fixtures.run(UR, { matrix: matrix });
     assert.close(s.metrics.census.PD_EQ_001.value, 2, 1e-9, '08/01 00:00 to 08/03 00:00 is 2 days inside August');
@@ -188,7 +188,7 @@ describe('patient days and census', function () {
   test('a single-service run puts every patient day in that service', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['9205', 'C5', 'ONLY, SB', 'SB', '08/10/2026', 600, '08/13/2026', 600, 'BCBS', 'H', 1]
+      [27, 'C5', 'ONLY, SB', 'SB', '08/10/2026', 600, '08/13/2026', 600, 'BCBS', 'H', 1]
     ];
     var s = fixtures.run(UR, { matrix: matrix });
     assert.equal(s.metrics.census.PD_SB_001.midnightDays, 3);
@@ -200,7 +200,7 @@ describe('patient days and census', function () {
   test('the two methods diverge for short stays, as designed', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['9203', 'C3', 'SHORT, TEST', 'IP', '08/10/2026', '2350', '08/11/2026', '0010', 'BCBS', 'H', 1]
+      [29, 'C3', 'SHORT, TEST', 'IP', '08/10/2026', '2350', '08/11/2026', '0010', 'BCBS', 'H', 1]
     ];
     var s = fixtures.run(UR, { matrix: matrix });
     assert.close(s.metrics.census.PD_EQ_001.value, (20 / 60) / 24, 1e-9, '20 minutes time-weighted');
@@ -210,7 +210,7 @@ describe('patient days and census', function () {
   test('open encounters are counted through the as-of datetime only', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['9204', 'C4', 'OPEN, TEST', 'IP', '08/29/2026', 0, '', '', 'BCBS', '', 1]
+      [31, 'C4', 'OPEN, TEST', 'IP', '08/29/2026', 0, '', '', 'BCBS', '', 1]
     ];
     var withOpen = fixtures.run(UR, { matrix: matrix, asOf: util.mkDT(2026, 8, 31, 0, 0) });
     assert.close(withOpen.metrics.census.PD_EQ_001.value, 2, 1e-9, '08/29 00:00 to 08/31 00:00');
@@ -259,7 +259,7 @@ describe('payer, disposition, and mortality', function () {
   test('an unmapped insurance code lands in Unknown and is excluded from Medicare rules', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['9301', 'P1', 'UNMAPPED, TEST', 'IP', '08/10/2026', 600, '08/11/2026', 600, 'ZZZ', 'H', 1]
+      [33, 'P1', 'UNMAPPED, TEST', 'IP', '08/10/2026', 600, '08/11/2026', 600, 'ZZZ', 'H', 1]
     ];
     var s = fixtures.run(UR, { matrix: matrix });
     assert.equal(s.encounters[0].payerCategory, UR.PAYER_CATEGORY.UNKNOWN);

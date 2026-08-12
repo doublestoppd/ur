@@ -146,7 +146,7 @@
       return { episodes: episodes, byId: byId };
     },
 
-    /* Episodes for one MRN, chronological. */
+    /* Episodes for one patient (derived Patient ID), chronological. */
     forMrn: function (episodes, mrn) {
       var out = [];
       for (var i = 0; i < episodes.length; i++) {

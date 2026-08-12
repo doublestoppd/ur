@@ -44,7 +44,7 @@
 
       for (var g = 0; g < byMrn.keys.length; g++) {
         var mrn = byMrn.keys[g];
-        if (!mrn) { continue; } /* records with no MRN cannot be linked */
+        if (!mrn) { continue; } /* records with no Patient ID cannot be linked */
         var list = byMrn.map[mrn].slice().sort(function (a, b) {
           return (a.startDT ? a.startDT.getTime() : 0) - (b.startDT ? b.startDT.getTime() : 0);
         });

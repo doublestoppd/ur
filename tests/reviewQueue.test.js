@@ -74,7 +74,7 @@ describe('review queue', function () {
   test('an observation patient still in house past the threshold is flagged', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['9701', 'OPEN1', 'INHOUSE, TEST', 'OS', '08/28/2026', 800, '', '', 'MCR', '', 2]
+      [21, 'OPEN1', 'INHOUSE, TEST', 'OS', '08/28/2026', 800, '', '', 'MCR', '', 2]
     ];
     /* Admitted 08/28 08:00 and still in observation at 08/30 12:00 - 52 hours. */
     var s = fixtures.run(UR, { matrix: matrix, asOf: UR.util.mkDT(2026, 8, 30, 12, 0) });

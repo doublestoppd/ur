@@ -363,7 +363,7 @@
       }
 
       rows.push([]);
-      rows.push(NOTE(['This worksheet intentionally contains no patient names, MRNs, or account numbers.']));
+      rows.push(NOTE(['This worksheet intentionally contains no patient names, patient IDs, or account numbers.']));
 
       /*
        * Uniform geometry: the label column, one equal column per month, an
@@ -451,7 +451,7 @@
       var cfg = state.config;
       var rows = [];
       rows.push(HDR(
-        ['Rule ID', 'Review reason', 'Account', 'MRN'].concat(nameCols(cfg)).concat(
+        ['Rule ID', 'Review reason', 'Account', 'Patient ID'].concat(nameCols(cfg)).concat(
           ['Service', 'Payer category', 'Episode ID', 'Admit', 'Discharge', 'Open',
            'Measure', 'Measure type', 'Related account(s)', 'Detail'])
       ));
@@ -472,7 +472,7 @@
     reviewQueueByAccount: function (state) {
       var cfg = state.config;
       var rows = [];
-      rows.push(HDR(['Account', 'MRN'].concat(nameCols(cfg)).concat(
+      rows.push(HDR(['Account', 'Patient ID'].concat(nameCols(cfg)).concat(
         ['Service', 'Payer category', 'Episode ID', 'Admit', 'Discharge', 'Reasons', 'Rule IDs', 'Detail'])));
       var list = state.reviewQueue.byAccount;
       for (var i = 0; i < list.length; i++) {
@@ -488,8 +488,8 @@
       var cfg = state.config;
       var th = cfg.thresholds;
       var rows = [];
-      var header = ['Account', 'MRN'].concat(nameCols(cfg)).concat(
-        ['Service code', 'Service', 'Admit', 'Discharge', 'Open', 'LOS hours', 'LOS days', 'Midnights',
+      var header = ['Account', 'Patient ID'].concat(nameCols(cfg)).concat(
+        ['Age', 'Service code', 'Service', 'Admit', 'Discharge', 'Open', 'LOS hours', 'LOS days', 'Midnights',
          'Payer category', 'Insurance code', 'Discharge code', 'Disposition', 'Episode ID', 'Service sequence',
          'Linked from', 'Linked to', 'Link confidence', 'Review flags', 'Data flags', 'Source file', 'Source row']);
 
@@ -515,7 +515,7 @@
           if (flagIds.indexOf(e.flags[f].ruleId) < 0) { flagIds.push(e.flags[f].ruleId); }
         }
         var row = [e.account, e.mrn].concat(nameVal(cfg, e.name)).concat(
-          [e.serviceRaw, e.serviceClass, D(e.admitDT), D(e.dischargeDT), yn(e.isOpen),
+          [e.ageYears, e.serviceRaw, e.serviceClass, D(e.admitDT), D(e.dischargeDT), yn(e.isOpen),
            N(e.durationHours), N(e.durationDays), e.midnights]);
 
         if (serviceClass === UR.SERVICE.IP) {
@@ -548,7 +548,7 @@
     episodes: function (state) {
       var cfg = state.config;
       var rows = [];
-      rows.push(HDR(['Episode ID', 'MRN'].concat(nameCols(cfg)).concat(
+      rows.push(HDR(['Episode ID', 'Patient ID'].concat(nameCols(cfg)).concat(
         ['Accounts', 'Account count', 'Service sequence', 'First admit', 'Final discharge', 'Open',
          'Total elapsed hours', 'Total elapsed days', 'Acute IP hours', 'Contains IP', 'Contains OS', 'Contains SB',
          'Final discharge code', 'Final disposition', 'Death', 'Final payer category', 'Includes probable link'])));
@@ -568,7 +568,7 @@
     /* ------------------------------------------------------- Transitions */
     transitions: function (state) {
       var rows = [];
-      rows.push(HDR(['Prior account', 'Next account', 'MRN', 'From service', 'To service', 'Expected service',
+      rows.push(HDR(['Prior account', 'Next account', 'Patient ID', 'From service', 'To service', 'Expected service',
         'Discharge code', 'Prior discharge', 'Next admit', 'Gap minutes', 'Same calendar date',
         'Link confidence', 'Episode ID', 'Issue', 'Candidate accounts']));
       var byRowId = {};
@@ -596,7 +596,7 @@
       var cfg = state.config;
       var windows = cfg.thresholds.readmissionWindowDays;
       var rows = [];
-      rows.push(HDR(['MRN'].concat(nameCols(cfg)).concat(
+      rows.push(HDR(['Patient ID'].concat(nameCols(cfg)).concat(
         ['New IP account', 'New episode ID', 'New episode start', 'Prior episode ID', 'Prior accounts',
          'Prior final discharge', 'Prior disposition', 'Prior discharge code', 'Days between',
          'Within ' + windows[0] + ' days', 'Within ' + windows[1] + ' days', 'Payer category', 'Medicare'])));
@@ -720,7 +720,7 @@
       rows.push(NOTE(['This worksheet lists accounts that objectively QUALIFY for a notice review. It is not proof of delivery.']));
       rows.push(NOTE(['CPSI cannot export scanned or signed notice status, so completion, timing, and signature must be verified manually for every row (R3, R4).']));
       rows.push([]);
-      rows.push(HDR(['Rule ID', 'Notice', 'Account', 'MRN'].concat(nameCols(cfg)).concat(
+      rows.push(HDR(['Rule ID', 'Notice', 'Account', 'Patient ID'].concat(nameCols(cfg)).concat(
         ['Service', 'Payer category', 'Admit', 'Discharge', 'Open', 'Hours', 'Detail'])));
       var qrows = state.reviewQueue.rows;
       var found = 0;
@@ -752,7 +752,7 @@
 
       rows.push([]);
       rows.push(SEC(['ALL FINDINGS']));
-      rows.push(HDR(['Severity', 'Rule ID', 'Rule', 'Account', 'MRN', 'Service', 'Value', 'Message', 'Source file', 'Source sheet', 'Source row']));
+      rows.push(HDR(['Severity', 'Rule ID', 'Rule', 'Account', 'Patient ID', 'Service', 'Value', 'Message', 'Source file', 'Source sheet', 'Source row']));
       var all = state.diagnostics.sorted();
       for (i = 0; i < all.length; i++) {
         var d = all[i];

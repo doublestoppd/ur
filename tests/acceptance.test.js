@@ -30,7 +30,8 @@ describe('acceptance criteria (spec 16.1)', function () {
       assert.equal(sheet.rowCount, fixtures.ROWS.length, bookType + ' row count');
       var auto = UR.headerMapper.autoMap(sheet.headers);
       assert.equal(auto.mapping.service.header, 'visit_servicecd_key', bookType + ' service mapping');
-      assert.equal(auto.mapping.mrn.header, 'visit_mr_num', bookType + ' MRN mapping');
+      assert.equal(auto.mapping.ageYears.header, 'ipv1_age_years', bookType + ' age mapping');
+      assert.equal(auto.mapping.admissionSource.header, 'ipv1_origin', bookType + ' origin mapping');
       assert.equal(auto.unmapped.length, 0, bookType + ': every canonical field mapped');
     });
   });
@@ -61,12 +62,18 @@ describe('acceptance criteria (spec 16.1)', function () {
     assert.equal(op.status, 'Recognized / ignored');
   });
 
-  test('4. builds episodes from MRN, discharge code, expected service, and timing', function () {
+  test('4. builds episodes from patient identity, discharge code, expected service, and timing', function () {
     var s = fixtures.run(UR);
-    var episode = null;
-    s.episodes.forEach(function (ep) { if (ep.accounts.indexOf('A101') >= 0) { episode = ep; } });
-    assert.equal(episode.serviceSequence.join(' -> '), 'OS -> IP -> SB -> IP');
-    assert.equal(episode.mrn, '1001');
+    var a101 = null, a104 = null;
+    s.encounters.forEach(function (e) {
+      if (e.account === 'A101') { a101 = e; }
+      if (e.account === 'A104') { a104 = e; }
+    });
+    assert.ok(/^P\d+$/.test(a101.mrn), 'the patient carries a derived Patient ID: ' + a101.mrn);
+    assert.equal(a101.mrn, a104.mrn, 'all four accounts share one derived patient (same name and age)');
+    assert.equal(a101.episodeId, a104.episodeId, 'and one episode spans the OS -> IP -> SB -> IP course');
+    var ep = s.episodes.filter(function (x) { return x.episodeId === a101.episodeId; })[0];
+    assert.deepEqual(ep.serviceSequence, ['OS', 'IP', 'SB', 'IP']);
   });
 
   test('5. links a real-world 4-minute status-change gap', function () {

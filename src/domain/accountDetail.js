@@ -106,7 +106,7 @@
       return rows;
     },
 
-    /* Case-insensitive search across account, MRN, and name. */
+    /* Case-insensitive search across account, Patient ID, and name. */
     search: function (rows, query, filters) {
       var f = filters || {};
       var q = String(query || '').trim().toLowerCase();
@@ -138,7 +138,10 @@
 
       function interpreted(key, e) {
         switch (key) {
-          case 'mrn': return e.mrn || '(none)';
+          case 'ageYears':
+            return e.ageYears === null
+              ? '(not usable - no Patient ID can be derived)'
+              : e.ageYears + ' years; with the name, derives Patient ID ' + (e.mrn || '(none)');
           case 'account': return e.account + (e.accountSynthetic ? ' (assigned: the source row had no account number)' : '');
           case 'name': return e.name || '(none)';
           case 'service':
@@ -195,6 +198,11 @@
         value: e.midnights === null ? '(not calculated)' : String(e.midnights),
         note: 'Counted from calendar boundaries, not from hours / 24.'
       });
+      rows.push({
+        label: 'Patient ID',
+        value: e.mrn || '(none - name or age unusable)',
+        note: 'Derived: accounts sharing this patient name and age are treated as one patient.'
+      });
       rows.push({ label: 'Payer category', value: e.payerCategory });
       rows.push({ label: 'Disposition category', value: e.dispositionCategory || '(none)' });
       rows.push({ label: 'Counted as a death', value: e.isDeath ? 'Yes' : 'No' });
@@ -218,9 +226,10 @@
     /*
      * The full dossier for the patient owning an account.
      *
-     * Keyed by MRN when there is one, because the unit a reviewer verifies is a
-     * patient's course, not a single CPSI account. A record with no MRN stands
-     * alone, which is itself worth seeing.
+     * Keyed by the derived Patient ID when there is one, because the unit a
+     * reviewer verifies is a patient's course, not a single CPSI account. A
+     * record with no Patient ID (name or age unusable) stands alone, which is
+     * itself worth seeing.
      */
     forAccount: function (state, account) {
       var i, j;

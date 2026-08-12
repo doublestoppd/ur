@@ -95,7 +95,8 @@
 
   /*
    * The hospital's origin (admission source) codes, exported in the
-   * `origin_code` column.
+   * `ipv1_origin` column (previously `origin_code`; both headers are
+   * recognized).
    *
    * Note that OBSERVATION is listed as "6" rather than "06". A spreadsheet
    * column of these values may arrive as text ("06") or as numbers (6), so code

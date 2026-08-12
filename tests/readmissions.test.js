@@ -53,8 +53,8 @@ describe('readmission indicators', function () {
   test('a prior episode without acute inpatient care is not an index stay', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['8001', 'X1', 'OBSONLY, TEST', 'OS', '08/01/2026', 800, '08/01/2026', 2000, 'MCR', 'H', 1],
-      ['8001', 'X2', 'OBSONLY, TEST', 'IP', '08/10/2026', 800, '08/12/2026', 1000, 'MCR', 'H', 1]
+      [21, 'X1', 'OBSONLY, TEST', 'OS', '08/01/2026', 800, '08/01/2026', 2000, 'MCR', 'H', 1],
+      [21, 'X2', 'OBSONLY, TEST', 'IP', '08/10/2026', 800, '08/12/2026', 1000, 'MCR', 'H', 1]
     ];
     var s = fixtures.run(UR, { matrix: matrix });
     assert.equal(s.readmissions.pairs.length, 0, 'an observation-only prior stay does not qualify');
@@ -63,8 +63,8 @@ describe('readmission indicators', function () {
   test('an open prior episode cannot be an index stay', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['8002', 'Y1', 'OPEN, TEST', 'IP', '08/01/2026', 800, '', '', 'MCR', '', 1],
-      ['8002', 'Y2', 'OPEN, TEST', 'IP', '08/10/2026', 800, '08/12/2026', 1000, 'MCR', 'H', 1]
+      [23, 'Y1', 'OPEN, TEST', 'IP', '08/01/2026', 800, '', '', 'MCR', '', 1],
+      [23, 'Y2', 'OPEN, TEST', 'IP', '08/10/2026', 800, '08/12/2026', 1000, 'MCR', 'H', 1]
     ];
     var s = fixtures.run(UR, { matrix: matrix });
     assert.equal(s.readmissions.pairs.length, 0, 'no final discharge means no measurable interval');
@@ -73,8 +73,8 @@ describe('readmission indicators', function () {
   test('a gap beyond the longest window is not reported', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['8003', 'Z1', 'FAR, TEST', 'IP', '07/01/2026', 800, '07/02/2026', 1000, 'MCR', 'H', 1],
-      ['8003', 'Z2', 'FAR, TEST', 'IP', '08/15/2026', 800, '08/17/2026', 1000, 'MCR', 'H', 1]
+      [25, 'Z1', 'FAR, TEST', 'IP', '07/01/2026', 800, '07/02/2026', 1000, 'MCR', 'H', 1],
+      [25, 'Z2', 'FAR, TEST', 'IP', '08/15/2026', 800, '08/17/2026', 1000, 'MCR', 'H', 1]
     ];
     var s = fixtures.run(UR, { matrix: matrix });
     assert.equal(s.readmissions.pairs.length, 0, '44 days exceeds the 30-day window');

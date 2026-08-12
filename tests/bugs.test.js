@@ -95,8 +95,8 @@ describe('duplicate account detection', function () {
   test('same account, differing only by name, is a conflict rather than a double count', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['9901', 'DUP1', 'SMITH, JOHN', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'H', 1],
-      ['9901', 'DUP1', 'SMITH, JON', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'H', 1]
+      [21, 'DUP1', 'SMITH, JOHN', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'H', 1],
+      [21, 'DUP1', 'SMITH, JON', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'H', 1]
     ];
     var s = fixtures.run(UR, { matrix: matrix });
     assert.equal(s.metrics.inpatient.IP_ADM_001.value, 0, 'neither copy is counted');
@@ -106,8 +106,8 @@ describe('duplicate account detection', function () {
   test('same account, differing only by admission source, is also a conflict', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['9902', 'DUP2', 'SMITH, JOHN', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'H', 1],
-      ['9902', 'DUP2', 'SMITH, JOHN', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'H', 3]
+      [23, 'DUP2', 'SMITH, JOHN', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'H', 1],
+      [23, 'DUP2', 'SMITH, JOHN', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'H', 3]
     ];
     var s = fixtures.run(UR, { matrix: matrix });
     assert.equal(s.accountConflicts, 1);
@@ -117,8 +117,8 @@ describe('duplicate account detection', function () {
   test('identical copies are still de-duplicated rather than called a conflict', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['9903', 'DUP3', 'SMITH, JOHN', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'H', 1],
-      ['9903', 'DUP3', 'SMITH, JOHN', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'H', 1]
+      [25, 'DUP3', 'SMITH, JOHN', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'H', 1],
+      [25, 'DUP3', 'SMITH, JOHN', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'H', 1]
     ];
     var s = fixtures.run(UR, { matrix: matrix });
     assert.equal(s.accountConflicts, 0);
@@ -130,8 +130,8 @@ describe('duplicate account detection', function () {
     config.processing.deduplicateIdenticalRows = false;
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['9904', 'DUP4', 'SMITH, JOHN', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'H', 1],
-      ['9904', 'DUP4', 'SMITH, JOHN', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'H', 1]
+      [27, 'DUP4', 'SMITH, JOHN', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'H', 1],
+      [27, 'DUP4', 'SMITH, JOHN', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'H', 1]
     ];
     var s = fixtures.run(UR, { matrix: matrix, config: config });
     assert.equal(s.accountConflicts, 0, 'identical copies are not a content conflict');
@@ -152,7 +152,7 @@ describe('multi-file mapping', function () {
       fileName: 'september.xlsx',
       matrix: [
         ['visit_mr_num', 'ipv1_num', 'ipv1_ad_date'],
-        ['6001', 'X1', '09/02/2026']
+        [29, 'X1', '09/02/2026']
       ]
     });
     var s = UR.pipeline.process([good, thin], fixtures.buildConfig(UR), {});
@@ -195,7 +195,7 @@ describe('workbook robustness', function () {
   test('a run with no review rows and no diagnostics still exports every sheet', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['9950', 'CLEAN1', 'CLEAN, TEST', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'H', 1]
+      [31, 'CLEAN1', 'CLEAN, TEST', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'H', 1]
     ];
     var s = fixtures.run(UR, { matrix: matrix });
     var bytes = UR.workbookBuilder.toBytes(s, '');
@@ -283,7 +283,7 @@ describe('time edge cases', function () {
   test('an unparseable time cell falls back to the time embedded in the date cell', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['9960', 'EMB1', 'EMBED, TEST', 'IP', '08/03/2026 14:32', 'garbage', '08/05/2026', 1000, 'BCBS', 'H', '01']
+      [33, 'EMB1', 'EMBED, TEST', 'IP', '08/03/2026 14:32', 'garbage', '08/05/2026', 1000, 'BCBS', 'H', '01']
     ];
     var s = fixtures.run(UR, { matrix: matrix });
     var e = s.encounters[0];
@@ -299,7 +299,7 @@ describe('time edge cases', function () {
   test('midnight is still assumed when there is no embedded time to fall back on', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['9961', 'EMB2', 'EMBED, TEST', 'IP', '08/03/2026', 'garbage', '08/05/2026', 1000, 'BCBS', 'H', '01']
+      [35, 'EMB2', 'EMBED, TEST', 'IP', '08/03/2026', 'garbage', '08/05/2026', 1000, 'BCBS', 'H', '01']
     ];
     var s = fixtures.run(UR, { matrix: matrix });
     assert.equal(UR.util.fmtDateTime(s.encounters[0].admitDT), '08/03/2026 00:00');
@@ -335,7 +335,7 @@ describe('code inventory agrees with the engine on disabled rows', function () {
   test('a retired insurance code is described as the engine treats it', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['9970', 'RET2', 'RETIRED, TEST', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'MEC', 'H', '01']
+      [37, 'RET2', 'RETIRED, TEST', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'MEC', 'H', '01']
     ];
     var s = fixtures.run(UR, { matrix: matrix, config: UR.configSchema.defaults() });
     assert.equal(s.encounters[0].payerCategory, UR.PAYER_CATEGORY.UNKNOWN, 'the engine assigns Unknown');
@@ -351,7 +351,7 @@ describe('code inventory agrees with the engine on disabled rows', function () {
     config.dischargeCodes.forEach(function (r) { if (r.code === 'Q') { r.enabled = false; } });
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['9971', 'DIS1', 'DISABLED, TEST', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'M', 'Q', '01']
+      [39, 'DIS1', 'DISABLED, TEST', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'M', 'Q', '01']
     ];
     var s = fixtures.run(UR, { matrix: matrix, config: config });
     assert.equal(s.encounters[0].transitionTo, null, 'the engine assumes no transition');
@@ -375,8 +375,8 @@ describe('registration-time overlap on coded transitions', function () {
     return [
       fixtures.HEADERS.slice(),
       /* SB discharged 08:55 with code V (SB -> IP); IP admitted earlier. */
-      ['789', '123', 'OVERLAP, TEST', 'SB', '06/20/2026', 900, '06/27/2026', 855, 'M', 'V', '07'],
-      ['789', '456', 'OVERLAP, TEST', 'IP', '06/27/2026', ipAdmitTime, '06/30/2026', 1100, 'M', 'H', '03']
+      [41, '123', 'OVERLAP, TEST', 'SB', '06/20/2026', 900, '06/27/2026', 855, 'M', 'V', '07'],
+      [41, '456', 'OVERLAP, TEST', 'IP', '06/27/2026', ipAdmitTime, '06/30/2026', 1100, 'M', 'H', '03']
     ];
   }
 
@@ -453,10 +453,10 @@ describe('registration-time overlap on coded transitions', function () {
     opts.config = UR.configSchema.defaults();
     opts.matrix = [
       fixtures.HEADERS.slice(),
-      ['789', '123', 'OVERLAP, TEST', 'SB', '06/20/2026', 900, '06/27/2026', 855, 'M', 'V', '07'],
+      [41, '123', 'OVERLAP, TEST', 'SB', '06/20/2026', 900, '06/27/2026', 855, 'M', 'V', '07'],
       /* one IP overlapping far beyond tolerance, one admitted cleanly after */
-      ['789', '455', 'OVERLAP, TEST', 'IP', '06/27/2026', 600, '06/27/2026', 700, 'M', 'H', '03'],
-      ['789', '456', 'OVERLAP, TEST', 'IP', '06/27/2026', 900, '06/30/2026', 1100, 'M', 'H', '03']
+      [41, '455', 'OVERLAP, TEST', 'IP', '06/27/2026', 600, '06/27/2026', 700, 'M', 'H', '03'],
+      [41, '456', 'OVERLAP, TEST', 'IP', '06/27/2026', 900, '06/30/2026', 1100, 'M', 'H', '03']
     ];
     var s = fixtures.run(UR, opts);
     var link = s.transitions.filter(function (t) { return t.fromAccount === '123'; })[0];

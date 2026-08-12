@@ -64,7 +64,7 @@ describe('attention digest', function () {
     var s = fixtures.run(UR, {
       matrix: [
         fixtures.HEADERS.slice(),
-        ['9501', 'Q1', 'X', 'QQ', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'H', 1]
+        [21, 'Q1', 'X', 'QQ', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'H', 1]
       ]
     });
     assert.ok(s.blocked);
@@ -79,8 +79,8 @@ describe('attention digest', function () {
     var s = fixtures.run(UR, {
       matrix: [
         fixtures.HEADERS.slice(),
-        ['789', '123', 'OVERLAP, TEST', 'SB', '06/20/2026', 900, '06/27/2026', 855, 'M', 'V', '07'],
-        ['789', '456', 'OVERLAP, TEST', 'IP', '06/27/2026', 600, '06/30/2026', 1100, 'M', 'H', '03']
+        [23, '123', 'OVERLAP, TEST', 'SB', '06/20/2026', 900, '06/27/2026', 855, 'M', 'V', '07'],
+        [23, '456', 'OVERLAP, TEST', 'IP', '06/27/2026', 600, '06/30/2026', 1100, 'M', 'H', '03']
       ],
       config: UR.configSchema.defaults(),
       periodStart: UR.util.mkDT(2026, 6, 1, 0, 0),
@@ -95,7 +95,7 @@ describe('attention digest', function () {
     var s = fixtures.run(UR, {
       matrix: [
         fixtures.HEADERS.slice(),
-        ['9990', 'CLEAN1', 'CLEAN, TEST', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'M', 'H', '04']
+        [25, 'CLEAN1', 'CLEAN, TEST', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'M', 'H', '04']
       ],
       config: UR.configSchema.defaults()
     });

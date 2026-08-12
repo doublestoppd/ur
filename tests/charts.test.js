@@ -54,7 +54,7 @@ describe('chart specifications', function () {
   test('a chart with no data explains itself instead of drawing nothing', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['9801', 'G1', 'GRAPH, TEST', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'H', '']
+      [21, 'G1', 'GRAPH, TEST', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'H', '']
     ];
     var s = fixtures.run(UR, { matrix: matrix });
     var charts = UR.chartData.all(s);

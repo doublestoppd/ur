@@ -56,10 +56,11 @@ describe('account list', function () {
     assert.ok(rows[0].sourceRowNumber > 1, 'and the spreadsheet row');
   });
 
-  test('search matches account, MRN, name, and episode', function () {
+  test('search matches account, patient ID, name, and episode', function () {
     var rows = detail.list(state);
     assert.equal(detail.search(rows, 'A101', {}).length, 1);
-    assert.equal(detail.search(rows, '1001', {}).length, 4, 'the MRN returns all four of that patient\'s accounts');
+    var pid = state.encounters.filter(function (e) { return e.account === 'A101'; })[0].mrn;
+    assert.equal(detail.search(rows, pid, {}).length, 4, 'the derived Patient ID returns all four of that patient\'s accounts');
     assert.ok(detail.search(rows, 'alpha', {}).length >= 1, 'name search is case-insensitive');
     var episodeId = state.encounters.filter(function (e) { return e.account === 'A101'; })[0].episodeId;
     assert.equal(detail.search(rows, episodeId, {}).length, 4);
@@ -79,7 +80,8 @@ describe('patient dossier', function () {
   var dossier = detail.forAccount(state, 'A102');
 
   test('is keyed by patient, not by the account clicked', function () {
-    assert.equal(dossier.mrn, '1001');
+    assert.ok(/^P\d+$/.test(dossier.mrn), 'a derived Patient ID: ' + dossier.mrn);
+    assert.equal(dossier.mrn, state.encounters.filter(function (e) { return e.account === 'A101'; })[0].mrn);
     assert.equal(dossier.totals.visits, 4, 'all four accounts of the OS -> IP -> SB -> IP course');
     assert.deepEqual(dossier.visits.map(function (v) { return v.encounter.account; }),
       ['A101', 'A102', 'A103', 'A104']);
@@ -111,7 +113,7 @@ describe('patient dossier', function () {
   test('explains an unmapped payer rather than showing a bare category', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['7700', 'UNMAP', 'TEST, UNMAPPED', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'ZZZ', 'H', 1]
+      [21, 'UNMAP', 'TEST, UNMAPPED', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'ZZZ', 'H', 1]
     ];
     var s = fixtures.run(UR, { matrix: matrix });
     var d = detail.forAccount(s, 'UNMAP');
@@ -125,7 +127,7 @@ describe('patient dossier', function () {
   test('shows an assumed midnight rather than pretending the time was known', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['7701', 'NOTIME', 'TEST, NOTIME', 'IP', '08/10/2026', '', '08/12/2026', '', 'BCBS', 'H', 1]
+      [23, 'NOTIME', 'TEST, NOTIME', 'IP', '08/10/2026', '', '08/12/2026', '', 'BCBS', 'H', 1]
     ];
     var s = fixtures.run(UR, { matrix: matrix });
     var d = detail.forAccount(s, 'NOTIME');

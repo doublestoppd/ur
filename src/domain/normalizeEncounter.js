@@ -22,11 +22,24 @@
    */
   function contentParts(e) {
     return [
-      e.mrn, e.serviceRaw,
+      e.ageYears === null ? '' : e.ageYears, e.serviceRaw,
       e.admitDT ? e.admitDT.getTime() : '',
       e.dischargeDT ? e.dischargeDT.getTime() : '',
       e.insuranceRaw, e.dischargeCodeRaw, e.admissionSourceRaw, e.name
     ].join('');
+  }
+
+  /*
+   * The identity key one patient's accounts share: normalized name plus age.
+   * Case, stray spacing, and trailing punctuation are export noise, not
+   * different patients - but nothing beyond that is forgiven, because merging
+   * two real people is worse than splitting one.
+   */
+  function patientKey(name, ageYears) {
+    if (!name || ageYears === null) { return ''; }
+    var norm = String(name).toUpperCase().replace(/\s+/g, ' ').replace(/[ ,.]+$/, '').trim();
+    if (!norm) { return ''; }
+    return norm + '|' + ageYears;
   }
 
   /* Signature used to detect exact duplicate rows across files and sheets. */
@@ -88,7 +101,11 @@
       sourceRowNumber: row.sourceRowNumber,
 
       account: '', accountSynthetic: false,
-      mrn: '', name: '',
+      /* mrn carries the DERIVED Patient ID (assigned in normalizeAll from
+       * name + age; the export has no medical record number). The field name
+       * is kept because every downstream consumer treats it as the patient
+       * grouping key. */
+      mrn: '', name: '', ageYears: null, patientKey: '',
       serviceRaw: '', serviceClass: UR.SERVICE.UNKNOWN, serviceLabel: '',
       admitDT: null, dischargeDT: null,
       admitTimeAssumed: false, dischargeTimeAssumed: false,
@@ -140,13 +157,41 @@
         message: 'No account number on source row ' + e.sourceRowNumber + '. Assigned internal identifier ' + e.account + '.'
       });
     }
-    e.mrn = parsers.parseId(cell('mrn'));
-    if (!e.mrn) {
-      diag.addFor('DQ_MRN_MISSING', e, {
-        message: 'Account ' + e.account + ' has no MRN, so it cannot be linked to other accounts for this patient.'
-      });
-    }
     e.name = parsers.parseText(cell('name'));
+
+    /* ------------------------------------------------- patient identity */
+    var ageRaw = cell('ageYears');
+    var hasAgeCell = !(ageRaw === null || ageRaw === undefined || String(ageRaw).trim() === '');
+    if (hasAgeCell) {
+      var ageNum = Number(String(ageRaw).trim());
+      if (isFinite(ageNum) && ageNum >= 0 && ageNum <= 130 && ageNum === Math.floor(ageNum)) {
+        e.ageYears = ageNum;
+      } else {
+        diag.addFor('DQ_PID_MISSING', e, {
+          message: 'Account ' + e.account + ': age "' + String(ageRaw) +
+                   '" is not a usable whole number of years (0-130), so no Patient ID can be derived. ' +
+                   'The account cannot be linked to other accounts for this patient.',
+          value: String(ageRaw)
+        });
+      }
+    }
+    e.patientKey = patientKey(e.name, e.ageYears);
+    if (!e.patientKey) {
+      if (!e.name && !hasAgeCell) {
+        diag.addFor('DQ_PID_MISSING', e, {
+          message: 'Account ' + e.account + ' has neither a patient name nor an age, so no Patient ID can be derived. It cannot be linked to other accounts.'
+        });
+      } else if (!e.name) {
+        diag.addFor('DQ_PID_MISSING', e, {
+          message: 'Account ' + e.account + ' has no patient name, so no Patient ID can be derived. It cannot be linked to other accounts.'
+        });
+      } else if (!hasAgeCell) {
+        diag.addFor('DQ_PID_MISSING', e, {
+          message: 'Account ' + e.account + ' has no age, so no Patient ID can be derived. It cannot be linked to other accounts.'
+        });
+      }
+      /* the unusable-age case was already reported above, with the value */
+    }
 
     /* ------------------------------------------------------- service class */
     e.serviceRaw = parsers.parseText(cell('service'));
@@ -482,9 +527,66 @@
         }
       }
 
+      assignPatientIds(kept, diag);
+
       return { encounters: kept, duplicatesRemoved: duplicatesRemoved, conflicts: conflicts };
     }
   };
+
+  /*
+   * Derived patient identity: every distinct (normalized name, age) pair gets
+   * one Patient ID, assigned in sorted order so the same data always yields
+   * the same IDs. The ID is written to e.mrn - the patient grouping key every
+   * downstream module already consumes.
+   *
+   * Two limitations are inherent to name+age identity and are surfaced rather
+   * than hidden: two different people sharing a name and age become one
+   * patient (undetectable here), and one person whose birthday falls between
+   * two stays becomes two patients - the adjacent-age case IS detectable, so
+   * it is reported (DQ_PID_SPLIT) and never silently merged.
+   */
+  function assignPatientIds(encounters, diag) {
+    var keys = [];
+    var seen = {};
+    var i, e;
+    for (i = 0; i < encounters.length; i++) {
+      e = encounters[i];
+      if (e.patientKey && !seen[e.patientKey]) {
+        seen[e.patientKey] = true;
+        keys.push(e.patientKey);
+      }
+    }
+    keys.sort();
+    var width = Math.max(3, String(keys.length).length);
+    var idByKey = {};
+    for (i = 0; i < keys.length; i++) {
+      var ordinal = String(i + 1);
+      while (ordinal.length < width) { ordinal = '0' + ordinal; }
+      idByKey[keys[i]] = 'P' + ordinal;
+    }
+    var firstByKey = {};
+    for (i = 0; i < encounters.length; i++) {
+      e = encounters[i];
+      e.mrn = e.patientKey ? idByKey[e.patientKey] : '';
+      if (e.patientKey && !firstByKey[e.patientKey]) { firstByKey[e.patientKey] = e; }
+    }
+
+    /* Same name, ages one apart: possibly one person crossing a birthday. */
+    for (i = 0; i < keys.length; i++) {
+      var parts = keys[i].split('|');
+      var neighbour = parts[0] + '|' + (Number(parts[1]) + 1);
+      if (!idByKey[neighbour]) { continue; }
+      var a = firstByKey[keys[i]];
+      var b = firstByKey[neighbour];
+      diag.addFor('DQ_PID_SPLIT', a, {
+        message: 'Patients ' + idByKey[keys[i]] + ' (age ' + parts[1] + ') and ' + idByKey[neighbour] +
+                 ' (age ' + (Number(parts[1]) + 1) + ') share the name "' + a.name +
+                 '" with ages one year apart, and MAY be one person whose birthday falls inside the data. ' +
+                 'They are treated as two patients, so no episode or readmission will connect their accounts (for example ' +
+                 a.account + ' and ' + b.account + '). If the chart shows one person, correct the age at the source and reprocess.'
+      });
+    }
+  }
 
   UR.normalizeEncounter = normalizeEncounter;
 

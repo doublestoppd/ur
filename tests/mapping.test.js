@@ -14,7 +14,7 @@ describe('header mapping', function () {
   test('auto-maps the documented CPSI field names', function () {
     var auto = UR.headerMapper.autoMap(fixtures.HEADERS);
     var expected = {
-      mrn: 'visit_mr_num',
+      ageYears: 'ipv1_age_years',
       account: 'ipv1_num',
       name: 'visit_name',
       service: 'visit_servicecd_key',
@@ -24,7 +24,7 @@ describe('header mapping', function () {
       dischargeTime: 'ipv1_dis_time',
       insurance: 'visit_ins',
       dischargeCode: 'ipv1_discd',
-      admissionSource: 'origin_code'
+      admissionSource: 'ipv1_origin'
     };
     Object.keys(expected).forEach(function (key) {
       assert.ok(auto.mapping[key], key + ' should be mapped');
@@ -41,10 +41,10 @@ describe('header mapping', function () {
 
   test('recognizes common header variations', function () {
     var auto = UR.headerMapper.autoMap([
-      'Medical Record Number', 'Account #', 'Patient Type', 'Admit Date', 'Admit Time',
+      'Patient Age', 'Account #', 'Patient Type', 'Admit Date', 'Admit Time',
       'Discharge Date', 'Discharge Time', 'Payor', 'Disposition Code', 'Admit Source'
     ]);
-    assert.equal(auto.mapping.mrn.header, 'Medical Record Number');
+    assert.equal(auto.mapping.ageYears.header, 'Patient Age');
     assert.equal(auto.mapping.account.header, 'Account #');
     assert.equal(auto.mapping.service.header, 'Patient Type');
     assert.equal(auto.mapping.insurance.header, 'Payor');
@@ -53,8 +53,8 @@ describe('header mapping', function () {
   });
 
   test('refuses to choose between two equally plausible columns', function () {
-    var auto = UR.headerMapper.autoMap(['MRN', 'Medical Record Number', 'ipv1_num', 'visit_servicecd_key', 'ipv1_ad_date']);
-    assert.equal(auto.mapping.mrn, null, 'MRN is left unmapped for the user to resolve');
+    var auto = UR.headerMapper.autoMap(['Age', 'Patient Age', 'ipv1_num', 'visit_servicecd_key', 'ipv1_ad_date']);
+    assert.equal(auto.mapping.ageYears, null, 'the age column is left unmapped for the user to resolve');
     assert.ok(auto.ambiguities.length > 0, 'the tie is reported');
     assert.includes(auto.ambiguities[0].reason, 'equally well');
   });
@@ -70,12 +70,13 @@ describe('header mapping', function () {
   test('allows an explicit, acknowledged degradation instead', function () {
     var auto = UR.headerMapper.autoMap(['ipv1_num', 'visit_servicecd_key', 'ipv1_ad_date', 'ipv1_dis_date']);
     var blocked = UR.headerMapper.validateMapping(auto.mapping, []);
-    assert.notOk(blocked.ok, 'unmapped MRN blocks by default');
+    assert.notOk(blocked.ok, 'unmapped identity fields (name, age) block by default');
 
-    var allowed = UR.headerMapper.validateMapping(auto.mapping, ['mrn']);
+    var allowed = UR.headerMapper.validateMapping(auto.mapping, ['name', 'ageYears']);
     assert.ok(allowed.ok, 'proceeding is possible once the limitation is acknowledged');
     var degradedFields = allowed.degraded.map(function (d) { return d.field; });
-    assert.ok(degradedFields.indexOf('mrn') >= 0, 'the degradation is recorded');
+    assert.ok(degradedFields.indexOf('ageYears') >= 0, 'the degradation is recorded');
+    assert.ok(degradedFields.indexOf('name') >= 0, 'both identity halves are recorded');
     assert.includes(allowed.degraded[0].effect + '', 'readmission');
   });
 
@@ -84,7 +85,8 @@ describe('header mapping', function () {
       service: { header: 'X', index: 0, confidence: 1 },
       insurance: { header: 'X', index: 0, confidence: 1 },
       account: { header: 'A', index: 1, confidence: 1 },
-      mrn: { header: 'M', index: 2, confidence: 1 },
+      ageYears: { header: 'M', index: 2, confidence: 1 },
+      name: { header: 'N', index: 5, confidence: 1 },
       admitDate: { header: 'D', index: 3, confidence: 1 },
       dischargeDate: { header: 'E', index: 4, confidence: 1 }
     };
@@ -104,7 +106,7 @@ describe('spreadsheet reading', function () {
       fixtures.ROWS[0].slice()
     ];
     var table = UR.spreadsheetReader.matrixToTable(m);
-    assert.equal(table.headers[0], 'visit_mr_num');
+    assert.equal(table.headers[0], 'ipv1_age_years');
     assert.equal(table.rows.length, 1);
   });
 

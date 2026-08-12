@@ -1230,7 +1230,7 @@
     if (rule) {
       body.appendChild(el('p', null, [el('strong', { text: rule.description }), doc.createTextNode(' ' + rule.effect)]));
     }
-    body.appendChild(table(['Account', 'MRN', 'Service', 'Message', 'Source file', 'Row'],
+    body.appendChild(table(['Account', 'Patient ID', 'Service', 'Message', 'Source file', 'Row'],
       items.map(function (d) { return [accountLink(d.account), d.mrn, d.service, d.message, d.sourceFile, d.sourceRow]; }),
       { scroll: true }));
     openModal(ruleId + ' - ' + (rule ? rule.name : ''), body);
@@ -1255,7 +1255,7 @@
     var body = el('div');
     body.appendChild(el('p', { class: 'hint', text: encounters.length + ' account(s). This view is on screen only; nothing is saved.' }));
     body.appendChild(table(
-      ['Account', 'MRN', 'Patient name', 'Service', 'Admit', 'Discharge', 'LOS hours', 'Midnights', 'Payer', 'Discharge code', 'Episode'],
+      ['Account', 'Patient ID', 'Patient name', 'Service', 'Admit', 'Discharge', 'LOS hours', 'Midnights', 'Payer', 'Discharge code', 'Episode'],
       encounters.map(function (e) {
         return [accountLink(e.account), e.mrn, e.name, e.serviceClass, util.fmtDateTime(e.admitDT),
           e.isOpen ? '(open)' : util.fmtDateTime(e.dischargeDT), num(e.durationHours, 1),
@@ -1405,7 +1405,7 @@
       metricRow('Service admissions', m.census.ADM_SVC_001.value, '',
         m.census.ADM_SVC_001.ip + ' IP, ' + m.census.ADM_SVC_001.os + ' OS, ' + m.census.ADM_SVC_001.sb + ' SB - includes status changes', 'ADM_SVC_001'),
       metricRow('Continuous episodes', m.census.EPISODE_CNT_001.value, '', 'Recommended headline count', 'EPISODE_CNT_001'),
-      metricRow('Unique patients', m.census.PATIENT_CNT_001.value, '', 'Distinct MRNs', 'PATIENT_CNT_001'),
+      metricRow('Unique patients', m.census.PATIENT_CNT_001.value, '', 'Distinct derived patient IDs (name + age)', 'PATIENT_CNT_001'),
       metricRow('Equivalent patient days', num(m.census.PD_EQ_001.value, 2), 'days', 'Time-weighted method', 'PD_EQ_001'),
       metricRow('Midnight census patient days', m.census.PD_MN_001.value, 'days', 'Midnight census method', 'PD_MN_001'),
       metricRow('Inpatient patient days', m.census.PD_IP_001.midnightDays, 'days',
@@ -1516,7 +1516,7 @@
     }
 
     var thead = el('thead', null, [el('tr', null,
-      ['Account', showNames ? 'Patient' : 'MRN', 'Service', 'Payer', 'Admit', 'Discharge', 'Review for']
+      ['Account', showNames ? 'Patient' : 'Patient ID', 'Service', 'Payer', 'Admit', 'Discharge', 'Review for']
         .map(function (h) { return el('th', { text: h }); }))]);
 
     var tbody = el('tbody', null, rows.map(function (r) {
@@ -1532,7 +1532,7 @@
         onclick: function () { openAccount(r.account); }
       }, [
         el('td', null, [el('strong', { text: r.account })]),
-        el('td', { text: showNames ? (r.patientName || ('MRN ' + (r.mrn || '(none)'))) : (r.mrn || '(none)') }),
+        el('td', { text: showNames ? (r.patientName || ('Patient ' + (r.mrn || '(no ID)'))) : (r.mrn || '(none)') }),
         el('td', { text: r.service }),
         el('td', { text: r.payerCategory }),
         el('td', { text: util.fmtDateTime(r.admit) }),
@@ -1596,7 +1596,7 @@
           el('span', { class: 'account-service', text: row.serviceRaw + (row.serviceClass !== row.serviceRaw ? ' -> ' + row.serviceClass : '') })
         ]),
         el('span', { class: 'account-item-sub', text:
-          (ui.config.processing.excludePatientNames ? 'MRN ' + (row.mrn || '(none)') : (row.patientName || '(no name)') + '  |  MRN ' + (row.mrn || '(none)')) }),
+          (ui.config.processing.excludePatientNames ? 'Patient ' + (row.mrn || '(no ID)') : (row.patientName || '(no name)') + '  |  ' + (row.mrn || '(no patient ID)')) }),
         el('span', { class: 'account-item-sub', text:
           util.fmtDateTime(row.admitDT) + (row.isOpen ? '  ->  (open)' : '  ->  ' + util.fmtDateTime(row.dischargeDT)) +
           (row.durationHours === null ? '' : '  |  ' + util.round(row.durationHours, 1) + 'h') }),
@@ -1621,16 +1621,16 @@
     }
     var showNames = !ui.config.processing.excludePatientNames;
 
-    host.appendChild(el('h3', { text: showNames && dossier.patientName ? dossier.patientName : ('MRN ' + (dossier.mrn || '(none)')) }));
+    host.appendChild(el('h3', { text: showNames && dossier.patientName ? dossier.patientName : ('Patient ' + (dossier.mrn || '(no ID)')) }));
     host.appendChild(el('p', { class: 'hint', text:
-      'MRN ' + (dossier.mrn || '(none)') + '  |  ' + dossier.totals.visits + ' visit(s), ' +
+      'Patient ID ' + (dossier.mrn || '(none)') + '  |  ' + dossier.totals.visits + ' visit(s), ' +
       dossier.totals.included + ' counted in metrics  |  ' + dossier.totals.episodes + ' continuous episode(s)  |  ' +
       dossier.totals.acceptedTransitions + ' accepted status transition(s)' +
-      (dossier.hasMrn ? '' : '  |  This record has no MRN, so it cannot be linked to any other account.') }));
+      (dossier.hasMrn ? '' : '  |  No Patient ID could be derived (name or age unusable), so this record cannot be linked to any other account.') }));
 
     if (!dossier.hasMrn) {
       host.appendChild(el('div', { class: 'msg msg-warning', text:
-        'Without an MRN this account cannot take part in transition linkage or readmission logic, and it forms an episode of one.' }));
+        'Without a Patient ID - derived from the patient name and age, one of which is missing or unusable here - this account cannot take part in transition linkage or readmission logic, and it forms an episode of one.' }));
     }
 
     /* -------------------------------------------------------- episodes */

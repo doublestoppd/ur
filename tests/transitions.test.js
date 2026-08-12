@@ -117,8 +117,8 @@ describe('transitions - refusals', function () {
   test('a same-day service change with no transition code is reported, never linked', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['7001', 'U1', 'UNCODED, TEST', 'OS', '08/03/2026', 800, '08/03/2026', 1200, 'MCR', 'H', 1],
-      ['7001', 'U2', 'UNCODED, TEST', 'IP', '08/03/2026', 1230, '08/05/2026', 1000, 'MCR', 'H', 1]
+      [21, 'U1', 'UNCODED, TEST', 'OS', '08/03/2026', 800, '08/03/2026', 1200, 'MCR', 'H', 1],
+      [21, 'U2', 'UNCODED, TEST', 'IP', '08/03/2026', 1230, '08/05/2026', 1000, 'MCR', 'H', 1]
     ];
     var s = fixtures.run(UR, { matrix: matrix });
     var uncoded = null;
@@ -136,8 +136,8 @@ describe('transitions - refusals', function () {
   test('a successor outside the configured gap is not linked', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['7002', 'G1', 'GAP, TEST', 'OS', '08/03/2026', 800, '08/03/2026', 1200, 'MCR', 'B', 1],
-      ['7002', 'G2', 'GAP, TEST', 'IP', '08/03/2026', 1600, '08/05/2026', 1000, 'MCR', 'H', 1]
+      [23, 'G1', 'GAP, TEST', 'OS', '08/03/2026', 800, '08/03/2026', 1200, 'MCR', 'B', 1],
+      [23, 'G2', 'GAP, TEST', 'IP', '08/03/2026', 1600, '08/05/2026', 1000, 'MCR', 'H', 1]
     ];
     var s = fixtures.run(UR, { matrix: matrix });
     assert.equal(s.transitions[0].confidence, LC.MISSING, '240 minutes exceeds the 120-minute maximum');
@@ -147,8 +147,8 @@ describe('transitions - refusals', function () {
   test('a small overlap links as probable and always warns', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['7003', 'O1', 'OVERLAP, TEST', 'OS', '08/03/2026', 800, '08/03/2026', 1200, 'MCR', 'B', 1],
-      ['7003', 'O2', 'OVERLAP, TEST', 'IP', '08/03/2026', 1155, '08/05/2026', 1000, 'MCR', 'H', 1]
+      [25, 'O1', 'OVERLAP, TEST', 'OS', '08/03/2026', 800, '08/03/2026', 1200, 'MCR', 'B', 1],
+      [25, 'O2', 'OVERLAP, TEST', 'IP', '08/03/2026', 1155, '08/05/2026', 1000, 'MCR', 'H', 1]
     ];
     var s = fixtures.run(UR, { matrix: matrix });
     assert.equal(s.transitions[0].confidence, LC.PROBABLE);
@@ -162,8 +162,8 @@ describe('transitions - refusals', function () {
   test('an accepted but slow transition is flagged as suspicious timing', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['7004', 'S1', 'SLOW, TEST', 'OS', '08/03/2026', 800, '08/03/2026', 1200, 'MCR', 'B', 1],
-      ['7004', 'S2', 'SLOW, TEST', 'IP', '08/03/2026', 1330, '08/05/2026', 1000, 'MCR', 'H', 1]
+      [27, 'S1', 'SLOW, TEST', 'OS', '08/03/2026', 800, '08/03/2026', 1200, 'MCR', 'B', 1],
+      [27, 'S2', 'SLOW, TEST', 'IP', '08/03/2026', 1330, '08/05/2026', 1000, 'MCR', 'H', 1]
     ];
     var s = fixtures.run(UR, { matrix: matrix });
     assert.equal(s.transitions[0].confidence, LC.CONFIRMED, '90 minutes is inside the 120-minute maximum');
@@ -175,8 +175,8 @@ describe('transitions - refusals', function () {
   test('a successor of the wrong service is reported as a mismatch', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
-      ['7005', 'M1', 'MISMATCH, TEST', 'IP', '08/03/2026', 800, '08/03/2026', 1200, 'MCR', 'Q', 1],
-      ['7005', 'M2', 'MISMATCH, TEST', 'OS', '08/03/2026', 1210, '08/04/2026', 1000, 'MCR', 'H', 1]
+      [29, 'M1', 'MISMATCH, TEST', 'IP', '08/03/2026', 800, '08/03/2026', 1200, 'MCR', 'Q', 1],
+      [29, 'M2', 'MISMATCH, TEST', 'OS', '08/03/2026', 1210, '08/04/2026', 1000, 'MCR', 'H', 1]
     ];
     var s = fixtures.run(UR, { matrix: matrix });
     var mismatch = false;
@@ -198,8 +198,8 @@ describe('transitions - pairs without a specific rule', function () {
     return fixtures.run(UR, {
       matrix: [
         fixtures.HEADERS.slice(),
-        ['UM1', '7101', 'UNMODELED, TEST', 'SB', '08/10/2026', 600, '08/14/2026', 900, 'BCBS', 'Z', '07'],
-        ['UM1', '7102', 'UNMODELED, TEST', 'OS', '08/14/2026', 930, '08/15/2026', 1100, 'BCBS', 'H', '07']
+        [31, '7101', 'UNMODELED, TEST', 'SB', '08/10/2026', 600, '08/14/2026', 900, 'BCBS', 'Z', '07'],
+        [31, '7102', 'UNMODELED, TEST', 'OS', '08/14/2026', 930, '08/15/2026', 1100, 'BCBS', 'H', '07']
       ]
     });
   }

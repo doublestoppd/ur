@@ -22,13 +22,13 @@
    * degradable    - a required field the user may explicitly proceed without,
    *                 accepting the listed loss of capability (spec 6.2).
    */
+  /*
+   * The export carries no medical record number. Patient identity is DERIVED:
+   * the tool assigns a Patient ID to each distinct (patient name, age) pair,
+   * and that ID drives transition linkage, episodes, and readmissions - so
+   * name and age are both required identity fields now.
+   */
   var FIELDS = [
-    {
-      key: 'mrn', label: 'Patient MRN', cpsi: 'visit_mr_num', requirement: 'required', degradable: true,
-      use: 'Patient-level identifier, stable across accounts. Drives transition linkage and readmission logic.',
-      degradedEffect: 'Status-transition linkage, episode construction, and readmission indicators are disabled. Every account becomes its own episode.',
-      aliases: ['visit_mr_num', 'mrn', 'mr num', 'mr number', 'medical record number', 'medical record', 'medical record #', 'patient id', 'patient mrn', 'mr no']
-    },
     {
       key: 'account', label: 'Account / encounter number', cpsi: 'ipv1_num', requirement: 'required', degradable: true,
       use: 'Unique encounter/account identifier.',
@@ -36,10 +36,16 @@
       aliases: ['ipv1_num', 'account', 'account number', 'account #', 'acct', 'acct number', 'encounter number', 'encounter', 'visit number', 'visit no', 'patient account number']
     },
     {
-      key: 'name', label: 'Patient name', cpsi: 'visit_name', requirement: 'optional', degradable: true,
-      use: 'Review-list readability only. Never persisted by the application.',
-      degradedEffect: 'Review lists identify patients by account and MRN only.',
+      key: 'name', label: 'Patient name', cpsi: 'visit_name', requirement: 'required', degradable: true,
+      use: 'Half of the derived patient identity: accounts sharing a name and age are treated as one patient. Never persisted by the application.',
+      degradedEffect: 'No Patient ID can be derived, so status-transition linkage, episode construction, and readmission indicators are disabled. Every account becomes its own episode.',
       aliases: ['visit_name', 'patient name', 'name', 'patient', 'pt name']
+    },
+    {
+      key: 'ageYears', label: 'Patient age (years)', cpsi: 'ipv1_age_years', requirement: 'required', degradable: true,
+      use: 'The other half of the derived patient identity: accounts sharing a name and age are treated as one patient.',
+      degradedEffect: 'No Patient ID can be derived, so status-transition linkage, episode construction, and readmission indicators are disabled. Every account becomes its own episode.',
+      aliases: ['ipv1_age_years', 'age', 'age years', 'age in years', 'patient age', 'age yrs', 'pt age']
     },
     {
       key: 'service', label: 'Service code', cpsi: 'visit_servicecd_key', requirement: 'required', degradable: false,
@@ -84,10 +90,10 @@
       aliases: ['ipv1_discd', 'discharge code', 'disposition code', 'dis code', 'disch code', 'discd', 'discharge disposition', 'dc code']
     },
     {
-      key: 'admissionSource', label: 'Admission source', cpsi: 'origin_code', requirement: 'recommended', degradable: true,
+      key: 'admissionSource', label: 'Admission source', cpsi: 'ipv1_origin', requirement: 'recommended', degradable: true,
       use: 'Origin / source-of-admission code, mapped through the editable reference table.',
       degradedEffect: 'The admission-source summary is unavailable.',
-      aliases: ['origin_code', 'origin code', 'origin', 'admission source', 'admit source', 'source of admission',
+      aliases: ['ipv1_origin', 'origin_code', 'origin code', 'origin', 'admission source', 'admit source', 'source of admission',
         'adm source', 'source code', 'admission source code', 'point of origin']
     }
   ];

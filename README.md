@@ -85,7 +85,7 @@ The hospital's own reference tables ship with the application:
 |---|---|
 | Service codes | IP, OS, SB |
 | Discharge codes | all 23, with the UB-04 patient discharge status in each label |
-| Origin (admission source) codes | all 7, read from the `origin_code` column |
+| Origin (admission source) codes | all 7, read from the `ipv1_origin` column (`origin_code` also accepted) |
 | Insurance codes | all 736, with the hospital's own payer categories |
 
 Codes, names, and payer categories all come from the hospital's own mapping, so a category in
@@ -130,6 +130,19 @@ if more than one row could match, it refuses and says so rather than picking a p
 datetime is carried on the UTC axis purely as a clock value and read back with `getUTC*`,
 so elapsed time is exactly the difference of the written clock values and the workstation's
 timezone and daylight-saving rules cannot shift a stay. See the header of `src/core/util.js`.
+
+**Patient identity is derived, and says so.** The export carries no medical
+record number: the tool assigns a Patient ID (`P001`, `P002`, ...) to each
+distinct (patient name, age) pair from the `visit_name` and `ipv1_age_years`
+columns, and that ID drives transition linkage, episodes, and readmissions.
+Name matching forgives case and spacing noise, nothing more. The two inherent
+limitations are handled openly rather than guessed away: two different people
+sharing a name and age become one patient (undetectable in this data), and one
+person whose birthday falls between two stays becomes two patients — the
+adjacent-age case is detected and flagged (`DQ_PID_SPLIT`, on the review queue)
+so the age can be corrected at the source, and is never silently merged. A row
+whose name or age is missing or unusable gets no Patient ID, links to nothing,
+and is reported (`DQ_PID_MISSING`).
 
 **Episodes, not accounts, for readmissions.** CPSI opens a new account whenever a patient
 changes status, so one hospital course (`OS → IP → SB → IP`) arrives as four rows. The tool
@@ -184,7 +197,7 @@ actually used for the run, so the exported reference always matches the numbers 
 
 The Accounts tab lists **every** account that was imported — including the ones the metrics
 excluded, because "why is this account missing from the count" is exactly the question a
-verification pass needs to answer. Search by account, MRN, patient name, or episode; filter by
+verification pass needs to answer. Search by account, patient ID, patient name, or episode; filter by
 service, by whether the record counted, by open encounters, or by review status.
 
 Selecting an account opens the whole **patient course**, not just that one CPSI account, and
@@ -324,13 +337,13 @@ outside the centralized rule and configuration modules.
 ## Privacy model
 
 - Imported patient data lives in the browser tab's memory for the current run only.
-- No encounter row, name, MRN, account number, or date is written to `localStorage`,
+- No encounter row, name, age, patient ID, account number, or date is written to `localStorage`,
   `IndexedDB`, cookies, logs, or any telemetry. Only reference mappings and thresholds are
   persisted, through one audited writer (`src/config/configSchema.js`), which filters against
   an explicit key whitelist.
 - The exported workbook may contain patient identifiers because the authorized user creates
   it deliberately on the hospital workstation. Patient names can be excluded from the export
-  with one checkbox; the Executive Summary never carries names, MRNs, or account numbers.
+  with one checkbox; the Executive Summary never carries names, patient IDs, or account numbers.
 - There are no network calls of any kind. The test suite fails the build if `fetch`,
   `XMLHttpRequest`, `WebSocket`, `sendBeacon`, or a remote `src`/`href` appears in the source.
 

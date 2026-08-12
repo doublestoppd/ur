@@ -219,7 +219,7 @@
     },
 
     /*
-     * Identifier normalization for MRNs and account numbers. Numeric cells come
+     * Identifier normalization for account numbers and similar ids. Numeric cells come
      * back as numbers and would otherwise fail to match their text twins;
      * trailing ".0" from float coercion is removed.
      */
