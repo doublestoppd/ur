@@ -580,8 +580,10 @@
   function renderInsuranceCodes() {
     var wrap = el('div');
     wrap.appendChild(el('p', { class: 'hint', text:
-      'Payer category drives the Medicare notice and two-midnight review rules. An unmapped code reports as Unknown and is excluded from those rules rather than being guessed. ' +
-      'Codes are CASE-SENSITIVE: this table contains pairs such as DCg and DCG that differ only in case and mean different payers.' }));
+      'Codes, names, and payer categories come from the hospital mapping. Payer category drives the Medicare notice and two-midnight review rules; ' +
+      'an unmapped code reports as Unknown and is excluded from those rules rather than being guessed. ' +
+      'Codes are CASE-SENSITIVE: this table contains pairs such as DCg and DCG that differ only in case and mean different payers. ' +
+      'Rows the hospital marks Do Not Use are shipped disabled, so one appearing on a current account is reported rather than absorbed.' }));
     var notice = unmappedNotice('insurance', 'insuranceCodes', UR.defaultMappings.blankInsurance);
     if (notice) { wrap.appendChild(notice); }
 
@@ -609,7 +611,8 @@
           type: 'checkbox', checked: ui.insuranceNeedsCheck ? true : null,
           onchange: function (ev) { ui.insuranceNeedsCheck = ev.target.checked; renderRules(); }
         }),
-        doc.createTextNode(' Only Medicare rows needing verification')
+        /* These are the rows that decide the IMM, MOON, and two-midnight lists. */
+        doc.createTextNode(' Only Medicare rows')
       ])
     ]);
     wrap.appendChild(controls);
@@ -620,8 +623,9 @@
       var count = counts[util.codeKey(row.code)] || 0;
       if (ui.insuranceOnlyPresent && !count) { return; }
       if (ui.insuranceNeedsCheck) {
-        var medicare = row.category === UR.PAYER_CATEGORY.MEDICARE_FFS || row.category === UR.PAYER_CATEGORY.MEDICARE_ADVANTAGE;
-        if (!medicare || !row.note) { return; }
+        var medicare = row.category === UR.PAYER_CATEGORY.MEDICARE_FFS ||
+                       row.category === UR.PAYER_CATEGORY.MEDICARE_ADVANTAGE;
+        if (!medicare) { return; }
       }
       if (query) {
         var hay = (row.code + ' ' + (row.label || '') + ' ' + row.category).toLowerCase();

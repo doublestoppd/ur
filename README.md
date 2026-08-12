@@ -55,24 +55,29 @@ The hospital's own reference tables ship with the application:
 | Service codes | IP, OS, SB |
 | Discharge codes | all 23, with the UB-04 patient discharge status in each label |
 | Origin (admission source) codes | all 7, read from the `origin_code` column |
-| Insurance codes | all 736 from the CPSI `inscomp1` list |
+| Insurance codes | all 736, with the hospital's own payer categories |
 
-**The payer categories on those 736 insurance codes are inferred from the plan names, not
-supplied by the hospital, so they need checking before the Medicare lists are trusted.** The
-rules screen makes that tractable: the insurance tab defaults to showing only the codes that
-actually appear in the loaded file — usually a dozen or two — and has a filter for "Medicare
-rows needing verification". Rows whose category was inferred carry a note saying so.
+Codes, names, and payer categories all come from the hospital's own mapping, so a category in
+this tool is a statement by the hospital rather than a guess. Two consequences are worth
+knowing, because both decide who lands on the Medicare review lists:
 
-The one to look at hardest is Medicare supplement / Medigap (AARP, Cigna Medicare Supplement).
-Those are classified as **Medicare FFS**, on the basis that the primary payer behind a
-supplement is Medicare — which is what makes the patient notice-eligible. If this hospital
-codes the account differently, change it, because that assignment decides the IMM, MOON, and
-two-midnight lists.
+- **Only 20 codes are Medicare fee-for-service** (Medicare itself, plus Palmetto GBA) and 103
+  are Medicare Advantage. Everything else is outside `RQ_IMM`, `RQ_MOON`, `RQ_SHORT_MCR`, and
+  `IP_2MN_001`.
+- **Medicare supplement plans are Commercial/Managed Care, not Medicare.** A Medigap account
+  is therefore not an IMM or MOON candidate. That is the hospital's classification and the
+  test suite asserts it, so it will survive a future tidy-up of the payer table.
 
-Codes marked "DO NOT USE" in the hospital list ship **disabled** rather than omitted, so one
-appearing on a current account is reported as a retired code rather than as an unknown one.
+The 163 codes the hospital marks "Do Not Use / Inactive" ship **disabled** — the one
+deliberate departure from the source file. A retired code on a current account is then
+reported as a retired code rather than absorbed into Other, where a coding problem would be
+invisible. Each row keeps the hospital's category, so re-enabling one in the Rules screen
+restores the source mapping exactly.
 
-Once verified, **Export configuration** to a JSON file and keep it somewhere backed up.
+The insurance tab defaults to showing only the codes that actually appear in the loaded file —
+usually a dozen or two out of 736 — with a search box and a "Only Medicare rows" filter.
+
+After any local change, **Export configuration** to a JSON file and keep it somewhere backed up.
 
 > Browser-local storage is offered as a convenience, but the JSON export is the canonical
 > copy. `file://` storage behavior varies, and a workstation rebuild or an IT policy can

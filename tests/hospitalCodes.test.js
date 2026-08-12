@@ -37,8 +37,8 @@ describe('code lookup is case-sensitive', function () {
     var upper = UR.configSchema.insuranceCode(defaults, 'DCG');
     assert.ok(lower && upper);
     assert.notEqual(lower.label, upper.label);
-    assert.includes(lower.label, 'HUMANA');
-    assert.includes(upper.label, 'LAKE VILLAGE');
+    assert.includes(lower.label, 'Humana');
+    assert.includes(upper.label, 'Lake Village');
   });
 
   test('an exact match always wins over any fallback', function () {
@@ -214,22 +214,22 @@ describe('insurance table', function () {
     assert.equal(result.config.insuranceCodes.length, defaults.insuranceCodes.length);
   });
 
-  test('representative codes land in the right category', function () {
+  test('representative codes carry the hospital\'s own category', function () {
     var cases = [
-      ['M', UR.PAYER_CATEGORY.MEDICARE_FFS, 'MEDICARE IP'],
-      ['MC9', UR.PAYER_CATEGORY.MEDICARE_FFS, 'MEDICARE RHC'],
-      ['D4', UR.PAYER_CATEGORY.MEDICARE_FFS, 'AARP Medicare supplement'],
-      ['M7', UR.PAYER_CATEGORY.MEDICARE_ADVANTAGE, 'HUMANA MCR ADV'],
-      ['MQ', UR.PAYER_CATEGORY.MEDICARE_ADVANTAGE, 'BLUE MEDICARE HMO'],
-      ['X', UR.PAYER_CATEGORY.MEDICAID, 'MEDICAID IP'],
-      ['X7', UR.PAYER_CATEGORY.MEDICAID, 'CARESOURCE PASSE'],
-      ['B2', UR.PAYER_CATEGORY.COMMERCIAL, 'BLUE CROSS'],
-      ['D5', UR.PAYER_CATEGORY.COMMERCIAL, 'HUMANA commercial'],
-      ['D6', UR.PAYER_CATEGORY.COMMERCIAL, 'AETNA commercial'],
-      ['P', UR.PAYER_CATEGORY.SELF_PAY, 'PRIVATE PAY'],
-      ['W', UR.PAYER_CATEGORY.OTHER, 'workers compensation'],
-      ['S', UR.PAYER_CATEGORY.OTHER, 'CHAMPUS'],
-      ['S1', UR.PAYER_CATEGORY.OTHER, 'VA']
+      ['M', UR.PAYER_CATEGORY.MEDICARE_FFS, 'Medicare'],
+      ['MC9', UR.PAYER_CATEGORY.MEDICARE_FFS, 'Medicare'],
+      ['MP1', UR.PAYER_CATEGORY.MEDICARE_FFS, 'Palmetto GBA'],
+      ['M7', UR.PAYER_CATEGORY.MEDICARE_ADVANTAGE, 'Humana Medicare Advantage'],
+      ['MQ', UR.PAYER_CATEGORY.MEDICARE_ADVANTAGE, 'Blue Medicare HMO'],
+      ['X', UR.PAYER_CATEGORY.MEDICAID, 'Medicaid'],
+      ['X7', UR.PAYER_CATEGORY.MEDICAID, 'CareSource PASSE'],
+      ['B2', UR.PAYER_CATEGORY.COMMERCIAL, 'Blue Cross'],
+      ['D5', UR.PAYER_CATEGORY.COMMERCIAL, 'Humana commercial'],
+      ['D6', UR.PAYER_CATEGORY.COMMERCIAL, 'Aetna commercial'],
+      ['P', UR.PAYER_CATEGORY.SELF_PAY, 'Private Pay'],
+      ['W', UR.PAYER_CATEGORY.OTHER, "Workers' Compensation"],
+      ['S', UR.PAYER_CATEGORY.OTHER, 'TRICARE / CHAMPUS'],
+      ['S1', UR.PAYER_CATEGORY.OTHER, 'VA Community Care']
     ];
     cases.forEach(function (c) {
       var row = UR.configSchema.insuranceCode(defaults, c[0]);
@@ -238,30 +238,55 @@ describe('insurance table', function () {
     });
   });
 
-  test('Medicare Advantage is never confused with Medicare fee-for-service', function () {
-    defaults.insuranceCodes.forEach(function (row) {
-      var name = String(row.label).toUpperCase();
-      if (name.indexOf('MCR ADV') >= 0 || name.indexOf('MEDICARE ADVANTAGE') >= 0) {
-        assert.equal(row.category, UR.PAYER_CATEGORY.MEDICARE_ADVANTAGE, row.code + ' ' + row.label);
-      }
+  /*
+   * The hospital files Medicare supplement plans under Commercial/Managed Care,
+   * not under Medicare. That is deliberate and it matters: a Medigap account is
+   * therefore NOT on the IMM or MOON lists. Asserting it here so the decision
+   * survives any future tidy-up of the payer table.
+   */
+  test('Medicare supplement plans are Commercial, and stay off the Medicare lists', function () {
+    ['D4', 'D4R', 'DB4', 'DS', 'DCE'].forEach(function (code) {
+      var row = UR.configSchema.insuranceCode(defaults, code);
+      assert.ok(row, code + ' is present');
+      assert.equal(row.category, UR.PAYER_CATEGORY.COMMERCIAL,
+        code + ' (' + row.label + ') is Commercial per the hospital mapping');
+    });
+
+    var matrix = [
+      fixtures.HEADERS.slice(),
+      ['8870', 'GAP1', 'MEDIGAP, TEST', 'IP', '08/10/2026', 600, '08/11/2026', 1000, 'D4', 'H', '04']
+    ];
+    var s = fixtures.run(UR, { matrix: matrix, config: UR.configSchema.defaults() });
+    assert.equal(s.encounters[0].payerCategory, UR.PAYER_CATEGORY.COMMERCIAL);
+    assert.equal(s.reviewQueue.counts.RQ_IMM, 0, 'a Medigap inpatient is not an IMM candidate');
+    assert.equal(s.metrics.inpatient.IP_2MN_001.value, 0, 'nor a two-midnight review candidate');
+  });
+
+  test('the Medicare sets are small and specific', function () {
+    var ffs = defaults.insuranceCodes.filter(function (r) { return r.category === UR.PAYER_CATEGORY.MEDICARE_FFS; });
+    var ma = defaults.insuranceCodes.filter(function (r) { return r.category === UR.PAYER_CATEGORY.MEDICARE_ADVANTAGE; });
+    assert.equal(ffs.length, 20, 'only true Medicare and its administrative contractor');
+    assert.equal(ma.length, 103);
+    ffs.forEach(function (row) {
+      assert.ok(/Medicare|Palmetto/.test(row.label), row.code + ' (' + row.label + ') looks like Medicare');
+      assert.ok(row.label.indexOf('Supplement') < 0, row.code + ' is not a supplement plan');
+      assert.ok(row.label.indexOf('Advantage') < 0, row.code + ' is not an Advantage plan');
     });
   });
 
-  test('inferred categories carry a note saying they need verification', function () {
-    var advantage = defaults.insuranceCodes.filter(function (r) {
-      return r.category === UR.PAYER_CATEGORY.MEDICARE_ADVANTAGE;
-    });
-    assert.ok(advantage.length > 50);
-    advantage.forEach(function (row) {
-      assert.ok(row.note && row.note.indexOf('verify') >= 0, row.code + ' carries a verification note');
-    });
+  test('categories are the hospital\'s, not inferred by the tool', function () {
+    var noted = defaults.insuranceCodes.filter(function (r) { return r.note; });
+    assert.equal(noted.length, 0,
+      'no row needs a "verify this guess" note, because the categories were supplied');
   });
 
-  test('retired codes ship recognized but disabled', function () {
+  test('inactive codes keep the hospital category but ship disabled', function () {
     var retired = defaults.insuranceCodes.filter(function (r) { return r.enabled === false; });
-    assert.ok(retired.length > 100, 'the hospital list marks many codes "do not use"');
+    assert.equal(retired.length, 163, 'the codes the hospital marks Do Not Use / Inactive');
     retired.forEach(function (row) {
-      assert.equal(row.category, UR.PAYER_CATEGORY.UNKNOWN);
+      assert.includes(row.label.toLowerCase(), 'do not use');
+      assert.equal(row.category, UR.PAYER_CATEGORY.OTHER,
+        'the hospital category is preserved, so re-enabling the row restores the source mapping');
     });
   });
 
