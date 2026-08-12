@@ -40,6 +40,11 @@
   function NOTE(cells) { cells.__style = 'note'; return cells; }     /* methodology note: small muted italic */
   function C(value, styleName) { return { __cell: true, v: value, style: styleName }; }
   function sevStyle(severity) { return 'sev' + severity; }           /* Blocking/Error/Warning/Info -> sevBlocking... */
+  /* A percentage as a REAL numeric cell (stored as a fraction, shown as %),
+   * so it right-aligns with the counts around it and works in formulas. */
+  function PCT(v) { return v === null || v === undefined ? null : { __num: true, v: v / 100, fmt: '0.0%' }; }
+  /* A text value ("Yes", "n/a") right-aligned to sit in a numeric column. */
+  function R(v) { return C(v, 'valr'); }
 
   var ROW_HEIGHTS = { header: 26, section: 20, title: 30 };
 
@@ -95,6 +100,9 @@
         if (v && v.__dt) {
           outRow.push(v.v === null ? null : util.toExcelSerial(v.v));
           if (v.v !== null) { dateCells.push({ r: r, c: c, fmt: v.fmt }); }
+        } else if (v && v.__num) {
+          outRow.push(v.v);
+          dateCells.push({ r: r, c: c, fmt: v.fmt });
         } else if (v && v.__cell) {
           outRow.push(v.v === undefined ? null : v.v);
           spec.cells[X.utils.encode_cell({ r: r, c: c })] = v.style;
@@ -149,6 +157,16 @@
     }
     closeRegion();
 
+    /* A right-aligned text cell on a banded row needs the banded variant,
+     * or the override would punch a white hole in the zebra stripe. */
+    var zebraRows = {};
+    for (var z = 0; z < spec.zebra.length; z++) { zebraRows[spec.zebra[z]] = true; }
+    for (var addr in spec.cells) {
+      if (Object.prototype.hasOwnProperty.call(spec.cells, addr) && spec.cells[addr] === 'valr') {
+        if (zebraRows[Number(addr.replace(/^[A-Z]+/, ''))]) { spec.cells[addr] = 'valrZ'; }
+      }
+    }
+
     var ws = X.utils.aoa_to_sheet(plain);
     for (var i = 0; i < dateCells.length; i++) {
       var addr = X.utils.encode_cell({ r: dateCells[i].r, c: dateCells[i].c });
@@ -157,7 +175,7 @@
         ws[addr].z = dateCells[i].fmt;
       }
     }
-    ws['!cols'] = autoWidths(aoa, options.maxWidth);
+    ws['!cols'] = options.cols || autoWidths(aoa, options.maxWidth);
 
     /* Styled rows get breathing room; the wrapped header needs two lines. */
     var heights = [];
@@ -224,9 +242,9 @@
       function sectionHeader(title) {
         var cells = [title];
         for (var i = 0; i < months.length; i++) {
-          cells.push(months[i].label + (months[i].partial ? ' (partial)' : ''));
+          cells.push(C(months[i].label + (months[i].partial ? ' (partial)' : ''), 'secr'));
         }
-        cells.push('Total');
+        cells.push(C('Total', 'secr'));
         cells.push('Notes');
         return SEC(cells);
       }
@@ -257,18 +275,18 @@
       rows.push(line(th.acuteTargetDays + '-day (' + (th.acuteTargetDays * 24) + '-hour) target variance (days)', function (mm) { return N(mm.inpatient.IP_TARGET_001.varianceDays); },
         'Surveillance estimate only. The CAH requirement is an ANNUAL average; these are period figures for early warning.'));
       rows.push(line('Within ' + th.acuteTargetDays + '-day target', function (mm) {
-        return mm.inpatient.IP_TARGET_001.withinTarget === null ? 'n/a' : yn(mm.inpatient.IP_TARGET_001.withinTarget);
+        return R(mm.inpatient.IP_TARGET_001.withinTarget === null ? 'n/a' : yn(mm.inpatient.IP_TARGET_001.withinTarget));
       }));
       rows.push(line('Acute IP stays > ' + th.acuteTargetHours + 'h', function (mm) { return mm.inpatient.IP_GT4_001.value; }));
-      rows.push(line('Percent of acute IP stays > ' + th.acuteTargetHours + 'h', function (mm) { return pctText(mm.inpatient.IP_GT4_PCT_001.value); },
+      rows.push(line('Percent of acute IP stays > ' + th.acuteTargetHours + 'h', function (mm) { return PCT(mm.inpatient.IP_GT4_PCT_001.value); },
         'Of qualifying discharged IP accounts in each column.'));
       rows.push(line('Excess days above target (total)', function (mm) { return N(mm.inpatient.IP_EXCESS_001.totalDays); }));
       rows.push(line('One-day acute stays (<= ' + th.oneDayStayHours + 'h)', function (mm) { return mm.inpatient.IP_SHORT_001.value; }));
-      rows.push(line('Percent of one-day acute stays', function (mm) { return pctText(mm.inpatient.IP_1DAY_PCT_001.value); },
+      rows.push(line('Percent of one-day acute stays', function (mm) { return PCT(mm.inpatient.IP_1DAY_PCT_001.value); },
         'Of qualifying discharged IP accounts in each column.'));
       rows.push(line('Medicare/MA IP crossing < ' + th.shortStayMidnights + ' midnights', function (mm) { return mm.inpatient.IP_2MN_001.value; },
         'Review candidates only; no appropriateness conclusion.'));
-      rows.push(line('Percent of Medicare/MA IP crossing < ' + th.shortStayMidnights + ' midnights', function (mm) { return pctText(mm.inpatient.IP_2MN_PCT_001.value); },
+      rows.push(line('Percent of Medicare/MA IP crossing < ' + th.shortStayMidnights + ' midnights', function (mm) { return PCT(mm.inpatient.IP_2MN_PCT_001.value); },
         'Of Medicare/MA qualifying discharged IP accounts - not of all discharged accounts.'));
       rows.push([]);
 
@@ -277,12 +295,12 @@
       rows.push(line('Observation mean duration (hours)', function (mm) { return N(mm.observation.OS_ALOS_001.meanHours); }));
       rows.push(line('Observation median duration (hours)', function (mm) { return N(mm.observation.OS_ALOS_001.medianHours); }));
       rows.push(line('Observation > ' + th.obsThresholdHours[0] + 'h', function (mm) { return mm.observation.OS_24_001.value; }));
-      rows.push(line('Percent of observation > ' + th.obsThresholdHours[0] + 'h', function (mm) { return pctText(mm.observation.OS_24_PCT_001.value); },
+      rows.push(line('Percent of observation > ' + th.obsThresholdHours[0] + 'h', function (mm) { return PCT(mm.observation.OS_24_PCT_001.value); },
         'Of qualifying discharged observation accounts in each column.'));
       rows.push(line('Observation > ' + th.obsThresholdHours[1] + 'h', function (mm) { return mm.observation.OS_36_001.value; }));
       rows.push(line('Observation > ' + th.obsThresholdHours[2] + 'h', function (mm) { return mm.observation.OS_48_001.value; }));
       rows.push(line('OS -> IP conversions', function (mm) { return mm.observation.OSIP_001.value; }));
-      rows.push(line('OS -> IP conversion rate', function (mm) { return pctText(mm.observation.OSIP_RATE_001.value); },
+      rows.push(line('OS -> IP conversion rate', function (mm) { return PCT(mm.observation.OSIP_RATE_001.value); },
         m.observation.OSIP_RATE_001.denominatorNote));
       rows.push(line('Mean observation hours before conversion', function (mm) { return N(mm.observation.OSIP_TIME_001.meanHours); }));
       rows.push([]);
@@ -346,7 +364,17 @@
 
       rows.push([]);
       rows.push(NOTE(['This worksheet intentionally contains no patient names, MRNs, or account numbers.']));
-      return makeSheet(rows, { maxWidth: 60 });
+
+      /*
+       * Uniform geometry: the label column, one equal column per month, an
+       * equal Total column, then notes. Sized here rather than from content,
+       * so a long value in a meta row cannot stretch a month column.
+       */
+      var cols = [{ wch: 44 }];
+      for (var w = 0; w < months.length; w++) { cols.push({ wch: 11 }); }
+      cols.push({ wch: 11 });
+      cols.push({ wch: 70 });
+      return makeSheet(rows, { cols: cols });
     },
 
     /* --------------------------------------------------- Monthly Trends */
@@ -381,13 +409,13 @@
           N(m.inpatient.IP_ALOS_001.hours),
           N(m.inpatient.IP_MEDLOS_001.hours),
           m.inpatient.IP_GT4_001.value,
-          pctText(m.inpatient.IP_GT4_PCT_001.value),
+          PCT(m.inpatient.IP_GT4_PCT_001.value),
           m.inpatient.IP_SHORT_001.value,
-          pctText(m.inpatient.IP_1DAY_PCT_001.value),
+          PCT(m.inpatient.IP_1DAY_PCT_001.value),
           m.observation.OS_ADM_001.value,
           N(m.observation.OS_ALOS_001.meanHours),
           m.observation.OS_24_001.value,
-          pctText(m.observation.OS_24_PCT_001.value),
+          PCT(m.observation.OS_24_PCT_001.value),
           m.observation.OSIP_001.value,
           m.swingBed.SB_ADM_001.value,
           N(m.swingBed.SB_ALOS_001.meanDays),

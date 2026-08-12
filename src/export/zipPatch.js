@@ -276,12 +276,18 @@
       xf(6, fillBase + 4),      /* sevError */
       xf(7, fillBase + 5),      /* sevWarning */
       xf(8, fillBase + 6),      /* sevInfo */
-      xf(9, 0)                  /* link */
+      xf(9, 0),                 /* link */
+      /* Right-aligned text values ("Yes", "n/a") in numeric columns, plain
+       * and zebra-banded - the builder picks the right one per cell. */
+      '<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment horizontal="right"/></xf>',
+      '<xf numFmtId="0" fontId="0" fillId="' + (fillBase + 1) + '" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment horizontal="right"/></xf>',
+      /* Section-bar cell aligned right: month labels over numeric columns. */
+      xf(3, fillBase + 2, ' applyAlignment="1"><alignment horizontal="right"/></xf>')
     ];
     var styleIndex = {
       header: base, title: base + 1, section: base + 2, note: base + 3,
       sevBlocking: base + 4, sevError: base + 5, sevWarning: base + 6, sevInfo: base + 7,
-      link: base + 8
+      link: base + 8, valr: base + 9, valrZ: base + 10, secr: base + 11
     };
 
     var zebraMap = {};
