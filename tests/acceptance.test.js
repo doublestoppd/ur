@@ -87,9 +87,11 @@ describe('acceptance criteria (spec 16.1)', function () {
   test('7. attaches Rule IDs to exported results and reference rows', function () {
     var s = fixtures.run(UR);
     var wb = UR.workbookBuilder.build(s, '').workbook;
-    var summary = XLSX.utils.sheet_to_csv(wb.Sheets['Executive Summary']);
+    /* The Executive Summary is written for a reader and deliberately carries
+     * no Rule IDs; the Calculation Reference documents every one. */
+    var reference = XLSX.utils.sheet_to_csv(wb.Sheets['Calculation Reference']);
     ['IP_ALOS_001', 'CAH96_001', 'PD_EQ_001', 'PD_MN_001', 'READMIT_30_001'].forEach(function (id) {
-      assert.includes(summary, id);
+      assert.includes(reference, id);
     });
     var queue = XLSX.utils.sheet_to_json(wb.Sheets['Review Queue'], { header: 1 });
     assert.equal(queue[0][0], 'Rule ID');

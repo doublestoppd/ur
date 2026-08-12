@@ -156,6 +156,46 @@
     if (id === 'calcref') { renderCalcRef(); }
   }
 
+  /* --------------------------------------------------------- rule links */
+
+  /*
+   * Every displayed rule label is a jump into the Calculation Reference:
+   * the reference opens filtered to that id, with the exact rule first and
+   * highlighted. One implementation, used by every screen that shows an id.
+   */
+  function openRuleReference(id) {
+    $('calcref-filter').value = id;
+    $('calcref-group').value = '';
+    goTo('calcref');
+  }
+
+  function ruleExists(id) {
+    return !!(UR.calculationRules.byId(id) || UR.reviewRules.byId(id) || UR.dataQualityRules.byId(id));
+  }
+
+  function ruleLink(id, className) {
+    if (!id) { return null; }
+    /* A wildcard like "RQ_OS_*" is a family, not a rule: leave it plain. */
+    if (!ruleExists(id)) { return el('code', { class: className || null, text: id }); }
+    return el('button', {
+      type: 'button',
+      class: 'rule-link' + (className ? ' ' + className : ''),
+      title: 'Open ' + id + ' in the Calculation Reference',
+      onclick: function () { openRuleReference(id); }
+    }, [id]);
+  }
+
+  /* "CAH96_001, IP_GT4_001" -> a span of individual rule links. */
+  function ruleLinkList(text) {
+    var wrap = el('span');
+    String(text).split(',').forEach(function (part, index) {
+      var id = part.trim();
+      if (index > 0) { wrap.appendChild(doc.createTextNode(', ')); }
+      wrap.appendChild(ruleLink(id) || doc.createTextNode(id));
+    });
+    return wrap;
+  }
+
   /* ----------------------------------------------------------------- modal */
 
   function openModal(title, bodyNode) {
@@ -797,13 +837,13 @@
     var wrap = el('div');
     wrap.appendChild(el('p', { class: 'hint', text: 'Thresholds are read by the calculation engine at run time and printed in the Calculation Reference, so a change here is visible in the exported workbook.' }));
     wrap.appendChild(table(['Threshold', 'Value', 'Rules affected'], [
-      ['CAH acute target (hours)', editNumber(th, 'acuteTargetHours', function () { markConfigChanged(); }), 'CAH96_001, IP_GT4_001, IP_EXCESS_001, RQ_IP_GT4'],
-      ['Operational target (days)', editNumber(th, 'acuteTargetDays', function () { markConfigChanged(); }), 'IP_TARGET_001'],
-      ['Observation thresholds (hours)', editList(th, 'obsThresholdHours', function () { markConfigChanged(); }), 'OS_24_001, OS_36_001, OS_48_001, RQ_OS_*'],
-      ['One-day stay ceiling (hours)', editNumber(th, 'oneDayStayHours', function () { markConfigChanged(); }), 'IP_SHORT_001, RQ_1DAY'],
-      ['Short-stay midnight threshold', editNumber(th, 'shortStayMidnights', function () { markConfigChanged(); }), 'IP_2MN_001, RQ_SHORT_MCR'],
-      ['MOON screening threshold (hours)', editNumber(th, 'moonThresholdHours', function () { markConfigChanged(); }), 'RQ_MOON'],
-      ['Readmission windows (days)', editList(th, 'readmissionWindowDays', function () { markConfigChanged(); }), 'READMIT_7_001, READMIT_30_001, READMIT_MCR_001']
+      ['CAH acute target (hours)', editNumber(th, 'acuteTargetHours', function () { markConfigChanged(); }), ruleLinkList('CAH96_001, IP_GT4_001, IP_EXCESS_001, RQ_IP_GT4')],
+      ['Operational target (days)', editNumber(th, 'acuteTargetDays', function () { markConfigChanged(); }), ruleLinkList('IP_TARGET_001')],
+      ['Observation thresholds (hours)', editList(th, 'obsThresholdHours', function () { markConfigChanged(); }), ruleLinkList('OS_24_001, OS_36_001, OS_48_001, RQ_OS_*')],
+      ['One-day stay ceiling (hours)', editNumber(th, 'oneDayStayHours', function () { markConfigChanged(); }), ruleLinkList('IP_SHORT_001, RQ_1DAY')],
+      ['Short-stay midnight threshold', editNumber(th, 'shortStayMidnights', function () { markConfigChanged(); }), ruleLinkList('IP_2MN_001, RQ_SHORT_MCR')],
+      ['MOON screening threshold (hours)', editNumber(th, 'moonThresholdHours', function () { markConfigChanged(); }), ruleLinkList('RQ_MOON')],
+      ['Readmission windows (days)', editList(th, 'readmissionWindowDays', function () { markConfigChanged(); }), ruleLinkList('READMIT_7_001, READMIT_30_001, READMIT_MCR_001')]
     ]));
     return wrap;
   }
@@ -1083,7 +1123,7 @@
           group.map(function (g) {
             var rule = UR.dataQualityRules.byId(g.ruleId);
             return [
-              g.ruleId, g.name, g.count, g.samples.join(', '), rule ? rule.effect : '',
+              ruleLink(g.ruleId), g.name, g.count, g.samples.join(', '), rule ? rule.effect : '',
               el('button', {
                 type: 'button', class: 'link',
                 onclick: function () { showDiagnosticDetail(g.ruleId); }
@@ -1172,7 +1212,7 @@
       el('span', { class: 'metric-label', text: label }),
       el('span', { class: 'metric-value', text: value === null || value === undefined ? '-' : String(value) })
     ]);
-    if (ruleId) { node.appendChild(el('span', { class: 'metric-rule', text: ruleId })); }
+    if (ruleId) { node.appendChild(ruleLink(ruleId, 'metric-rule')); }
     if (note) { node.appendChild(el('span', { class: 'metric-note', text: note })); }
     if (onDetail) {
       node.appendChild(el('button', { type: 'button', class: 'link', onclick: onDetail }, ['Show underlying rows']));
@@ -1222,7 +1262,7 @@
         valueCell,
         el('td', { class: 'metric-detail-cell', text: r.detail }),
         el('td', { class: 'metric-rule-cell' }, [
-          r.ruleId ? el('code', { text: r.ruleId }) : null,
+          r.ruleId ? ruleLink(r.ruleId) : null,
           r.onDetail ? el('button', { type: 'button', class: 'link', onclick: r.onDetail }, ['rows']) : null
         ])
       ]);
@@ -1285,14 +1325,20 @@
       metricRow('CAH ' + th.acuteTargetHours + '-hour variance', num(m.inpatient.CAH96_001.varianceHours, 1), 'hours',
         'Surveillance estimate; the requirement is an annual average', 'CAH96_001', null, cahTone),
       metricRow(th.acuteTargetDays + '-day target variance', num(m.inpatient.IP_TARGET_001.varianceDays, 2), 'days', 'Operational target', 'IP_TARGET_001'),
-      metricRow('Stays over ' + th.acuteTargetHours + 'h', m.inpatient.IP_GT4_001.value, '', pct(m.inpatient.IP_GT4_001.percent) + ' of discharged accounts', 'IP_GT4_001',
+      metricRow('Stays over ' + th.acuteTargetHours + 'h', m.inpatient.IP_GT4_001.value, '', '', 'IP_GT4_001',
         function () { showRows('IP_GT4_001 - stays over target', m.inpatient.IP_GT4_001.detail.map(function (d) { return d.encounter; })); }),
+      metricRow('Percent over ' + th.acuteTargetHours + 'h', pct(m.inpatient.IP_GT4_PCT_001.value), '',
+        m.inpatient.IP_GT4_PCT_001.numerator + ' of ' + m.inpatient.IP_GT4_PCT_001.denominator + ' discharged accounts', 'IP_GT4_PCT_001'),
       metricRow('Excess days above target', num(m.inpatient.IP_EXCESS_001.totalDays, 2), 'days',
         'Mean ' + num(m.inpatient.IP_EXCESS_001.meanDaysAmongLongStays, 2) + ' days among the long stays', 'IP_EXCESS_001'),
       metricRow('One-day stays', m.inpatient.IP_SHORT_001.value, '', payerBreakdown(m.inpatient.IP_SHORT_001.byPayer), 'IP_SHORT_001',
         function () { showRows('IP_SHORT_001 - one-day acute stays', m.inpatient.IP_SHORT_001.encounters); }),
+      metricRow('Percent one-day stays', pct(m.inpatient.IP_1DAY_PCT_001.value), '',
+        m.inpatient.IP_1DAY_PCT_001.numerator + ' of ' + m.inpatient.IP_1DAY_PCT_001.denominator + ' discharged accounts', 'IP_1DAY_PCT_001'),
       metricRow('Medicare/MA under ' + th.shortStayMidnights + ' midnights', m.inpatient.IP_2MN_001.value, '', 'Review candidates only; no appropriateness conclusion', 'IP_2MN_001',
-        function () { showRows('IP_2MN_001 - short Medicare inpatient stays', m.inpatient.IP_2MN_001.encounters); })
+        function () { showRows('IP_2MN_001 - short Medicare inpatient stays', m.inpatient.IP_2MN_001.encounters); }),
+      metricRow('Percent of Medicare/MA under ' + th.shortStayMidnights + ' midnights', pct(m.inpatient.IP_2MN_PCT_001.value), '',
+        m.inpatient.IP_2MN_PCT_001.numerator + ' of ' + m.inpatient.IP_2MN_PCT_001.denominator + ' Medicare/MA discharged accounts', 'IP_2MN_PCT_001')
     ]);
 
     /* --------------------------------------------------------- observation */
@@ -1300,8 +1346,10 @@
       metricRow('Admissions', m.observation.OS_ADM_001.value, '', '', 'OS_ADM_001',
         function () { showRows('OS_ADM_001 - observation admissions', m.observation.OS_ADM_001.encounters); }),
       metricRow('Mean duration', num(m.observation.OS_ALOS_001.meanHours, 1), 'hours', 'Median ' + num(m.observation.OS_ALOS_001.medianHours, 1) + ' hours', 'OS_ALOS_001'),
-      metricRow('Over ' + th.obsThresholdHours[0] + ' hours', m.observation.OS_24_001.value, '', pct(m.observation.OS_24_001.percent) + ' of discharged observation stays', 'OS_24_001',
+      metricRow('Over ' + th.obsThresholdHours[0] + ' hours', m.observation.OS_24_001.value, '', '', 'OS_24_001',
         function () { showRows('OS_24_001', m.observation.OS_24_001.encounters); }),
+      metricRow('Percent over ' + th.obsThresholdHours[0] + ' hours', pct(m.observation.OS_24_PCT_001.value), '',
+        m.observation.OS_24_PCT_001.numerator + ' of ' + m.observation.OS_24_PCT_001.denominator + ' discharged observation stays', 'OS_24_PCT_001'),
       metricRow('Over ' + th.obsThresholdHours[1] + ' hours', m.observation.OS_36_001.value, '', '', 'OS_36_001',
         function () { showRows('OS_36_001', m.observation.OS_36_001.encounters); }),
       metricRow('Over ' + th.obsThresholdHours[2] + ' hours', m.observation.OS_48_001.value, '', 'High-priority prolonged observation', 'OS_48_001',
@@ -1355,7 +1403,7 @@
         unit ? el('span', { class: 'headline-unit', text: ' ' + unit }) : null
       ]),
       note ? el('span', { class: 'headline-note', text: note }) : null,
-      ruleId ? el('code', { class: 'headline-rule', text: ruleId }) : null
+      ruleId ? ruleLink(ruleId, 'headline-rule') : null
     ]);
   }
 
@@ -1636,14 +1684,14 @@
       if (visit.reviewRows.length) {
         body.appendChild(el('h5', { text: 'On the review queue for' }));
         body.appendChild(table(['Rule ID', 'Reason', 'Detail'], visit.reviewRows.map(function (r) {
-          return [r.ruleId, r.ruleName, r.detail];
+          return [ruleLink(r.ruleId), r.ruleName, r.detail];
         })));
       }
 
       if (visit.diagnostics.length) {
         body.appendChild(el('h5', { text: 'Diagnostics raised against this visit' }));
         body.appendChild(table(['Severity', 'Rule ID', 'Finding', 'Message'], visit.diagnostics.map(function (d) {
-          return [pill(d.severity, d.severity.toLowerCase()), d.ruleId, d.name, d.message];
+          return [pill(d.severity, d.severity.toLowerCase()), ruleLink(d.ruleId), d.name, d.message];
         })));
       } else {
         body.appendChild(el('p', { class: 'hint', text: 'No diagnostic was raised against this visit.' }));
@@ -1688,7 +1736,8 @@
     var specs = UR.chartData.all(ui.state);
     ui.chartCards = UR.charts.render(host, specs, {
       download: download,
-      periodLabel: util.fmtISODate(ui.state.period.startDT)
+      periodLabel: util.fmtISODate(ui.state.period.startDT),
+      onRuleClick: openRuleReference
     });
     renderNav('graphs');
   }
@@ -1769,7 +1818,21 @@
       return hay.indexOf(filter) >= 0;
     });
 
-    host.appendChild(el('p', { class: 'hint', text: shown.length + ' of ' + records.length + ' rules shown.' }));
+    /*
+     * A rule-link jump filters to the exact id. That id may also appear in
+     * other rules' inputs and notes, so the exact match is put first and
+     * highlighted: the rule asked for, then everything that cites it.
+     */
+    var exactId = null;
+    shown.sort(function (a, b) {
+      var ax = a.id.toLowerCase() === filter ? 0 : 1;
+      var bx = b.id.toLowerCase() === filter ? 0 : 1;
+      return ax - bx;
+    });
+    if (shown.length && shown[0].id.toLowerCase() === filter) { exactId = shown[0].id; }
+
+    host.appendChild(el('p', { class: 'hint', text: shown.length + ' of ' + records.length + ' rules shown.' +
+      (exactId ? ' ' + exactId + ' first; the rest cite it.' : '') }));
 
     shown.forEach(function (r) {
       var kind = r.classification === UR.CLASSIFICATION.REGULATORY ? 'regulatory'
@@ -1794,7 +1857,7 @@
       }));
       row('Notes', r.notes);
 
-      host.appendChild(el('div', { class: 'rule-card' }, [
+      host.appendChild(el('div', { class: 'rule-card' + (exactId === r.id ? ' exact' : '') }, [
         el('h4', null, [
           el('span', { class: 'rule-id', text: r.id + ' v' + r.version + ' ' }),
           doc.createTextNode(r.name), doc.createTextNode(' '),

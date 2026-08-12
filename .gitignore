@@ -1,4 +1,6 @@
-# The distribution has no build step and no dependencies; nothing here is generated.
+# No dependencies. The only generated artifact is dist/ur-compiler.html, the
+# single-file distribution, which IS committed: tests/run.js rebuilds it after
+# every green suite so it always matches the sources.
 node_modules/
 *.log
 

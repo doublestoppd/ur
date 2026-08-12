@@ -551,9 +551,24 @@
     });
     canvas.addEventListener('mouseleave', function () { tooltip.hidden = true; });
 
-    var rules = spec.ruleIds && spec.ruleIds.length
-      ? el('span', { class: 'chart-rules', text: spec.ruleIds.slice(0, 6).join(', ') })
-      : null;
+    /* Rule ids become jumps into the Calculation Reference when the host
+     * provides a handler; this module stays ignorant of navigation. */
+    var rules = null;
+    if (spec.ruleIds && spec.ruleIds.length) {
+      rules = el('span', { class: 'chart-rules' });
+      spec.ruleIds.slice(0, 6).forEach(function (id, index) {
+        if (index > 0) { rules.appendChild(doc.createTextNode(', ')); }
+        if (opts.onRuleClick) {
+          rules.appendChild(el('button', {
+            type: 'button', class: 'rule-link',
+            title: 'Open ' + id + ' in the Calculation Reference',
+            onclick: function () { opts.onRuleClick(id); }
+          }, [id]));
+        } else {
+          rules.appendChild(doc.createTextNode(id));
+        }
+      });
+    }
 
     var card = el('figure', { class: 'chart-card', id: 'chart-' + spec.id }, [
       el('figcaption', null, [

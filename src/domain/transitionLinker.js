@@ -24,6 +24,20 @@
     return a.account < b.account ? -1 : (a.account > b.account ? 1 : 0);
   }
 
+  /*
+   * The service pairs a named metric specifically models: OS->IP (OSIP_001),
+   * IP->SB (IPSB_001), SB->IP (SBIP_001), OS->SB (OSSB_001). An accepted link
+   * outside this set - IP->OS, for example - is kept, because the episode is
+   * real, but warned about: it is counted in no named transition figure and
+   * may indicate a mis-mapped discharge code.
+   *
+   * (A Condition Code 44 status change does NOT arrive as an IP->OS account
+   * pair in this hospital's exports - the stay is re-registered and simply
+   * looks like an ordinary observation account - so no Code 44 inference is
+   * attempted from account sequences.)
+   */
+  var MODELED_PAIRS = { 'OS|IP': 1, 'IP|SB': 1, 'SB|IP': 1, 'OS|SB': 1 };
+
   var transitionLinker = {
 
     /*
@@ -225,6 +239,16 @@
           target.takenAsSuccessor = true;
           from.linkNext = { rowId: target.rowId, account: target.account, service: target.serviceClass, gapMinutes: winner.gapMinutes, confidence: rec.confidence };
           target.linkPrev = { rowId: from.rowId, account: from.account, service: from.serviceClass, gapMinutes: winner.gapMinutes, confidence: rec.confidence };
+
+          if (!MODELED_PAIRS[from.serviceClass + '|' + target.serviceClass]) {
+            diag.addFor('DQ_TRANS_UNMODELED', from, {
+              message: 'Accounts ' + from.account + ' (' + from.serviceClass + ') -> ' + target.account +
+                       ' (' + target.serviceClass + ') linked on discharge code "' + from.dischargeCodeRaw +
+                       '", but no specific metric or review rule models a ' + from.serviceClass + ' -> ' +
+                       target.serviceClass + ' change. The episode stays continuous and the link appears in the ' +
+                       'Transitions worksheet, but it is counted in no named transition figure. Verify the discharge-code mapping for this pair.'
+            });
+          }
           transitions.push(rec);
         }
 

@@ -196,6 +196,21 @@
     }),
 
     rule({
+      id: 'IP_GT4_PCT_001',
+      name: 'Percent of acute stays over the CAH target',
+      classification: C.REGULATORY,
+      definition: 'IP_GT4_001 expressed as a percentage of qualifying discharged acute inpatient accounts.',
+      formula: 'percent = IP_GT4_001 / qualifyingDischargedIPAccounts * 100',
+      inputs: ['IP_GT4_001', 'IP_LOS_001'],
+      inclusions: ['Qualifying discharged IP accounts.'],
+      exclusions: ['Open encounters.'],
+      thresholds: [t('Acute target (hours)', 'thresholds.acuteTargetHours')],
+      nullHandling: 'No value when there are no qualifying discharged accounts.',
+      notes: 'The numerator and denominator are exported with the rate so it can be reconciled.',
+      implementationKey: 'metrics.inpatient.longStayPercent'
+    }),
+
+    rule({
       id: 'IP_EXCESS_001',
       name: 'Excess days above the acute target',
       classification: C.OPERATIONAL,
@@ -223,6 +238,20 @@
       nullHandling: 'Unmapped insurance codes group under the Unknown payer category.',
       notes: 'An elapsed-hours definition, not a midnight count. IP_2MN_001 is the midnight-based companion.',
       implementationKey: 'metrics.inpatient.oneDayStays'
+    }),
+
+    rule({
+      id: 'IP_1DAY_PCT_001',
+      name: 'Percent of one-day acute stays',
+      classification: C.OPERATIONAL,
+      definition: 'IP_SHORT_001 expressed as a percentage of qualifying discharged acute inpatient accounts.',
+      formula: 'percent = IP_SHORT_001 / qualifyingDischargedIPAccounts * 100',
+      inputs: ['IP_SHORT_001', 'IP_LOS_001'],
+      inclusions: ['Qualifying discharged IP accounts.'],
+      exclusions: ['Open encounters.'],
+      thresholds: [t('One-day stay ceiling (hours)', 'thresholds.oneDayStayHours')],
+      nullHandling: 'No value when there are no qualifying discharged accounts.',
+      implementationKey: 'metrics.inpatient.oneDayPercent'
     }),
 
     rule({
@@ -287,6 +316,22 @@
     }),
 
     rule({
+      id: 'IP_2MN_PCT_001',
+      name: 'Percent of Medicare/MA stays under the midnight threshold',
+      classification: C.REGULATORY,
+      definition: 'IP_2MN_001 expressed as a percentage of Medicare FFS and Medicare Advantage qualifying discharged acute inpatient accounts with a known midnight count.',
+      formula: 'percent = IP_2MN_001 / medicareQualifyingDischargedIPAccounts * 100',
+      inputs: ['IP_2MN_001', 'IP_LOS_001', 'Payer category'],
+      inclusions: ['Medicare FFS and Medicare Advantage qualifying discharged IP accounts with a computable midnight count.'],
+      exclusions: ['Non-Medicare payers.', 'Open encounters.', 'Accounts whose midnight count cannot be computed.'],
+      thresholds: [t('Short-stay midnight threshold', 'thresholds.shortStayMidnights')],
+      nullHandling: 'No value when there are no Medicare/MA qualifying discharged accounts.',
+      sourceRefs: ['R5'],
+      notes: 'The denominator is Medicare/MA discharged accounts, NOT all discharged accounts; both numerator and denominator are exported. Review candidates only - no appropriateness conclusion.',
+      implementationKey: 'metrics.inpatient.shortMedicarePercent'
+    }),
+
+    rule({
       id: 'OS_24_001',
       name: 'Observation longer than 24 hours',
       classification: C.OPERATIONAL,
@@ -300,6 +345,20 @@
       sourceRefs: ['R3'],
       notes: 'The 24-hour mark is also the MOON manual-check screening point for Medicare beneficiaries.',
       implementationKey: 'metrics.observation.overThreshold'
+    }),
+
+    rule({
+      id: 'OS_24_PCT_001',
+      name: 'Percent of observation stays over the first threshold',
+      classification: C.OPERATIONAL,
+      definition: 'OS_24_001 expressed as a percentage of qualifying discharged observation accounts.',
+      formula: 'percent = OS_24_001 / qualifyingDischargedOSAccounts * 100',
+      inputs: ['OS_24_001', 'OS_LOS_001'],
+      inclusions: ['Qualifying discharged observation accounts.'],
+      exclusions: ['Open encounters.'],
+      thresholds: [t('First observation threshold (hours)', 'thresholds.obsThresholdHours.0')],
+      nullHandling: 'No value when there are no qualifying discharged observation accounts.',
+      implementationKey: 'metrics.observation.overFirstThresholdPercent'
     }),
 
     rule({

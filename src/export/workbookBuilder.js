@@ -207,78 +207,125 @@
       var th = cfg.thresholds;
       var rows = [];
 
+      /*
+       * Month-by-month layout: one column per calendar month of the reporting
+       * period, left to right, then a Total column for the whole period, then
+       * notes. Each line is defined once by an extractor that runs against a
+       * month's metrics and against the period metrics, so a month column and
+       * the Total can never be computed differently.
+       *
+       * Rule IDs are deliberately absent here: this sheet is written for a
+       * reader, and every figure's rule is documented in the Calculation
+       * Reference worksheet.
+       */
+      var months = state.monthly;
+      var readmitPeriod = UR.pipeline.readmissionsInPeriod(state, state.period);
+
+      function sectionHeader(title) {
+        var cells = [title];
+        for (var i = 0; i < months.length; i++) {
+          cells.push(months[i].label + (months[i].partial ? ' (partial)' : ''));
+        }
+        cells.push('Total');
+        cells.push('Notes');
+        return SEC(cells);
+      }
+
+      function line(label, fn, note) {
+        var cells = [label];
+        for (var i = 0; i < months.length; i++) {
+          cells.push(fn(months[i].metrics, months[i].readmissions));
+        }
+        cells.push(fn(m, readmitPeriod));
+        cells.push(note || '');
+        return cells;
+      }
+
       rows.push(TITLE(['CPSI Utilization Review Data Compiler - Executive Summary']));
       rows.push(['Reporting period', state.period.label]);
       rows.push(['Generated', state.generatedAtText || '']);
       rows.push(['Application / ruleset / configuration version', UR.APP_VERSION + ' / ' + UR.RULESET_VERSION + ' / ' + cfg.configVersion]);
-      rows.push(NOTE(['Regulatory figures below are surveillance aids. They are not official compliance reporting and must be validated against hospital policy and current payer/CMS requirements.']));
+      rows.push(NOTE(['Regulatory figures below are surveillance aids. They are not official compliance reporting and must be validated against hospital policy and current payer/CMS requirements. Rule IDs and formulas for every line are in the Calculation Reference worksheet.']));
       rows.push([]);
 
-      rows.push(SEC(['CAH ACUTE INPATIENT', 'Value', 'Rule ID', 'Notes']));
-      rows.push(['Acute IP admissions (service accounts)', m.inpatient.IP_ADM_001.value, 'IP_ADM_001', 'Includes accounts created by internal status changes.']);
-      rows.push(['Discharged IP accounts in scope', m.inpatient.IP_ALOS_001.n, 'IP_LOS_001', 'Basis: ' + cfg.processing.losBasis + ' date within the period.']);
-      rows.push(['Acute IP mean LOS (hours)', N(m.inpatient.IP_ALOS_001.hours), 'IP_ALOS_001', '']);
-      rows.push(['Acute IP mean LOS (days)', N(m.inpatient.IP_ALOS_001.days), 'IP_ALOS_001', '']);
-      rows.push(['Acute IP median LOS (hours)', N(m.inpatient.IP_MEDLOS_001.hours), 'IP_MEDLOS_001', '']);
-      rows.push([th.acuteTargetHours + '-hour surveillance variance (hours)', N(m.inpatient.CAH96_001.varianceHours), 'CAH96_001',
-        'Surveillance estimate only. The CAH requirement is an ANNUAL average; this is a period figure for early warning.']);
-      rows.push(['Within ' + th.acuteTargetHours + '-hour target for this period', m.inpatient.CAH96_001.withinTarget === null ? 'n/a' : yn(m.inpatient.CAH96_001.withinTarget), 'CAH96_001', '']);
-      rows.push([th.acuteTargetDays + '-day operational target variance (days)', N(m.inpatient.IP_TARGET_001.varianceDays), 'IP_TARGET_001', '']);
-      rows.push(['Acute IP stays > ' + th.acuteTargetHours + 'h', m.inpatient.IP_GT4_001.value, 'IP_GT4_001', pctText(m.inpatient.IP_GT4_001.percent) + ' of discharged IP accounts']);
-      rows.push(['Excess days above target (total)', N(m.inpatient.IP_EXCESS_001.totalDays), 'IP_EXCESS_001', '']);
-      rows.push(['One-day acute stays (<= ' + th.oneDayStayHours + 'h)', m.inpatient.IP_SHORT_001.value, 'IP_SHORT_001', pctText(m.inpatient.IP_SHORT_001.percent) + ' of discharged IP accounts']);
-      rows.push(['Medicare/MA IP crossing < ' + th.shortStayMidnights + ' midnights', m.inpatient.IP_2MN_001.value, 'IP_2MN_001', 'Review candidates only; no appropriateness conclusion.']);
+      rows.push(sectionHeader('CAH ACUTE INPATIENT'));
+      rows.push(line('Acute IP admissions (service accounts)', function (mm) { return mm.inpatient.IP_ADM_001.value; }, 'Includes accounts created by internal status changes.'));
+      rows.push(line('Discharged IP accounts in scope', function (mm) { return mm.inpatient.IP_ALOS_001.n; }, 'Basis: ' + cfg.processing.losBasis + ' date within each column\'s range.'));
+      rows.push(line('Acute IP mean LOS (hours)', function (mm) { return N(mm.inpatient.IP_ALOS_001.hours); }));
+      rows.push(line('Acute IP mean LOS (days)', function (mm) { return N(mm.inpatient.IP_ALOS_001.days); }));
+      rows.push(line('Acute IP median LOS (hours)', function (mm) { return N(mm.inpatient.IP_MEDLOS_001.hours); }));
+      rows.push(line(th.acuteTargetHours + '-hour surveillance variance (hours)', function (mm) { return N(mm.inpatient.CAH96_001.varianceHours); },
+        'Surveillance estimate only. The CAH requirement is an ANNUAL average; these are period figures for early warning.'));
+      rows.push(line('Within ' + th.acuteTargetHours + '-hour target', function (mm) {
+        return mm.inpatient.CAH96_001.withinTarget === null ? 'n/a' : yn(mm.inpatient.CAH96_001.withinTarget);
+      }));
+      rows.push(line(th.acuteTargetDays + '-day operational target variance (days)', function (mm) { return N(mm.inpatient.IP_TARGET_001.varianceDays); }));
+      rows.push(line('Acute IP stays > ' + th.acuteTargetHours + 'h', function (mm) { return mm.inpatient.IP_GT4_001.value; }));
+      rows.push(line('Percent of acute IP stays > ' + th.acuteTargetHours + 'h', function (mm) { return pctText(mm.inpatient.IP_GT4_PCT_001.value); },
+        'Of qualifying discharged IP accounts in each column.'));
+      rows.push(line('Excess days above target (total)', function (mm) { return N(mm.inpatient.IP_EXCESS_001.totalDays); }));
+      rows.push(line('One-day acute stays (<= ' + th.oneDayStayHours + 'h)', function (mm) { return mm.inpatient.IP_SHORT_001.value; }));
+      rows.push(line('Percent of one-day acute stays', function (mm) { return pctText(mm.inpatient.IP_1DAY_PCT_001.value); },
+        'Of qualifying discharged IP accounts in each column.'));
+      rows.push(line('Medicare/MA IP crossing < ' + th.shortStayMidnights + ' midnights', function (mm) { return mm.inpatient.IP_2MN_001.value; },
+        'Review candidates only; no appropriateness conclusion.'));
+      rows.push(line('Percent of Medicare/MA IP crossing < ' + th.shortStayMidnights + ' midnights', function (mm) { return pctText(mm.inpatient.IP_2MN_PCT_001.value); },
+        'Of Medicare/MA qualifying discharged IP accounts - not of all discharged accounts.'));
       rows.push([]);
 
-      rows.push(SEC(['OBSERVATION', 'Value', 'Rule ID', 'Notes']));
-      rows.push(['Observation admissions', m.observation.OS_ADM_001.value, 'OS_ADM_001', '']);
-      rows.push(['Observation mean duration (hours)', N(m.observation.OS_ALOS_001.meanHours), 'OS_ALOS_001', '']);
-      rows.push(['Observation median duration (hours)', N(m.observation.OS_ALOS_001.medianHours), 'OS_ALOS_001', '']);
-      rows.push(['Observation > ' + th.obsThresholdHours[0] + 'h', m.observation.OS_24_001.value, 'OS_24_001', '']);
-      rows.push(['Observation > ' + th.obsThresholdHours[1] + 'h', m.observation.OS_36_001.value, 'OS_36_001', '']);
-      rows.push(['Observation > ' + th.obsThresholdHours[2] + 'h', m.observation.OS_48_001.value, 'OS_48_001', '']);
-      rows.push(['OS -> IP conversions', m.observation.OSIP_001.value, 'OSIP_001', '']);
-      rows.push(['OS -> IP conversion rate', pctText(m.observation.OSIP_RATE_001.value), 'OSIP_RATE_001', m.observation.OSIP_RATE_001.denominatorNote]);
-      rows.push(['Mean observation hours before conversion', N(m.observation.OSIP_TIME_001.meanHours), 'OSIP_TIME_001', '']);
+      rows.push(sectionHeader('OBSERVATION'));
+      rows.push(line('Observation admissions', function (mm) { return mm.observation.OS_ADM_001.value; }));
+      rows.push(line('Observation mean duration (hours)', function (mm) { return N(mm.observation.OS_ALOS_001.meanHours); }));
+      rows.push(line('Observation median duration (hours)', function (mm) { return N(mm.observation.OS_ALOS_001.medianHours); }));
+      rows.push(line('Observation > ' + th.obsThresholdHours[0] + 'h', function (mm) { return mm.observation.OS_24_001.value; }));
+      rows.push(line('Percent of observation > ' + th.obsThresholdHours[0] + 'h', function (mm) { return pctText(mm.observation.OS_24_PCT_001.value); },
+        'Of qualifying discharged observation accounts in each column.'));
+      rows.push(line('Observation > ' + th.obsThresholdHours[1] + 'h', function (mm) { return mm.observation.OS_36_001.value; }));
+      rows.push(line('Observation > ' + th.obsThresholdHours[2] + 'h', function (mm) { return mm.observation.OS_48_001.value; }));
+      rows.push(line('OS -> IP conversions', function (mm) { return mm.observation.OSIP_001.value; }));
+      rows.push(line('OS -> IP conversion rate', function (mm) { return pctText(mm.observation.OSIP_RATE_001.value); },
+        m.observation.OSIP_RATE_001.denominatorNote));
+      rows.push(line('Mean observation hours before conversion', function (mm) { return N(mm.observation.OSIP_TIME_001.meanHours); }));
       rows.push([]);
 
-      rows.push(SEC(['SWING BED', 'Value', 'Rule ID', 'Notes']));
-      rows.push(['Swing-bed admissions', m.swingBed.SB_ADM_001.value, 'SB_ADM_001', '']);
-      rows.push(['Swing-bed mean LOS (days)', N(m.swingBed.SB_ALOS_001.meanDays), 'SB_ALOS_001', 'Excluded from the CAH acute average by design.']);
-      rows.push(['Swing-bed median LOS (days)', N(m.swingBed.SB_ALOS_001.medianDays), 'SB_ALOS_001', '']);
-      rows.push(['IP -> SB transitions', m.swingBed.IPSB_001.value, 'IPSB_001', '']);
-      rows.push(['SB -> IP transitions', m.swingBed.SBIP_001.value, 'SBIP_001', 'Hospital-specific use of discharge code V.']);
+      rows.push(sectionHeader('SWING BED'));
+      rows.push(line('Swing-bed admissions', function (mm) { return mm.swingBed.SB_ADM_001.value; }));
+      rows.push(line('Swing-bed mean LOS (days)', function (mm) { return N(mm.swingBed.SB_ALOS_001.meanDays); }, 'Excluded from the CAH acute average by design.'));
+      rows.push(line('Swing-bed median LOS (days)', function (mm) { return N(mm.swingBed.SB_ALOS_001.medianDays); }));
+      rows.push(line('IP -> SB transitions', function (mm) { return mm.swingBed.IPSB_001.value; }));
+      rows.push(line('SB -> IP transitions', function (mm) { return mm.swingBed.SBIP_001.value; }, 'Hospital-specific use of discharge code V.'));
       rows.push([]);
 
-      rows.push(SEC(['VOLUME, PATIENT DAYS AND CENSUS', 'Value', 'Rule ID', 'Notes']));
-      rows.push(['Service admissions (IP+OS+SB)', m.census.ADM_SVC_001.value, 'ADM_SVC_001', m.census.ADM_SVC_001.note]);
-      rows.push(['Unique continuous episodes', m.census.EPISODE_CNT_001.value, 'EPISODE_CNT_001', 'Recommended primary hospital-episode count.']);
-      rows.push(['Unique patients', m.census.PATIENT_CNT_001.value, 'PATIENT_CNT_001', '']);
-      rows.push(['Equivalent patient days (time-weighted)', N(m.census.PD_EQ_001.value), 'PD_EQ_001', 'PAIRED METHOD - not yet validated as the hospital official patient-day measure.']);
-      rows.push(['Midnight census patient days', m.census.PD_MN_001.value, 'PD_MN_001', 'PAIRED METHOD - traditional midnight convention.']);
-      rows.push(['Time-weighted average daily census', N(m.census.ADC_EQ_001.value), 'ADC_EQ_001', '']);
-      rows.push(['Midnight average daily census', N(m.census.ADC_MN_001.value), 'ADC_MN_001', '']);
-      rows.push(['Deaths', m.payer.DEATH_001.value, 'DEATH_001', pctText(m.payer.DEATH_001.percent) + ' of discharges in period']);
+      rows.push(sectionHeader('VOLUME, PATIENT DAYS AND CENSUS'));
+      rows.push(line('Service admissions (IP+OS+SB)', function (mm) { return mm.census.ADM_SVC_001.value; }, m.census.ADM_SVC_001.note));
+      rows.push(line('Unique continuous episodes', function (mm) { return mm.census.EPISODE_CNT_001.value; }, 'Recommended primary hospital-episode count.'));
+      rows.push(line('Unique patients', function (mm) { return mm.census.PATIENT_CNT_001.value; }, 'A patient seen in two months counts in both columns; the Total is distinct patients.'));
+      rows.push(line('Equivalent patient days (time-weighted)', function (mm) { return N(mm.census.PD_EQ_001.value); }, 'PAIRED METHOD - not yet validated as the hospital official patient-day measure.'));
+      rows.push(line('Midnight census patient days', function (mm) { return mm.census.PD_MN_001.value; }, 'PAIRED METHOD - traditional midnight convention.'));
+      rows.push(line('Time-weighted average daily census', function (mm) { return N(mm.census.ADC_EQ_001.value); }));
+      rows.push(line('Midnight average daily census', function (mm) { return N(mm.census.ADC_MN_001.value); }));
+      rows.push(line('Deaths', function (mm) { return mm.payer.DEATH_001.value; },
+        pctText(m.payer.DEATH_001.percent) + ' of discharges over the full period.'));
       rows.push([]);
 
       var windows = th.readmissionWindowDays;
-      var readmitPeriod = UR.pipeline.readmissionsInPeriod(state, state.period);
-      rows.push(SEC(['READMISSIONS (INTERNAL OPERATIONAL INDICATORS)', 'Value', 'Rule ID', 'Notes']));
-      rows.push(['Potential ' + windows[0] + '-day readmissions', readmitPeriod.short, 'READMIT_7_001', 'Not a CMS readmission rate.']);
-      rows.push(['Potential ' + windows[1] + '-day readmissions', readmitPeriod.long, 'READMIT_30_001', 'Not a CMS readmission rate.']);
-      rows.push(['Potential ' + windows[1] + '-day Medicare readmissions', readmitPeriod.medicare, 'READMIT_MCR_001', 'Payer taken from the readmitting IP account.']);
+      rows.push(sectionHeader('READMISSIONS (INTERNAL OPERATIONAL INDICATORS)'));
+      rows.push(line('Potential ' + windows[0] + '-day readmissions', function (mm, rr) { return rr.short; }, 'Not a CMS readmission rate.'));
+      rows.push(line('Potential ' + windows[1] + '-day readmissions', function (mm, rr) { return rr.long; }, 'Not a CMS readmission rate.'));
+      rows.push(line('Potential ' + windows[1] + '-day Medicare readmissions', function (mm, rr) { return rr.medicare; }, 'Payer taken from the readmitting IP account.'));
       rows.push([]);
 
-      rows.push(SEC(['REVIEW QUEUE AND DATA QUALITY', 'Count', 'Rule ID', 'Notes']));
+      /* Review and data-quality counts exist for the run as a whole. */
+      rows.push(SEC(['REVIEW QUEUE AND DATA QUALITY', 'Count', 'Notes']));
       var counts = state.reviewQueue.counts;
       var ids = UR.reviewRules.ids();
       for (var i = 0; i < ids.length; i++) {
         var rule = UR.reviewRules.byId(ids[i]);
-        rows.push([rule.name, counts[ids[i]] || 0, ids[i], '']);
+        rows.push([rule.name, counts[ids[i]] || 0, '']);
       }
-      rows.push(['Accounts on the review queue (distinct)', state.reviewQueue.byAccount.length, '', 'One account may appear for several reasons.']);
+      rows.push(['Accounts on the review queue (distinct)', state.reviewQueue.byAccount.length, 'One account may appear for several reasons.']);
       var dq = state.diagnostics.counts();
-      rows.push(['Diagnostics', dq.Blocking + ' blocking / ' + dq.Error + ' errors / ' + dq.Warning + ' warnings / ' + dq.Info + ' info', '', 'See the Data Quality worksheet.']);
+      rows.push(['Diagnostics', dq.Blocking + ' blocking / ' + dq.Error + ' errors / ' + dq.Warning + ' warnings / ' + dq.Info + ' info', 'See the Data Quality worksheet.']);
 
       var important = [];
       var byRule = state.diagnostics.byRule(3);
@@ -303,7 +350,8 @@
       var th = state.config.thresholds;
       var header = [
         'Month', 'IP admissions', 'IP mean LOS (h)', 'IP median LOS (h)', 'IP > ' + th.acuteTargetHours + 'h',
-        'IP one-day stays', 'OS admissions', 'OS mean (h)', 'OS > ' + th.obsThresholdHours[0] + 'h',
+        '% IP > ' + th.acuteTargetHours + 'h', 'IP one-day stays', '% IP one-day',
+        'OS admissions', 'OS mean (h)', 'OS > ' + th.obsThresholdHours[0] + 'h', '% OS > ' + th.obsThresholdHours[0] + 'h',
         'OS -> IP conversions', 'SB admissions', 'SB mean LOS (d)',
         'Service admissions', 'Episodes', 'Equivalent patient days', 'Midnight patient days',
         'Time-weighted ADC', 'Midnight ADC', 'Deaths',
@@ -327,10 +375,13 @@
           N(m.inpatient.IP_ALOS_001.hours),
           N(m.inpatient.IP_MEDLOS_001.hours),
           m.inpatient.IP_GT4_001.value,
+          pctText(m.inpatient.IP_GT4_PCT_001.value),
           m.inpatient.IP_SHORT_001.value,
+          pctText(m.inpatient.IP_1DAY_PCT_001.value),
           m.observation.OS_ADM_001.value,
           N(m.observation.OS_ALOS_001.meanHours),
           m.observation.OS_24_001.value,
+          pctText(m.observation.OS_24_PCT_001.value),
           m.observation.OSIP_001.value,
           m.swingBed.SB_ADM_001.value,
           N(m.swingBed.SB_ALOS_001.meanDays),

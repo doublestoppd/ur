@@ -55,11 +55,18 @@
       }
 
       /* ------------------------ short Medicare / MA stays (< 2 midnights) */
+      /*
+       * The percent (IP_2MN_PCT_001) is out of Medicare/MA discharged accounts
+       * whose midnight count is known - not out of all discharged IP - so the
+       * denominator is computed and reported alongside the numerator.
+       */
       var shortMedicare = [];
+      var medicareQualifying = 0;
       for (i = 0; i < qualifying.length; i++) {
         e = qualifying[i];
         if (!util.contains(UR.MEDICARE_CATEGORIES, e.payerCategory)) { continue; }
         if (e.midnights === null) { continue; }
+        medicareQualifying++;
         if (e.midnights < th.shortStayMidnights) { shortMedicare.push(e); }
       }
 
@@ -158,6 +165,21 @@
           value: shortMedicare.length,
           accounts: scope.accounts(shortMedicare),
           encounters: shortMedicare
+        },
+        IP_GT4_PCT_001: {
+          value: util.pct(longStays.length, qualifying.length),
+          numerator: longStays.length,
+          denominator: qualifying.length
+        },
+        IP_1DAY_PCT_001: {
+          value: util.pct(oneDay.length, qualifying.length),
+          numerator: oneDay.length,
+          denominator: qualifying.length
+        },
+        IP_2MN_PCT_001: {
+          value: util.pct(shortMedicare.length, medicareQualifying),
+          numerator: shortMedicare.length,
+          denominator: medicareQualifying
         },
         LOSDIST_001: {
           bands: bands,

@@ -186,6 +186,67 @@ describe('transitions - refusals', function () {
   });
 });
 
+describe('transitions - pairs without a specific rule', function () {
+
+  /*
+   * Discharge code Z (transitionTo OS, any source) can legitimately fire from
+   * a swing-bed account. SB -> OS is a real link and a real episode, but no
+   * named metric models the pair, so it must be warned about rather than
+   * silently absorbed - and the account must reach the review queue.
+   */
+  function sbToOs() {
+    return fixtures.run(UR, {
+      matrix: [
+        fixtures.HEADERS.slice(),
+        ['UM1', '7101', 'UNMODELED, TEST', 'SB', '08/10/2026', 600, '08/14/2026', 900, 'BCBS', 'Z', '07'],
+        ['UM1', '7102', 'UNMODELED, TEST', 'OS', '08/14/2026', 930, '08/15/2026', 1100, 'BCBS', 'H', '07']
+      ]
+    });
+  }
+
+  test('an unmodeled pair still links and stays one episode', function () {
+    var s = sbToOs();
+    var t = null;
+    s.transitions.forEach(function (x) { if (x.fromAccount === '7101') { t = x; } });
+    assert.ok(t, 'the transition was attempted');
+    assert.equal(t.confidence, LC.CONFIRMED);
+    assert.equal(t.toAccount, '7102');
+    var e1 = null, e2 = null;
+    s.encounters.forEach(function (e) {
+      if (e.account === '7101') { e1 = e; }
+      if (e.account === '7102') { e2 = e; }
+    });
+    assert.equal(e1.episodeId, e2.episodeId, 'the episode is continuous');
+  });
+
+  test('the pair is warned about because no specific rule covers it', function () {
+    var s = sbToOs();
+    var warnings = s.diagnostics.all().filter(function (d) { return d.ruleId === 'DQ_TRANS_UNMODELED'; });
+    assert.equal(warnings.length, 1);
+    assert.equal(warnings[0].severity, UR.SEVERITY.WARNING);
+    assert.includes(warnings[0].message, 'SB -> OS');
+    assert.includes(warnings[0].message, '7101');
+    assert.includes(warnings[0].message, '7102');
+    assert.ok(s.transitionCounts.osip + s.transitionCounts.ipsb + s.transitionCounts.sbip + s.transitionCounts.ossb === 0,
+      'and it is counted in no named transition figure');
+  });
+
+  test('the affected account lands on the review queue', function () {
+    var s = sbToOs();
+    var rows = s.reviewQueue.rows.filter(function (r) {
+      return r.ruleId === 'RQ_DATA' && r.account === '7101';
+    });
+    assert.equal(rows.length, 1, 'the unmodeled pair is a work item, not just a log line');
+    assert.includes(rows[0].detail, 'no specific metric or review rule');
+  });
+
+  test('the modeled pairs raise no such warning', function () {
+    /* The main fixture exercises OS->IP, IP->SB, SB->IP - all modeled. */
+    var warnings = state.diagnostics.all().filter(function (d) { return d.ruleId === 'DQ_TRANS_UNMODELED'; });
+    assert.equal(warnings.length, 0);
+  });
+});
+
 describe('episodes', function () {
 
   test('the spec 8.4 example becomes one four-account episode', function () {

@@ -103,8 +103,40 @@ describe('workbook content', function () {
     assert.ok(text.indexOf('A101') < 0, 'no account numbers');
     assert.ok(text.indexOf('1001') < 0, 'no MRNs');
     assert.includes(text, 'Reporting period');
-    assert.includes(text, 'CAH96_001');
     assert.includes(text, 'surveillance');
+    assert.notOk(/_001\b/.test(text), 'and no Rule ID column - rules live in the Calculation Reference');
+  });
+
+  test('the Executive Summary reads month by month with a Total column', function () {
+    var header = XLSX.utils.sheet_to_json(wb.Sheets['Executive Summary'], { header: 1 })
+      .filter(function (r) { return r[0] === 'CAH ACUTE INPATIENT'; })[0];
+    assert.ok(header, 'the section header row exists');
+    assert.equal(header[1], 'Aug 2026', 'months read left to right');
+    assert.equal(header[header.length - 2], 'Total', 'with a totals column at the end');
+    assert.equal(header[header.length - 1], 'Notes');
+  });
+
+  test('a multi-month period gets one column per month and the Total spans them', function () {
+    var rows = [fixtures.HEADERS.slice()];
+    ['06', '07', '08'].forEach(function (mm, idx) {
+      for (var i = 0; i < 3 + idx; i++) {
+        var day = '0' + (i + 1);
+        rows.push(['6' + idx + i, 'MM' + mm + i, 'MULTI, TEST', 'IP', mm + '/' + day + '/2026', 800, mm + '/' + day + '/2026', 1600, 'BCBS', 'H', 1]);
+      }
+    });
+    var s = fixtures.run(UR, {
+      matrix: rows,
+      periodStart: UR.util.mkDT(2026, 6, 1, 0, 0),
+      periodEnd: UR.util.mkDT(2026, 8, 31, 0, 0)
+    });
+    var sheet = UR.workbookBuilder.build(s, '').workbook.Sheets['Executive Summary'];
+    var grid = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+    var header = grid.filter(function (r) { return r[0] === 'CAH ACUTE INPATIENT'; })[0];
+    assert.deepEqual(header.slice(1, 4), ['Jun 2026', 'Jul 2026', 'Aug 2026'], 'one column per month, left to right');
+    assert.equal(header[4], 'Total');
+    var adm = grid.filter(function (r) { return r[0] === 'Acute IP admissions (service accounts)'; })[0];
+    assert.deepEqual(adm.slice(1, 4), [3, 4, 5], 'each month counts its own admissions');
+    assert.equal(adm[4], 12, 'the Total column spans the whole period');
   });
 
   test('the Executive Summary shows both patient-day methods', function () {

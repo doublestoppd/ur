@@ -28,7 +28,13 @@ being treated as official compliance reporting.
 
 ## Running it
 
-**On the hospital workstation:** copy the whole folder and open `index.html` in the browser.
+**On the hospital workstation**, either of:
+
+- **Single file:** copy `dist/ur-compiler.html` anywhere and open it in the browser. It is
+  the entire application - styles, code, and the bundled spreadsheet engine inlined - and
+  behaves identically to the folder distribution.
+- **Folder:** copy the whole folder and open `index.html`.
+
 Nothing to install; no administrator rights, npm, Node, or Python needed.
 
 The routine monthly flow is two actions: **drop the export file, read the Overview.** Files
@@ -56,7 +62,9 @@ node tests/run.js
 
 No dependencies. The runner loads every script listed in `index.html`, in that order, so a
 file that is added to the project but forgotten in the page fails the suite rather than the
-workstation.
+workstation. A green suite also rebuilds `dist/ur-compiler.html` automatically, so the
+single-file distribution can never drift from the sources; the build is deterministic
+(content-hash stamped, no timestamps), so an unchanged rebuild never dirties the file.
 
 ---
 
@@ -123,7 +131,9 @@ reported as a readmission.
 **Nothing is linked on timing alone.** A same-day service change with no transition discharge
 code is *reported* as a possible uncoded transition and left unlinked. Two plausible
 successors are flagged Ambiguous and left unlinked. A missing expected successor is flagged.
-The tool never guesses.
+The tool never guesses. An accepted link whose service pair no named metric models (say
+SB -> OS) keeps its episode but raises a warning and puts the account on the review queue,
+so an unexpected pattern is a work item rather than a silently uncounted link.
 
 **Contradictory registration times are tolerated up to a point, and named past it.** Live
 data showed registration entering the IP admission ~45 minutes *before* the SB discharge on a
@@ -223,7 +233,11 @@ to encode; severity uses the reserved status colours and never a series slot.
 ## The exported workbook
 
 Eighteen worksheets, opening on a **Contents** page where every sheet name is a
-link and each sheet has a one-line description. Sheet tabs are color-grouped —
+link and each sheet has a one-line description. The **Executive Summary** reads
+month by month - one column per calendar month of the reporting period, left to
+right, then a Total column for the whole period - and deliberately carries no
+Rule ID column: it is written for a reader, and every line's rule is documented
+in the Calculation Reference worksheet. Sheet tabs are color-grouped —
 blue summaries, orange review work, slate account detail, amber data quality,
 green reference — and every table ships with a frozen, filterable header row
 and zebra banding so a row can be read across thirty columns.
@@ -272,6 +286,8 @@ src/export/     workbookBuilder.js  the 18-worksheet compiled workbook
                 calculationReferenceSheet.js
                 zipPatch.js         post-write patcher: styling, tab colors, frozen panes
 src/pipeline.js                     the deterministic processing pipeline
+build/standalone.js                 builds dist/ur-compiler.html (runs after a green suite)
+dist/ur-compiler.html               the single-file distribution - generated, do not edit
 src/ui/app.js                       user interface controller
 src/ui/charts.js                    canvas chart renderer and PNG export
 tests/                              runner, harness, synthetic fixtures, 287 tests

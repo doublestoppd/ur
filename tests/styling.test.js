@@ -40,7 +40,7 @@ describe('workbook styling', function () {
     var wb = XLSX.read(bytes, { type: 'array' });
     assert.equal(wb.SheetNames.length, 18);
     var text = XLSX.utils.sheet_to_csv(wb.Sheets['Executive Summary']);
-    assert.includes(text, 'CAH96_001', 'metric content survives the styling pass');
+    assert.includes(text, 'CAH ACUTE INPATIENT', 'metric content survives the styling pass');
   });
 
   test('every sheet tab carries a group color', function () {

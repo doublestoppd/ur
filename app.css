@@ -261,7 +261,30 @@ button.link { border: none; background: none; color: var(--accent); text-decorat
 .filter-row { display: flex; gap: .5rem; margin: .5rem 0 1rem; flex-wrap: wrap; }
 .filter-row input[type="search"] { flex: 1 1 320px; }
 
+/* A displayed rule id is always a jump into the Calculation Reference. */
+.rule-link {
+  border: none;
+  background: none;
+  padding: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: inherit;
+  color: var(--accent);
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.rule-link:hover { text-decoration-style: solid; }
+.metric-rule-cell .rule-link { font-size: .74rem; color: var(--muted); }
+.metric-rule-cell .rule-link:hover { color: var(--accent); }
+.headline-rule.rule-link { font-size: .68rem; color: var(--muted); margin-top: .15rem; align-self: flex-start; }
+.headline-rule.rule-link:hover { color: var(--accent); }
+.metric-rule.rule-link { display: block; font-size: .72rem; color: var(--muted); text-align: left; }
+.metric-rule.rule-link:hover { color: var(--accent); }
+.chart-rules .rule-link { font-size: .7rem; color: var(--muted); }
+.chart-rules .rule-link:hover { color: var(--accent); }
+
 .rule-card { border: 1px solid var(--line); border-radius: 5px; padding: .7rem .85rem; margin-bottom: .6rem; background: #fbfcfd; }
+.rule-card.exact { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
 .rule-card h4 { margin: 0 0 .3rem; font-size: .95rem; }
 .rule-card .rule-id { font-family: ui-monospace, Menlo, Consolas, monospace; color: var(--muted); font-size: .8rem; }
 .rule-card dl { display: grid; grid-template-columns: 165px 1fr; gap: .15rem .7rem; margin: .4rem 0 0; font-size: .84rem; }

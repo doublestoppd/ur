@@ -133,6 +133,11 @@
           medianHours: util.median(conversionHours),
           n: conversionHours.length
         },
+        OS_24_PCT_001: {
+          value: cohorts.OS_24_001.percent,
+          numerator: cohorts.OS_24_001.value,
+          denominator: qualifying.length
+        },
         openAccounts: scope.openAccounts(encounters, OS)
       };
 

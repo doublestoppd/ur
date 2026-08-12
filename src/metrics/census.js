@@ -118,7 +118,7 @@
         ADM_SVC_001: {
           value: ipAdm + osAdm + sbAdm,
           ip: ipAdm, os: osAdm, sb: sbAdm,
-          note: 'Service-account count. Includes internal status transitions; compare with EPISODE_CNT_001.'
+          note: 'Service-account count. Includes internal status transitions; compare with the continuous-episode count.'
         },
         EPISODE_CNT_001: {
           value: episodesInPeriod.length,

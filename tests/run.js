@@ -23,4 +23,15 @@ if (!files.length) {
 } else {
   files.forEach(function (f) { require(path.join(__dirname, f)); });
   framework.run();
+
+  /*
+   * A green suite rebuilds the single-file distribution, so dist/ never
+   * drifts from the sources: every verified change automatically refreshes
+   * the shippable file. A red suite leaves the last good build in place.
+   */
+  if (!process.exitCode) {
+    var result = require('../build/standalone').build();
+    process.stdout.write('Standalone rebuilt: dist/ur-compiler.html (' +
+      Math.round(result.bytes / 1024) + ' KB, ' + result.scripts + ' scripts inlined)\n');
+  }
 }
