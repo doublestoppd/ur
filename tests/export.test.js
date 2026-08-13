@@ -146,6 +146,8 @@ describe('workbook content', function () {
     assert.includes(text, 'Time-weighted average daily census');
     assert.includes(text, 'Midnight average daily census');
     assert.includes(text, 'PAIRED METHOD');
+    assert.includes(text, 'How the two patient-day methods differ',
+      'the methods are explained in place, not just labeled');
   });
 
   test('the Review Queue carries Rule IDs on every row', function () {

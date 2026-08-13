@@ -327,6 +327,7 @@
       rows.push(line('  Swing bed (midnight census)', function (mm) { return mm.census.PD_SB_001.midnightDays; }));
       rows.push(line('Time-weighted average daily census', function (mm) { return N(mm.census.ADC_EQ_001.value); }));
       rows.push(line('Midnight average daily census', function (mm) { return N(mm.census.ADC_MN_001.value); }));
+      rows.push(NOTE(['How the two patient-day methods differ: TIME-WEIGHTED (equivalent) days total the exact hours each bed was occupied inside the period and divide by 24, so a noon-to-noon stay contributes exactly 1.00 days and partial days are credited to the minute. MIDNIGHT CENSUS days count the patients occupying a bed at each local midnight - the traditional convention on daily census reports - so that same noon-to-noon stay contributes 1 day, a 10:00-to-16:00 same-day stay contributes 0, and a 23:00-to-01:00 stay contributes 1. The two agree closely on long stays and diverge on short ones and on stays crossing the period boundary. Reconcile both against the existing hospital workbook and designate ONE as the official measure before publishing a headline figure. The average-daily-census lines divide each method by the days in the column; full formulas are in the Calculation Reference worksheet.']));
       rows.push(line('Deaths', function (mm) { return mm.payer.DEATH_001.value; },
         pctText(m.payer.DEATH_001.percent) + ' of discharges over the full period.'));
       rows.push([]);
