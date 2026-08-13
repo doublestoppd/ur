@@ -25,7 +25,9 @@
       var link = accepted[j];
       if (link.fromService !== fromService || link.toService !== toService) { continue; }
       var fromEnc = byRowId[link.fromRowId];
-      if (!fromEnc || !scope.inPeriod(fromEnc.admitDT, period)) { continue; }
+      /* Attributed to the period the transition moment falls in, so a stay
+       * that began before the period still counts its in-period transition. */
+      if (!fromEnc || !scope.inPeriod(scope.transitionMoment(link), period)) { continue; }
       out.push({ link: link, from: fromEnc, to: byRowId[link.toRowId] });
     }
     return out;

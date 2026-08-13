@@ -194,6 +194,44 @@
       };
     },
 
+    /*
+     * True when any part of the stay falls inside the period. A stay admitted
+     * before the period that discharges inside it - or is still open - is IN
+     * SCOPE: partial overlap participates in patient counts, review lists,
+     * and occupancy. Event metrics (admissions, discharges, transitions)
+     * remain anchored on where the event itself falls.
+     */
+    overlapsPeriod: function (e, period) {
+      if (!e.admitDT || !period) { return false; }
+      var end = (e.isOpen || !e.dischargeDT) ? period.asOf : e.dischargeDT;
+      if (!end) { end = period.endExclusiveDT; }
+      return e.admitDT.getTime() < period.endExclusiveDT.getTime() &&
+             end.getTime() > period.startDT.getTime();
+    },
+
+    /* Included accounts of one service class whose stay overlaps the period. */
+    inScopeInPeriod: function (encounters, serviceClass, period) {
+      var out = [];
+      for (var i = 0; i < encounters.length; i++) {
+        var e = encounters[i];
+        if (!e.metricEligible) { continue; }
+        if (serviceClass && e.serviceClass !== serviceClass) { continue; }
+        if (!scope.overlapsPeriod(e, period)) { continue; }
+        out.push(e);
+      }
+      return out;
+    },
+
+    /*
+     * Where an accepted transition happened: the successor's admission moment,
+     * falling back to the prior discharge. Used to attribute transition COUNTS
+     * to a period, so a conversion inside the period is counted even when the
+     * originating stay began before it.
+     */
+    transitionMoment: function (link) {
+      return link.toAdmit || link.fromDischarge || null;
+    },
+
     inPeriod: function (dt, period) {
       if (!dt) { return false; }
       var t = dt.getTime();

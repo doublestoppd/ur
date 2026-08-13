@@ -56,13 +56,16 @@
       var byRowId = {};
       for (i = 0; i < encounters.length; i++) { byRowId[encounters[i].rowId] = encounters[i]; }
 
+      /* A conversion belongs to the period its transition MOMENT falls in, so
+       * an observation stay that began before the period still counts when the
+       * status change happened inside it. */
       var conversions = [];
       for (i = 0; i < accepted.length; i++) {
         var link = accepted[i];
         if (link.fromService !== OS || link.toService !== IP) { continue; }
         var osEnc = byRowId[link.fromRowId];
         var ipEnc = byRowId[link.toRowId];
-        if (!osEnc || !scope.inPeriod(osEnc.admitDT, period)) { continue; }
+        if (!osEnc || !scope.inPeriod(scope.transitionMoment(link), period)) { continue; }
         conversions.push({ link: link, os: osEnc, ip: ipEnc, osHours: osEnc.durationHours });
       }
 
@@ -71,11 +74,12 @@
        * whose outcome is knowable - excludes open and invalid records. Both the
        * denominator and what it excluded are reported.
        */
+      var inScope = scope.inScopeInPeriod(encounters, OS, period);
       var eligible = [];
       var excludedOpen = 0;
       var excludedInvalid = 0;
-      for (i = 0; i < admitted.length; i++) {
-        e = admitted[i];
+      for (i = 0; i < inScope.length; i++) {
+        e = inScope[i];
         if (e.isOpen) { excludedOpen++; continue; }
         if (e.durationHours === null) { excludedInvalid++; continue; }
         eligible.push(e);
@@ -125,7 +129,7 @@
           denominator: eligible.length,
           excludedOpen: excludedOpen,
           excludedInvalid: excludedInvalid,
-          denominatorNote: 'Observation accounts admitted in the period, excluding ' + excludedOpen +
+          denominatorNote: 'Observation accounts in scope during the period (including partial overlap), excluding ' + excludedOpen +
                            ' open encounter(s) and ' + excludedInvalid + ' record(s) with unusable dates.'
         },
         OSIP_TIME_001: {

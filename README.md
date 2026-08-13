@@ -172,9 +172,21 @@ admission as the period start would report a one-month export as a quarter, so
 the default period is inferred from where activity concentrates: the busiest
 calendar month, extended only through adjacent months carrying at least
 `processing.periodInferenceShare` (20%) of it. Months left out are kept as
-context for episode and readmission logic, reported as an Info diagnostic, and
-excluded from period counts. The full data span is always displayed beside the
-period, and the date controls override the inference entirely.
+context for episode and readmission logic and reported as an Info diagnostic.
+The full data span is always displayed beside the period, and the date controls
+(or the one-click presets — inferred, full span, or any single month) override
+the inference entirely.
+
+**A stay that only partly overlaps the period still counts.** A patient
+admitted before the period start whose stay reaches into it participates in
+unique-patient, occupancy, review-list (IMM/MOON/observation-threshold), and
+conversion-denominator figures; internal transitions are counted in the period
+their transition *moment* falls in, so an observation stay that began in the
+prior month still counts as a conversion when the status change happened inside
+the period. Only *event* counts stay event-anchored: an admission counts in the
+period it happened, a discharged stay in the period chosen by the period basis.
+Records with no overlap at all are kept purely as episode/readmission context
+and reported as such.
 
 **Two patient-day methods, on purpose.** The inherited workbook's definition is uncertain and
 patient-day conventions differ, so both a time-weighted method (`PD_EQ_001`) and a midnight

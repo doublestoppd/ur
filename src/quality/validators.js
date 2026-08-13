@@ -100,19 +100,28 @@
      * a single Info line rather than one per row.
      */
     reportOutOfPeriod: function (encounters, period, diag) {
-      var outside = 0;
+      var whollyOutside = 0;
+      var partial = 0;
       for (var i = 0; i < encounters.length; i++) {
         var e = encounters[i];
         if (!e.metricEligible || !e.admitDT) { continue; }
-        if (!UR.scope.inPeriod(e.admitDT, period)) { outside++; }
+        if (!UR.scope.overlapsPeriod(e, period)) { whollyOutside++; }
+        else if (!UR.scope.inPeriod(e.admitDT, period)) { partial++; }
       }
-      if (outside) {
+      if (whollyOutside) {
         diag.add('DQ_OUT_OF_PERIOD', {
-          message: outside + ' included record(s) were admitted outside ' + period.label +
-                   '. They remain available for episode, transition, and readmission context but are excluded from period counts.'
+          message: whollyOutside + ' included record(s) lie wholly outside ' + period.label +
+                   '. They remain available for episode, transition, and readmission context but contribute to no period figure.'
         });
       }
-      return outside;
+      if (partial) {
+        diag.add('DQ_OUT_OF_PERIOD', {
+          message: partial + ' included record(s) were admitted before ' + period.label +
+                   ' but their stay reaches into it. They COUNT in discharged-stay, occupancy, patient, review, and transition figures; ' +
+                   'only the admission event itself falls outside the period, so admission counts exclude it.'
+        });
+      }
+      return whollyOutside + partial;
     },
 
     /* Roll-up used by the processing summary panel (spec 11.3). */

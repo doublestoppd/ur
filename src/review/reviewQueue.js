@@ -137,7 +137,8 @@
 
     RQ_IMM: function (ctx) {
       var rows = [];
-      var list = scope.admittedInPeriod(ctx.encounters, UR.SERVICE.IP, ctx.period);
+      /* In scope = the stay overlaps the period, even partially. */
+      var list = scope.inScopeInPeriod(ctx.encounters, UR.SERVICE.IP, ctx.period);
       for (var i = 0; i < list.length; i++) {
         var e = list[i];
         if (!isMedicare(e)) { continue; }
@@ -154,7 +155,7 @@
       var rows = [];
       var threshold = ctx.config.thresholds.moonThresholdHours;
       var escalated = ctx.config.thresholds.obsThresholdHours[1];
-      var list = scope.admittedInPeriod(ctx.encounters, UR.SERVICE.OS, ctx.period);
+      var list = scope.inScopeInPeriod(ctx.encounters, UR.SERVICE.OS, ctx.period);
       for (var i = 0; i < list.length; i++) {
         var e = list[i];
         if (!isMedicare(e)) { continue; }
@@ -189,7 +190,7 @@
                        (t.gapMinutes !== null && t.gapMinutes > ctx.config.transition.suspiciousGapMinutes));
         if (!problem) { continue; }
         var enc = byRowId[t.fromRowId];
-        if (!enc || !scope.inPeriod(enc.admitDT, ctx.period)) { continue; }
+        if (!enc || !scope.overlapsPeriod(enc, ctx.period)) { continue; }
         rows.push(baseRow('RQ_TRANSITION', enc, {
           relatedAccount: t.toAccount || t.candidateAccounts.join(', '),
           measure: t.gapMinutes,
@@ -270,7 +271,7 @@
     var open = scope.openAccounts(ctx.encounters, UR.SERVICE.OS);
     for (i = 0; i < open.length; i++) {
       e = open[i];
-      if (!scope.inPeriod(e.admitDT, ctx.period)) { continue; }
+      if (!scope.overlapsPeriod(e, ctx.period)) { continue; }
       var hours = openHours(e, ctx.period);
       if (hours === null || hours <= limit) { continue; }
       rows.push(baseRow(ruleId, e, {

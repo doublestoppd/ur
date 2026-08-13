@@ -73,8 +73,11 @@ formula.
    shows the period, where it came from, and the full span of the imported
    records. If the tool inferred a period, it also reports which months it
    treated as prior context — long stays that began before the reported month.
-   Set the dates explicitly if the inference does not match how the export was
-   pulled.
+   Set the dates explicitly (or use the presets — inferred, full data span, or
+   any single month) if the inference does not match how the export was pulled.
+   Note that a stay admitted before the period whose stay reaches into it still
+   counts in patient, occupancy, and review figures; only the admission *event*
+   is excluded from admission counts. The old workbook may have done either.
 2. **Period basis.** *Rules & codes → Processing options → Discharged-stay period basis.*
    `discharge` counts a stay in the month it ended; `admission` counts it in the month it
    began. The old workbook may use the other one.
@@ -137,8 +140,10 @@ Readmission counts near the start of the imported date range are **understated**
 prior stay may sit before the first imported row. The tool reports this as a
 `DQ_LOOKBACK` warning naming the affected cut-off date and episode count.
 
-To close the gap, import the 30 days preceding the month being reported. Those extra rows fall
-outside the reporting period, so they do not affect any count — they only supply history.
+To close the gap, import the 30 days preceding the month being reported. Extra rows that lie
+wholly outside the reporting period do not affect any count — they only supply history. (A stay
+from that earlier window that *reaches into* the period is different: it genuinely belongs in
+patient, occupancy, and review figures, and the tool counts it there deliberately.)
 
 ---
 

@@ -989,6 +989,71 @@
   }
 
   /*
+   * Period presets. Passing null dates returns to the inference (the default);
+   * real dates count as a user choice, exactly as if they had been typed.
+   */
+  function applyPeriodPreset(startDT, endDT) {
+    if (startDT && endDT) {
+      $('period-start').value = util.fmtISODate(startDT);
+      $('period-end').value = util.fmtISODate(endDT);
+      ui.periodTouched = true;
+    } else {
+      $('period-start').value = '';
+      $('period-end').value = '';
+      ui.periodTouched = false;
+    }
+    ui.state = null;
+    renderOverview();
+  }
+
+  function renderPeriodPresets(state) {
+    var host = $('period-presets');
+    clear(host);
+    if (!state || !state.period || !state.dataSpan) { return; }
+
+    function sameDay(a, b) { return !!a && !!b && util.fmtISODate(a) === util.fmtISODate(b); }
+    function chip(label, title, active, onclick) {
+      return el('button', {
+        type: 'button',
+        class: 'period-preset' + (active ? ' active' : ''),
+        title: title || null,
+        onclick: onclick
+      }, [label]);
+    }
+
+    var period = state.period;
+    var chosen = state.periodSource === 'Chosen by user';
+    var endIncl = new Date(period.endExclusiveDT.getTime() - 1);
+
+    host.appendChild(chip('Inferred (default)',
+      state.inferredPeriod ? state.inferredPeriod.label : '',
+      !chosen,
+      function () { applyPeriodPreset(null, null); }));
+
+    var span = state.dataSpan;
+    var spanEndIncl = new Date(span.endExclusiveDT.getTime() - 1);
+    host.appendChild(chip('Full data span', span.label,
+      chosen && sameDay(period.startDT, span.startDT) && sameDay(endIncl, spanEndIncl),
+      function () { applyPeriodPreset(span.startDT, spanEndIncl); }));
+
+    /*
+     * One chip per calendar month the data touches. A span longer than 14
+     * months keeps only the most recent 14 so the row stays a row.
+     */
+    var months = UR.scope.monthsIn(span);
+    if (months.length > 14) { months = months.slice(months.length - 14); }
+    if (months.length > 1) {
+      months.forEach(function (m) {
+        var whole = UR.scope.monthPeriod(m.period.startDT);
+        var wholeEndIncl = new Date(whole.endExclusiveDT.getTime() - 1);
+        host.appendChild(chip(m.label, whole.label,
+          chosen && sameDay(period.startDT, whole.startDT) && sameDay(endIncl, wholeEndIncl),
+          function () { applyPeriodPreset(whole.startDT, wholeEndIncl); }));
+      });
+    }
+  }
+
+  /*
    * Send the user where a digest item is fixed. Rules items pick their tab,
    * accounts items arrive with the right filter preset, and expand items open
    * a fold further down the Overview itself.
@@ -1117,7 +1182,7 @@
       if (span && (span.startDT.getTime() < state.period.startDT.getTime() ||
                    span.endExclusiveDT.getTime() > state.period.endExclusiveDT.getTime())) {
         hint += ' | imported records span ' + span.label +
-          ' (records outside the period are kept as context and excluded from period counts)';
+          ' (stays that reach into the period still count in period figures; only records with no overlap are kept purely as context)';
       }
       $('period-hint').textContent = hint;
     } else {
@@ -1126,6 +1191,7 @@
         $('period-hint').textContent = 'Detected range ' + state.inferredPeriod.label;
       }
     }
+    renderPeriodPresets(state);
 
     /* ------------------------------------- diagnostics / inventory / trans */
     var host = $('validate-diagnostics');
@@ -1578,6 +1644,7 @@
       if (row.status === 'Excluded') { badges.appendChild(pill('Excluded', 'warning')); }
       if (row.isOpen) { badges.appendChild(pill('Open', 'info')); }
       if (!row.inPeriod) { badges.appendChild(pill('Outside period', 'info')); }
+      if (row.partialPeriod) { badges.appendChild(pill('Crosses period start', 'info')); }
       if (row.reviewRuleIds.length) { badges.appendChild(pill(row.reviewRuleIds.length + ' review', 'operational')); }
       if (row.worstSeverity === UR.SEVERITY.ERROR || row.worstSeverity === UR.SEVERITY.BLOCKING) {
         badges.appendChild(pill(row.worstSeverity, row.worstSeverity.toLowerCase()));

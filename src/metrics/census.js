@@ -81,7 +81,9 @@
         if (scope.inPeriod(episodes[i].startDT, period)) { episodesInPeriod.push(episodes[i]); }
       }
 
-      var included = scope.includedAdmittedInPeriod(encounters, period);
+      /* Unique patients: anyone IN SCOPE during the period, including stays
+       * that only partly overlap it (admitted before, discharged inside). */
+      var included = scope.inScopeInPeriod(encounters, null, period);
       var mrns = {};
       var missingMrn = 0;
       for (i = 0; i < included.length; i++) {

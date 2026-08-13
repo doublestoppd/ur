@@ -87,7 +87,9 @@
           episodeId: e.episodeId,
           status: status.label,
           statusDetail: status.detail,
-          inPeriod: !!(state.period && e.admitDT && UR.scope.inPeriod(e.admitDT, state.period)),
+          inPeriod: !!(state.period && UR.scope.overlapsPeriod(e, state.period)),
+          partialPeriod: !!(state.period && e.admitDT && UR.scope.overlapsPeriod(e, state.period) &&
+                            !UR.scope.inPeriod(e.admitDT, state.period)),
           reviewRuleIds: reviewByAccount[e.account] || [],
           diagnosticCount: flags.length,
           worstSeverity: worstSeverity(flags),
@@ -210,10 +212,12 @@
       rows.push({ label: 'Service sequence of that episode', value: e.episodeServiceSequence || '-' });
       rows.push({
         label: 'Inside the reporting period',
-        value: state.period && e.admitDT
-          ? (UR.scope.inPeriod(e.admitDT, state.period) ? 'Yes - admitted within ' + state.period.label
-            : 'No - admitted outside ' + state.period.label + ', kept as context only')
-          : '(unknown)'
+        value: !state.period || !e.admitDT ? '(unknown)'
+          : (UR.scope.inPeriod(e.admitDT, state.period)
+            ? 'Yes - admitted within ' + state.period.label
+            : (UR.scope.overlapsPeriod(e, state.period)
+              ? 'Partly - admitted before ' + state.period.label + ' but the stay reaches into it. Counts in discharged-stay, occupancy, patient, and review figures; only the admission event is outside.'
+              : 'No - wholly outside ' + state.period.label + ', kept as context only'))
       });
       rows.push({
         label: 'Counts toward metrics',
