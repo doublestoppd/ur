@@ -12,7 +12,7 @@ ways: where this tool and the old workbook disagree, the disagreement is the fin
 
 ## 1. Reference mappings (do this first)
 
-The hospital's service codes, all 23 discharge codes, all 7 origin codes, and all 736
+The hospital's service codes, all 24 discharge codes, all 7 origin codes, and all 736
 insurance codes — **with the hospital's own payer categories** — ship with the application.
 Nothing in the payer mapping is inferred, so this step is confirmation rather than repair:
 check that the shipped tables still match current practice, and that the handful of local
@@ -22,7 +22,7 @@ decisions below are the ones you want.
 |---|---|---|
 | Every service code in a real export appears in the Code Inventory with a deliberate status | Overview → Code inventory | |
 | Codes marked *Unrecognized* are either mapped or explicitly set to Ignore | Rules & codes → Service codes | |
-| All 23 discharge codes match current hospital usage | Rules & codes → Discharge codes | |
+| All 24 discharge codes match current hospital usage | Rules & codes → Discharge codes | |
 | Code `V` still means SB → IP locally (the published meaning of 66 is transfer to another CAH) | Rules & codes → Discharge codes | |
 | Code `Z` (10 ADMIT TO OBSERVATION) really is used as an internal status change; disable the row if not | Rules & codes → Discharge codes | |
 | Every insurance code appearing in the data still carries the right payer category — tick "Only codes found in the loaded data" | Rules & codes → Insurance / payer codes | |

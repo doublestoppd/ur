@@ -170,7 +170,7 @@ describe('configuration', function () {
       .forEach(function (c) {
         assert.ok(codes.indexOf(c) >= 0, 'missing discharge code ' + c);
       });
-    assert.equal(codes.length, 23, 'the complete hospital discharge-code table');
+    assert.equal(codes.length, 24, 'the complete hospital discharge-code table');
     assert.ok(config.insuranceCodes.length > 700, 'the hospital insurance table ships with the application');
     assert.equal(config.admissionSources.length, 7, 'the seven origin codes');
     assert.equal(config.transition.maxGapMinutes, 120);

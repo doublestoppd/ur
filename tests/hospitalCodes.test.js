@@ -141,9 +141,17 @@ describe('origin codes', function () {
 describe('discharge codes', function () {
 
   test('the complete hospital table ships, with the UB-04 status in the label', function () {
-    assert.equal(defaults.dischargeCodes.length, 23);
+    assert.equal(defaults.dischargeCodes.length, 24);
     assert.includes(UR.configSchema.dischargeCode(defaults, 'H').label, '01 DISCHARGE TO HOME');
     assert.includes(UR.configSchema.dischargeCode(defaults, 'N').label, '03 DIS/TRAN TO SKILLED NURSING');
+  });
+
+  test('code W is the catch-all outward transfer, a true discharge', function () {
+    var w = UR.configSchema.dischargeCode(defaults, 'W');
+    assert.includes(w.label, '70 D/C TRANS TO OTHER HEALTHCARE FAC NOT DEFINED ELSEWHERE');
+    assert.equal(w.category, 'Other healthcare facility');
+    assert.equal(w.transitionTo, null, 'no internal successor expected');
+    assert.ok(w.enabled);
   });
 
   test('all four expired codes count as deaths', function () {

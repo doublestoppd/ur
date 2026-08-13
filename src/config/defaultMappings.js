@@ -81,6 +81,7 @@
     { code: 'T', label: '64 DIS/TRANS TO CERTIFIED MEDICAID LTCH NOT MEDICARE', category: 'Long-term care hospital', transitionTo: null, enabled: true, note: '' },
     { code: 'U', label: '65 DIS/TRANS TO PSYCHIATRIC HOSPITAL', category: 'Psychiatric hospital', transitionTo: null, enabled: true, note: '' },
     { code: 'K', label: "43 DIS/TRANS DEPT DEF HOSPITAL OR VETERAN'S ADMINISTRAT", category: 'Federal or VA hospital', transitionTo: null, enabled: true, note: '' },
+    { code: 'W', label: '70 D/C TRANS TO OTHER HEALTHCARE FAC NOT DEFINED ELSEWHERE', category: 'Other healthcare facility', transitionTo: null, enabled: true, note: 'Catch-all outward transfer for facility types without their own code.' },
     { code: 'C', label: '21 DIS/TRANS TO COURT/LAW ENFORCEMENT', category: 'Court or law enforcement', transitionTo: null, enabled: true, note: '' },
 
     /* ---------------------------------------------------------------- deaths */
