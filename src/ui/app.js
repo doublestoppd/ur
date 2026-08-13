@@ -306,6 +306,7 @@
         headers: sheet.headers,
         rows: sheet.rows,
         headerRowIndex: sheet.headerRowIndex,
+        excelGuardCells: sheet.excelGuardCells || 0,
         mapping: {}
       });
     });

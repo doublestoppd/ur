@@ -138,11 +138,13 @@ columns, and that ID drives transition linkage, episodes, and readmissions.
 Name matching forgives case and spacing noise, nothing more. The two inherent
 limitations are handled openly rather than guessed away: two different people
 sharing a name and age become one patient (undetectable in this data), and one
-person whose birthday falls between two stays becomes two patients — the
-adjacent-age case is detected and flagged (`DQ_PID_SPLIT`, on the review queue)
-so the age can be corrected at the source, and is never silently merged. A row
-whose name or age is missing or unusable gets no Patient ID, links to nothing,
-and is reported (`DQ_PID_MISSING`).
+person whose birthday falls between two stays shows two ages — same-name
+records whose ages sit within one year are therefore MERGED into one patient
+(a birthday inside the range is far likelier than two same-name patients born
+a year apart), and every merge is noted on the review queue (`DQ_PID_MERGED`,
+Info) with the ages and accounts involved so the assumption stays checkable.
+A row whose name or age is missing or unusable gets no Patient ID, links to
+nothing, and is reported (`DQ_PID_MISSING`).
 
 **Episodes, not accounts, for readmissions.** CPSI opens a new account whenever a patient
 changes status, so one hospital course (`OS → IP → SB → IP`) arrives as four rows. The tool

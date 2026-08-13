@@ -34,6 +34,15 @@
      */
     reportSourceMappings: function (sources, diag) {
       var reported = 0;
+      var guarded = 0;
+      for (var g = 0; g < sources.length; g++) { guarded += sources[g].excelGuardCells || 0; }
+      if (guarded) {
+        diag.add('DQ_EXCEL_GUARD', {
+          message: guarded + ' cell(s) arrived wrapped in an Excel text-guard formula (e.g. ="04"). ' +
+                   'The wrapper was stripped and the underlying value used, so these cells match the code tables normally. ' +
+                   'No action is needed; rows added to a code table with the wrapper still in the code (="04") can be removed.'
+        });
+      }
       for (var s = 0; s < sources.length; s++) {
         var source = sources[s];
         var missing = [];

@@ -98,6 +98,7 @@ function buildSource(UR, options) {
     headers: table.headers,
     rows: table.rows,
     headerRowIndex: table.headerRowIndex,
+    excelGuardCells: table.excelGuardCells || 0,
     mapping: opts.mapping || auto.mapping,
     auto: auto
   };

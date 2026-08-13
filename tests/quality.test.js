@@ -148,20 +148,63 @@ describe('data quality - exclusions are visible', function () {
     assert.equal(s.encounters[0].mrn, '');
   });
 
-  test('same name and age one year apart is flagged as a possible split patient', function () {
+  test('same name with ages one year apart merges into one patient with a review note', function () {
     var matrix = [
       fixtures.HEADERS.slice(),
       [79, 'BD1', 'BIRTHDAY, TEST', 'IP', '08/01/2026', 600, '08/03/2026', 600, 'BCBS', 'H', 1],
       [80, 'BD2', 'BIRTHDAY, TEST', 'IP', '08/20/2026', 600, '08/22/2026', 600, 'BCBS', 'H', 1]
     ];
     var s = fixtures.run(UR, { matrix: matrix });
-    assert.notEqual(s.encounters[0].mrn, s.encounters[1].mrn, 'treated as two patients, never merged on a guess');
-    var d = s.diagnostics.all().filter(function (x) { return x.ruleId === 'DQ_PID_SPLIT'; });
+    assert.equal(s.encounters[0].mrn, s.encounters[1].mrn, 'one Patient ID across the birthday');
+    var d = s.diagnostics.all().filter(function (x) { return x.ruleId === 'DQ_PID_MERGED'; });
     assert.equal(d.length, 1);
     assert.includes(d[0].message, 'BD1');
     assert.includes(d[0].message, 'BD2');
     assert.includes(d[0].message, 'birthday');
-    assert.equal(s.readmissions.pairs.length, 0, 'and no readmission connects them while split');
+    assert.includes(d[0].message, 'ONE patient');
+    assert.ok(d[0].severity === 'Info', 'an informational note, not a warning');
+    assert.equal(s.readmissions.pairs.length, 1, 'the merged patient connects for readmission logic');
+    assert.ok(s.reviewQueue.rows.some(function (r) {
+      return r.ruleId === 'RQ_DATA' && r.detail.indexOf('ONE patient') >= 0;
+    }), 'the merge note reaches the review queue');
+  });
+
+  test('Excel text-guard wrappers (="04") are stripped and reported', function () {
+    var matrix = [
+      fixtures.HEADERS.slice(),
+      [55, 'XG1', 'GUARD, TEST', 'IP', '08/05/2026', 800, '08/08/2026', 900, 'MCR', 'H', '="04"']
+    ];
+    var s = fixtures.run(UR, { matrix: matrix });
+    var e = s.encounters[0];
+    assert.equal(e.admissionSourceRaw, '04', 'the wrapper never reaches the data');
+    assert.ok(e.admissionSourceLabel && e.admissionSourceLabel.indexOf('EMERGENCY') >= 0,
+      'the unwrapped code resolves against the reference table: ' + e.admissionSourceLabel);
+    var d = s.diagnostics.all().filter(function (x) { return x.ruleId === 'DQ_EXCEL_GUARD'; });
+    assert.equal(d.length, 1, 'the strip is reported once');
+    assert.includes(d[0].message, '1 cell(s)');
+  });
+
+  test('ages two apart stay two patients; a chained span merges with a caution', function () {
+    var matrix = [
+      fixtures.HEADERS.slice(),
+      [70, 'TW1', 'TWOAPART, TEST', 'IP', '08/01/2026', 600, '08/03/2026', 600, 'BCBS', 'H', 1],
+      [72, 'TW2', 'TWOAPART, TEST', 'IP', '08/20/2026', 600, '08/22/2026', 600, 'BCBS', 'H', 1]
+    ];
+    var s = fixtures.run(UR, { matrix: matrix });
+    assert.notEqual(s.encounters[0].mrn, s.encounters[1].mrn, 'a two-year gap is not a birthday');
+
+    var chained = fixtures.run(UR, { matrix: [
+      fixtures.HEADERS.slice(),
+      [70, 'CH1', 'CHAIN, TEST', 'IP', '08/01/2026', 600, '08/03/2026', 600, 'BCBS', 'H', 1],
+      [71, 'CH2', 'CHAIN, TEST', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'BCBS', 'H', 1],
+      [72, 'CH3', 'CHAIN, TEST', 'IP', '08/20/2026', 600, '08/22/2026', 600, 'BCBS', 'H', 1]
+    ]});
+    var ids = {};
+    chained.encounters.forEach(function (e) { ids[e.mrn] = true; });
+    assert.equal(Object.keys(ids).length, 1, '70-71-72 chains into one patient');
+    var d = chained.diagnostics.all().filter(function (x) { return x.ruleId === 'DQ_PID_MERGED'; });
+    assert.equal(d.length, 1);
+    assert.includes(d[0].message, 'more than a single birthday', 'the wide span is called out');
   });
 
   test('name normalization forgives case and spacing, nothing more', function () {

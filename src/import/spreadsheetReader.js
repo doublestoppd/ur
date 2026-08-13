@@ -23,6 +23,24 @@
   }
 
   /* A row is empty when every cell is null, undefined, or blank text. */
+  /*
+   * CPSI exports guard code-like values against Excel's number coercion by
+   * writing them as text formulas: ="04". When such a cell survives into the
+   * data as literal text, every lookup would see ="04" instead of 04, so the
+   * wrapper is stripped here - the single choke point every import path goes
+   * through - and the count is surfaced as an Info diagnostic downstream.
+   */
+  function unguard(v, counter) {
+    if (typeof v === 'string') {
+      var m = /^\s*=\s*"(.*)"\s*$/.exec(v);
+      if (m) {
+        if (counter) { counter.n++; }
+        return m[1];
+      }
+    }
+    return v;
+  }
+
   function isEmptyRow(row) {
     if (!row) { return true; }
     for (var i = 0; i < row.length; i++) {
@@ -82,12 +100,13 @@
 
     /* Same conversion for an already-materialized array of arrays (used by tests). */
     matrixToTable: function (matrix) {
-      if (!matrix || !matrix.length) { return { headers: [], rows: [], headerRowIndex: 0 }; }
+      if (!matrix || !matrix.length) { return { headers: [], rows: [], headerRowIndex: 0, excelGuardCells: 0 }; }
       var hIndex = spreadsheetReader.findHeaderRow(matrix);
       var rawHeaders = matrix[hIndex] || [];
       var headers = [];
+      var guarded = { n: 0 };
       for (var c = 0; c < rawHeaders.length; c++) {
-        var v = rawHeaders[c];
+        var v = unguard(rawHeaders[c], guarded);
         headers.push(v === null || v === undefined ? '' : String(v).trim());
       }
       /* Trim trailing unnamed columns. */
@@ -96,9 +115,12 @@
       var rows = [];
       for (var r = hIndex + 1; r < matrix.length; r++) {
         if (isEmptyRow(matrix[r])) { continue; }
-        rows.push({ cells: matrix[r], sourceRowNumber: r + 1 });
+        var cells = matrix[r];
+        var out = new Array(cells.length);
+        for (var k = 0; k < cells.length; k++) { out[k] = unguard(cells[k], guarded); }
+        rows.push({ cells: out, sourceRowNumber: r + 1 });
       }
-      return { headers: headers, rows: rows, headerRowIndex: hIndex };
+      return { headers: headers, rows: rows, headerRowIndex: hIndex, excelGuardCells: guarded.n };
     },
 
     /*
@@ -126,7 +148,8 @@
           headers: table.headers,
           rows: table.rows,
           headerRowIndex: table.headerRowIndex,
-          rowCount: table.rows.length
+          rowCount: table.rows.length,
+          excelGuardCells: table.excelGuardCells || 0
         });
       }
       return { fileName: fileName, error: null, sheets: sheets };

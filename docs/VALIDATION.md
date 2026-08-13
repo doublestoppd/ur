@@ -31,7 +31,7 @@ decisions below are the ones you want.
 | Any account reported with a *retired* insurance code is investigated — the hospital marks 163 codes "Do Not Use / Inactive" and they ship disabled so their use is visible | Overview → attention digest / Diagnostics | |
 | `ipv1_origin` is the right column (`origin_code` is still accepted), and origin values resolve (note that OBSERVATION is published as `6`, not `06`) | Field Mapping + Overview → Code inventory | |
 | Patient identity spot-check: pick a patient with several accounts and confirm all carry ONE Patient ID (identity = name + age from `ipv1_age_years`) | Accounts → dossier | |
-| Every `DQ_PID_SPLIT` finding (same name, ages one year apart - a possible birthday inside the range) is resolved by correcting the age at the source | Overview → Diagnostics / Review queue | |
+| Every `DQ_PID_MERGED` note (same name, ages within one year, merged as one patient on the birthday assumption) is spot-checked against the chart; if the records are really two patients, correct the source data | Overview → Diagnostics / Review queue | |
 | Configuration exported to JSON and stored somewhere backed up | Rules & codes → Export configuration | |
 
 An unmapped or wrongly categorized payer code is not cosmetic: it silently adds or removes

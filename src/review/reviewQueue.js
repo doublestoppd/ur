@@ -16,7 +16,7 @@
   var scope = UR.scope;
 
   /* Diagnostic ids that belong on a reviewer's work list (spec 10, RQ_DATA). */
-  var DATA_WARNINGS = ['DQ_SVC_UNKNOWN', 'DQ_PID_MISSING', 'DQ_PID_SPLIT', 'DQ_ACCT_CONFLICT', 'DQ_ROW_DUP', 'DQ_OVERLAP_UNEXPLAINED', 'DQ_TRANS_UNMODELED'];
+  var DATA_WARNINGS = ['DQ_SVC_UNKNOWN', 'DQ_PID_MISSING', 'DQ_PID_MERGED', 'DQ_ACCT_CONFLICT', 'DQ_ROW_DUP', 'DQ_OVERLAP_UNEXPLAINED', 'DQ_TRANS_UNMODELED'];
 
   function baseRow(ruleId, enc, extra) {
     var rule = UR.reviewRules.byId(ruleId);

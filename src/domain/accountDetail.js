@@ -203,7 +203,7 @@
       rows.push({
         label: 'Patient ID',
         value: e.mrn || '(none - name or age unusable)',
-        note: 'Derived: accounts sharing this patient name and age are treated as one patient.'
+        note: 'Derived: accounts sharing this patient name and age - or the same name with ages within one year (a birthday inside the range) - are treated as one patient.'
       });
       rows.push({ label: 'Payer category', value: e.payerCategory });
       rows.push({ label: 'Disposition category', value: e.dispositionCategory || '(none)' });

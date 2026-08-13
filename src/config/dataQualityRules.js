@@ -87,9 +87,9 @@
     dq('DQ_PID_MISSING', S.WARNING, 'Patient identity incomplete',
       'The patient name or age is missing or unusable, so no Patient ID could be derived for the account.',
       'The account cannot take part in transition linkage, episode construction, or readmission logic; it forms an episode of one. LOS and volume metrics still count it.'),
-    dq('DQ_PID_SPLIT', S.WARNING, 'Possible split patient identity',
-      'Two derived patients share a name with ages exactly one year apart - possibly one person whose birthday falls inside the imported range.',
-      'The accounts are kept as two patients; no episode or readmission connects them. Verify against the chart and correct the age at the source if they are one person. The tool never merges on a guess.'),
+    dq('DQ_PID_MERGED', S.INFO, 'Same-name records merged across a birthday',
+      'Records share a name with ages within one year of each other - almost always one person whose birthday falls inside the imported range.',
+      'The records were treated as ONE patient under a single Patient ID, so episodes, transitions, and readmissions connect their accounts. The merge, the ages, and every account involved are noted on the review queue; if they are really different patients, correct the source data and reprocess.'),
     dq('DQ_ACCT_MISSING', S.WARNING, 'Missing account number',
       'The account/encounter number is blank.',
       'A synthetic internal identifier is assigned for traceability; duplicate detection is degraded.'),
@@ -140,6 +140,9 @@
       'Readmission indicators understate the true count for the affected window. The affected date range and account count are reported.'),
 
     /* ----------------------------------------------------------------- info */
+    dq('DQ_EXCEL_GUARD', S.INFO, 'Excel text-guard wrappers stripped',
+      'Cells arrived wrapped in an Excel text-guard formula (="04"), a CPSI export artifact that protects leading zeros.',
+      'The wrapper is stripped and the underlying value used, so codes match the reference tables normally. Nothing else changes.'),
     dq('DQ_SVC_IGNORED', S.INFO, 'Recognized service code configured as ignored',
       'A service code mapped to Ignore was encountered.',
       'The row is excluded from metrics by policy and counted separately from unrecognized codes.'),

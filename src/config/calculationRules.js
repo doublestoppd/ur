@@ -650,16 +650,16 @@
 
     rule({
       id: 'PATIENT_CNT_001',
-      version: '1.2',
+      version: '1.3',
       name: 'Unique patients',
       classification: C.OPERATIONAL,
-      definition: 'Count of distinct derived Patient IDs - one per distinct (patient name, age) pair - represented among included encounters whose stay overlaps the reporting period.',
+      definition: 'Count of distinct derived Patient IDs - one per distinct (patient name, age) identity, with same-name records whose ages sit within one year merged as one patient - represented among included encounters whose stay overlaps the reporting period.',
       formula: 'count(distinct derived Patient ID over encounters whose stay interval intersects the period)',
       inputs: ['Patient ID (derived from name and age)'],
       inclusions: ['Included service accounts whose stay overlaps the period - a patient admitted before the period start whose stay reaches into it counts.'],
       exclusions: ['Records with no derivable Patient ID (name or age unusable), which cannot be attributed to a patient.', 'Stays with no overlap with the period.'],
       nullHandling: 'Records without a Patient ID are counted separately as a data-quality warning rather than pooled into one pseudo-patient.',
-      notes: '(v1.2: stays that only partly overlap the period now count; previously only stays ADMITTED inside the period did.)',
+      notes: '(v1.2: stays that only partly overlap the period now count; previously only stays ADMITTED inside the period did. v1.3: same-name records with ages one year apart merge as one patient - a birthday inside the data range - with every merge noted on the review queue.)',
       implementationKey: 'metrics.census.uniquePatients'
     }),
 

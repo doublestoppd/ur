@@ -560,8 +560,12 @@
    * Two limitations are inherent to name+age identity and are surfaced rather
    * than hidden: two different people sharing a name and age become one
    * patient (undetectable here), and one person whose birthday falls between
-   * two stays becomes two patients - the adjacent-age case IS detectable, so
-   * it is reported (DQ_PID_SPLIT) and never silently merged.
+   * two stays would show two ages. The adjacent-age case IS detectable, so
+   * same-name records whose ages sit within one year of each other are MERGED
+   * into one patient and the merge is reported (DQ_PID_MERGED, Info) on the
+   * review queue - a birthday inside the data range is far likelier than two
+   * same-name patients born a year apart, and the note keeps the assumption
+   * checkable.
    */
   function assignPatientIds(encounters, diag) {
     var keys = [];
@@ -575,33 +579,72 @@
       }
     }
     keys.sort();
-    var width = Math.max(3, String(keys.length).length);
-    var idByKey = {};
-    for (i = 0; i < keys.length; i++) {
-      var ordinal = String(i + 1);
-      while (ordinal.length < width) { ordinal = '0' + ordinal; }
-      idByKey[keys[i]] = 'P' + ordinal;
-    }
-    var firstByKey = {};
-    for (i = 0; i < encounters.length; i++) {
-      e = encounters[i];
-      e.mrn = e.patientKey ? idByKey[e.patientKey] : '';
-      if (e.patientKey && !firstByKey[e.patientKey]) { firstByKey[e.patientKey] = e; }
-    }
 
-    /* Same name, ages one apart: possibly one person crossing a birthday. */
+    /*
+     * Cluster same-name keys whose ages chain within one year (70+71 merge;
+     * 70+71+72 chain into one cluster and the note says so). The cluster's
+     * canonical key - its lowest age - represents the patient.
+     */
+    var canonicalByKey = {};
+    var clusterByCanonical = {};
+    var canonicals = [];
+    var byName = {};
     for (i = 0; i < keys.length; i++) {
       var parts = keys[i].split('|');
-      var neighbour = parts[0] + '|' + (Number(parts[1]) + 1);
-      if (!idByKey[neighbour]) { continue; }
-      var a = firstByKey[keys[i]];
-      var b = firstByKey[neighbour];
-      diag.addFor('DQ_PID_SPLIT', a, {
-        message: 'Patients ' + idByKey[keys[i]] + ' (age ' + parts[1] + ') and ' + idByKey[neighbour] +
-                 ' (age ' + (Number(parts[1]) + 1) + ') share the name "' + a.name +
-                 '" with ages one year apart, and MAY be one person whose birthday falls inside the data. ' +
-                 'They are treated as two patients, so no episode or readmission will connect their accounts (for example ' +
-                 a.account + ' and ' + b.account + '). If the chart shows one person, correct the age at the source and reprocess.'
+      if (!byName[parts[0]]) { byName[parts[0]] = []; }
+      byName[parts[0]].push(Number(parts[1]));
+    }
+    for (var name in byName) {
+      if (!Object.prototype.hasOwnProperty.call(byName, name)) { continue; }
+      var ages = byName[name].sort(function (a, b) { return a - b; });
+      var cluster = [ages[0]];
+      for (i = 1; i <= ages.length; i++) {
+        if (i < ages.length && ages[i] - ages[i - 1] <= 1) {
+          cluster.push(ages[i]);
+          continue;
+        }
+        var canonical = name + '|' + cluster[0];
+        canonicals.push(canonical);
+        clusterByCanonical[canonical] = cluster;
+        for (var c = 0; c < cluster.length; c++) { canonicalByKey[name + '|' + cluster[c]] = canonical; }
+        if (i < ages.length) { cluster = [ages[i]]; }
+      }
+    }
+
+    canonicals.sort();
+    var width = Math.max(3, String(canonicals.length).length);
+    var idByCanonical = {};
+    for (i = 0; i < canonicals.length; i++) {
+      var ordinal = String(i + 1);
+      while (ordinal.length < width) { ordinal = '0' + ordinal; }
+      idByCanonical[canonicals[i]] = 'P' + ordinal;
+    }
+
+    var firstByCanonical = {};
+    var accountsByCanonical = {};
+    for (i = 0; i < encounters.length; i++) {
+      e = encounters[i];
+      var canon = e.patientKey ? canonicalByKey[e.patientKey] : null;
+      e.mrn = canon ? idByCanonical[canon] : '';
+      if (canon) {
+        if (!firstByCanonical[canon]) { firstByCanonical[canon] = e; accountsByCanonical[canon] = []; }
+        if (accountsByCanonical[canon].indexOf(e.account) < 0) { accountsByCanonical[canon].push(e.account); }
+      }
+    }
+
+    /* Report every merge so the assumption stays visible and checkable. */
+    for (i = 0; i < canonicals.length; i++) {
+      var mergedAges = clusterByCanonical[canonicals[i]];
+      if (mergedAges.length < 2) { continue; }
+      var anchor = firstByCanonical[canonicals[i]];
+      var span = mergedAges[mergedAges.length - 1] - mergedAges[0];
+      diag.addFor('DQ_PID_MERGED', anchor, {
+        message: '"' + anchor.name + '" appears with ages ' + mergedAges.join(' and ') +
+                 '; the records were treated as ONE patient (' + idByCanonical[canonicals[i]] +
+                 ') on the assumption a birthday falls inside the data range' +
+                 (span > 1 ? ' - note the ages span ' + span + ' years, more than a single birthday can explain, so check this one closely' : '') +
+                 '. Accounts: ' + accountsByCanonical[canonicals[i]].join(', ') +
+                 '. If these are different patients, correct the source data (the ages, or distinguish the names) and reprocess.'
       });
     }
   }
