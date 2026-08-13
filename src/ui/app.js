@@ -26,7 +26,14 @@
     activeRulesTab: 'serviceCodes',
     configStatus: '',
     selectedAccount: null,
-    periodTouched: false   /* the user actually edited the period inputs */
+    periodTouched: false,  /* the user actually edited the period inputs */
+    /*
+     * Operator-entered observation segments for IP accounts (session-only,
+     * never persisted): [{ account, osAdmitDT, osDischargeDT }]. Applied by
+     * the pipeline on every (re)process, so they survive reprocessing and
+     * vanish with the tab - PHI stays in memory.
+     */
+    manualObservations: []
   };
 
   /*
@@ -246,6 +253,13 @@
       var reader = new global.FileReader();
       reader.onload = function (ev) {
         var data = new global.Uint8Array(ev.target.result);
+        /* A workbook this tool exported carries a session snapshot; restore
+         * beats re-parsing its formatted sheets as data. */
+        var snapshot = UR.zipPatch.extractSnapshot(data);
+        if (snapshot) {
+          resolve({ fileName: file.name, snapshot: snapshot, error: null, sheets: [] });
+          return;
+        }
         resolve(UR.spreadsheetReader.readFile(file.name, data));
       };
       reader.onerror = function () {
@@ -259,17 +273,86 @@
     var files = [];
     for (var i = 0; i < fileList.length; i++) { files.push(fileList[i]); }
     if (!files.length) { return; }
+    var hadData = ui.sources.length > 0;
     global.Promise.all(files.map(readFile)).then(function (results) {
-      results.forEach(function (r) { ui.files.push(r); });
+      var restored = false;
+      results.forEach(function (r) {
+        if (r.snapshot) { restored = restoreSnapshot(r) || restored; }
+        else { ui.files.push(r); }
+      });
       rebuildSources();
       renderFileList();
-      /* A fresh import gets a fresh period inference: a range typed for the
-       * previous file set must not silently clamp the new one. */
-      $('period-start').value = '';
-      $('period-end').value = '';
-      ui.periodTouched = false;
+      /*
+       * A FIRST import gets a fresh period inference and no manual entries: a
+       * range or a segment entered for a previous file set must not silently
+       * apply to a new one. ADDING files to data already loaded - including
+       * data restored from an exported workbook - preserves the period choice
+       * and the manual observation segments, so a restored session can grow.
+       */
+      if (!hadData && !restored) {
+        $('period-start').value = '';
+        $('period-end').value = '';
+        ui.periodTouched = false;
+        ui.manualObservations = [];
+      }
       tryAutoProcess();
     });
+  }
+
+  /*
+   * A workbook this tool exported carries a session snapshot; importing it
+   * restores the tool to the state that produced it: sources, field mapping,
+   * configuration, period choice, and manual observation segments. Restored
+   * sources become ordinary file entries, so further files can be added on
+   * top afterwards.
+   */
+  function restoreSnapshot(fileRecord) {
+    var snap;
+    try {
+      snap = JSON.parse(fileRecord.snapshot);
+    } catch (e) {
+      ui.files.push({ fileName: fileRecord.fileName, error: 'The embedded session snapshot is not readable JSON.', sheets: [] });
+      return false;
+    }
+    if (!snap || snap.kind !== 'ur-compiler-snapshot' || !snap.sources || !snap.sources.length) {
+      ui.files.push({ fileName: fileRecord.fileName, error: 'The embedded session snapshot is incomplete.', sheets: [] });
+      return false;
+    }
+
+    var cfg = UR.configSchema.validate(snap.config || {});
+    if (cfg.ok) {
+      ui.config = cfg.config;
+      ui.configStatus = 'Configuration restored from the workbook snapshot.';
+    }
+
+    snap.sources.forEach(function (s) {
+      ui.files.push({
+        fileName: s.fileName,
+        restored: true,
+        error: null,
+        selectedSheetName: s.sheetName,
+        sheets: [{
+          name: s.sheetName,
+          headers: s.headers,
+          rows: s.rows.map(function (r) { return { cells: r.c, sourceRowNumber: r.n }; }),
+          headerRowIndex: s.headerRowIndex,
+          rowCount: s.rows.length,
+          excelGuardCells: 0
+        }]
+      });
+    });
+
+    ui.selection = snap.selection || {};
+    ui.acknowledged = snap.acknowledged || [];
+    ui.autoResult = null;
+    $('period-start').value = (snap.period && snap.period.start) || '';
+    $('period-end').value = (snap.period && snap.period.end) || '';
+    ui.periodTouched = !!(snap.period && snap.period.touched);
+    ui.manualObservations = (snap.manualObservations || []).map(function (m) {
+      return { account: m.account, osAdmitDT: new Date(m.osAdmit), osDischargeDT: new Date(m.osDischarge) };
+    });
+    ui.state = null;
+    return true;
   }
 
   /*
@@ -366,7 +449,10 @@
 
     ui.files.forEach(function (file, index) {
       var card = el('div', { class: 'file-card' });
-      card.appendChild(el('div', { class: 'file-name', text: file.fileName }));
+      card.appendChild(el('div', { class: 'file-name' }, [
+        doc.createTextNode(file.fileName + ' '),
+        file.restored ? pill('Restored from exported workbook', 'info') : null
+      ]));
 
       if (file.error) {
         card.appendChild(el('div', { class: 'msg msg-error', text: file.error }));
@@ -979,6 +1065,9 @@
     if (ui.periodTouched && startValue && endValue) {
       options.periodStart = parseDateInput(startValue);
       options.periodEnd = parseDateInput(endValue);
+    }
+    if (ui.manualObservations.length) {
+      options.manualObservations = ui.manualObservations;
     }
     ui.state = UR.pipeline.process(ui.sources, ui.config, options);
     return ui.state;
@@ -1646,6 +1735,8 @@
       if (row.isOpen) { badges.appendChild(pill('Open', 'info')); }
       if (!row.inPeriod) { badges.appendChild(pill('Outside period', 'info')); }
       if (row.partialPeriod) { badges.appendChild(pill('Crosses period start', 'info')); }
+      if (row.manualEntry) { badges.appendChild(pill('Manual entry', 'warning')); }
+      if (row.manualObsAdjusted) { badges.appendChild(pill('Admit moved after manual OBS', 'info')); }
       if (row.reviewRuleIds.length) { badges.appendChild(pill(row.reviewRuleIds.length + ' review', 'operational')); }
       if (row.worstSeverity === UR.SEVERITY.ERROR || row.worstSeverity === UR.SEVERITY.BLOCKING) {
         badges.appendChild(pill(row.worstSeverity, row.worstSeverity.toLowerCase()));
@@ -1801,6 +1892,10 @@
         body.appendChild(el('p', { class: 'hint', text: 'No diagnostic was raised against this visit.' }));
       }
 
+      if (e.serviceClass === UR.SERVICE.IP && !e.manualEntry && e.metricEligible) {
+        body.appendChild(manualObsSection(e));
+      }
+
       var statusPill = visit.status.label === 'Included'
         ? pill('Counted', 'info')
         : pill(visit.status.label, visit.status.label === 'Open' ? 'info' : 'warning');
@@ -1818,6 +1913,83 @@
       ]);
       host.appendChild(details);
     });
+  }
+
+  /* ----------------------------------------- manual observation segments */
+
+  function dtLocalValue(dt) {
+    if (!dt) { return ''; }
+    return util.fmtISODate(dt) + 'T' + util.pad2(dt.getUTCHours()) + ':' + util.pad2(dt.getUTCMinutes());
+  }
+
+  function parseDtLocal(value) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(String(value || ''));
+    if (!m) { return null; }
+    return util.mkDT(Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4]), Number(m[5]));
+  }
+
+  function reprocessToAccounts() {
+    ui.state = null;
+    process();
+    renderAccounts();
+  }
+
+  /*
+   * CPSI sometimes exports a stay that began in observation as one IP account
+   * with no OS row. This section on every IP visit lets the operator supply
+   * the missing observation admit/discharge; the pipeline creates
+   * <account>-MANUAL, links it as a normal OS -> IP conversion, moves the IP
+   * admission forward to the observation discharge, notes the account, and
+   * everything recalculates.
+   */
+  function manualObsSection(e) {
+    var wrap = el('div', { class: 'manual-obs' });
+    wrap.appendChild(el('h5', { text: 'Manual observation segment' }));
+
+    var existing = null;
+    ui.manualObservations.forEach(function (m) { if (m.account === e.account) { existing = m; } });
+
+    if (existing) {
+      wrap.appendChild(el('p', { class: 'hint', text:
+        'Observation ' + util.fmtDateTime(existing.osAdmitDT) + ' to ' + util.fmtDateTime(existing.osDischargeDT) +
+        ' was entered manually as account ' + e.account + '-MANUAL, and this inpatient admission was moved forward to the observation discharge. ' +
+        'The entry lives only in this browser tab; correct CPSI for a durable fix.' }));
+      wrap.appendChild(el('button', { type: 'button', onclick: function () {
+        ui.manualObservations = ui.manualObservations.filter(function (m) { return m.account !== e.account; });
+        reprocessToAccounts();
+      } }, ['Remove manual observation & reprocess']));
+      return wrap;
+    }
+
+    var admitInput = el('input', { type: 'datetime-local', step: '60', value: dtLocalValue(e.manualObsOriginalAdmit || e.admitDT) });
+    var disInput = el('input', { type: 'datetime-local', step: '60' });
+    var msg = el('p', { class: 'hint' });
+    var form = el('div', { class: 'manual-obs-form' }, [
+      el('p', { class: 'hint', text:
+        'Enter the observation stay CPSI did not export. A new account ' + e.account + '-MANUAL will carry it, ' +
+        'linked to this account as a normal OS -> IP conversion, and this inpatient admission will move forward to the ' +
+        'observation discharge so the hours are not double-counted. Everything reprocesses immediately.' }),
+      el('label', null, ['Observation admit ', admitInput]),
+      el('label', null, ['Observation discharge ', disInput]),
+      el('button', { type: 'button', class: 'primary', onclick: function () {
+        var osAdmit = parseDtLocal(admitInput.value);
+        var osDis = parseDtLocal(disInput.value);
+        if (!osAdmit || !osDis) { msg.textContent = 'Both datetimes are required.'; return; }
+        if (osDis.getTime() <= osAdmit.getTime()) { msg.textContent = 'The observation discharge must come after the observation admission.'; return; }
+        if (osDis.getTime() < e.admitDT.getTime()) { msg.textContent = 'The observation discharge precedes the recorded inpatient admission; the inpatient admission only moves forward.'; return; }
+        if (e.dischargeDT && osDis.getTime() >= e.dischargeDT.getTime()) { msg.textContent = 'The observation discharge must precede the inpatient discharge.'; return; }
+        ui.manualObservations.push({ account: e.account, osAdmitDT: osAdmit, osDischargeDT: osDis });
+        reprocessToAccounts();
+      } }, ['Apply & reprocess']),
+      msg
+    ]);
+    form.hidden = true;
+
+    wrap.appendChild(el('button', { type: 'button', onclick: function () {
+      form.hidden = !form.hidden;
+    } }, ['Add observation segment...']));
+    wrap.appendChild(form);
+    return wrap;
   }
 
   /* ------------------------------------------------------------- graphs */
@@ -1905,6 +2077,48 @@
     global.setTimeout(function () { global.URL.revokeObjectURL(url); }, 2000);
   }
 
+  /*
+   * Everything needed to put the tool back exactly where it is now: the
+   * source tables, the field-mapping selection, the configuration, the
+   * period choice, and the manual observation entries. Embedded in the
+   * exported workbook so re-importing it restores the session (spec: the
+   * workbook already carries PHI, so the snapshot adds no new exposure -
+   * EXCEPT when the operator excluded patient names, in which case no
+   * snapshot is embedded at all, because it would smuggle the names back in).
+   */
+  function buildSnapshot(stamp) {
+    function cellSafe(v) {
+      if (v instanceof Date) { return util.fmtDateTime(v); }
+      return v === undefined ? null : v;
+    }
+    return {
+      kind: 'ur-compiler-snapshot',
+      snapshotVersion: 1,
+      app: UR.APP_VERSION,
+      generatedAt: stamp.toISOString(),
+      config: JSON.parse(UR.configSchema.toJSON(ui.config, stamp.toISOString())),
+      selection: ui.selection,
+      acknowledged: ui.acknowledged,
+      sources: ui.sources.map(function (s) {
+        return {
+          fileName: s.fileName,
+          sheetName: s.sheetName,
+          headerRowIndex: s.headerRowIndex,
+          headers: s.headers,
+          rows: s.rows.map(function (r) { return { c: r.cells.map(cellSafe), n: r.sourceRowNumber }; })
+        };
+      }),
+      period: {
+        touched: ui.periodTouched,
+        start: $('period-start').value || '',
+        end: $('period-end').value || ''
+      },
+      manualObservations: ui.manualObservations.map(function (m) {
+        return { account: m.account, osAdmit: m.osAdmitDT.toISOString(), osDischarge: m.osDischargeDT.toISOString() };
+      })
+    };
+  }
+
   function exportWorkbook() {
     var status = $('export-status');
     status.textContent = 'Building workbook...';
@@ -1923,6 +2137,11 @@
         }
         var bytes = UR.workbookBuilder.toBytes(ui.state, stamp.toLocaleString(),
           { chartImages: chartImages });
+        if (!ui.config.processing.excludePatientNames) {
+          try {
+            bytes = UR.zipPatch.embedSnapshot(bytes, JSON.stringify(buildSnapshot(stamp)));
+          } catch (snapErr) { /* a workbook without a snapshot beats no workbook */ }
+        }
         var name = 'UR-Compiled-' + util.fmtISODate(ui.state.period.startDT) + '-to-' +
           util.fmtISODate(new Date(ui.state.period.endExclusiveDT.getTime() - 1)) + '.xlsx';
         download(bytes, name, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

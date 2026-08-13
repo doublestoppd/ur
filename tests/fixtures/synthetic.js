@@ -147,7 +147,8 @@ function run(UR, options) {
   return UR.pipeline.process([source], config, {
     periodStart: opt('periodStart', UR.util.mkDT(2026, 8, 1, 0, 0)),
     periodEnd: opt('periodEnd', UR.util.mkDT(2026, 8, 31, 0, 0)),
-    asOf: opt('asOf', UR.util.mkDT(2026, 9, 1, 0, 0))
+    asOf: opt('asOf', UR.util.mkDT(2026, 9, 1, 0, 0)),
+    manualObservations: opt('manualObservations', undefined)
   });
 }
 

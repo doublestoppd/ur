@@ -568,6 +568,62 @@
       }
     },
 
+    /*
+     * Session snapshot embedding. The exported workbook can carry a JSON part
+     * (docProps/ur-snapshot.json) holding everything needed to restore the
+     * session that produced it - source tables, field mapping, configuration,
+     * period choice, and manual entries - so re-importing the workbook puts
+     * the tool back exactly where it was. The part is inert to Excel; note
+     * that Excel may DROP unknown parts when a user edits and re-saves the
+     * file, so restore works from the file as exported.
+     */
+    SNAPSHOT_PART: 'docProps/ur-snapshot.json',
+
+    embedSnapshot: function (bytes, jsonText) {
+      var input = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+      var entries;
+      try {
+        entries = parseZip(input);
+      } catch (e) {
+        return input;
+      }
+      if (!entries) { return input; }
+      for (var s = 0; s < entries.length; s++) {
+        if (entries[s].method !== 0 || entries[s].name === zipPatch.SNAPSHOT_PART) { return input; }
+      }
+      try {
+        entries.push({ name: zipPatch.SNAPSHOT_PART, method: 0, modTime: 0, modDate: 0, data: encodeUTF8(jsonText) });
+        for (var i = 0; i < entries.length; i++) {
+          if (entries[i].name === '[Content_Types].xml') {
+            var ct = decodeUTF8(entries[i].data);
+            if (ct.indexOf('Extension="json"') < 0) {
+              ct = ct.replace(/(<Types[^>]*>)/, '$1<Default Extension="json" ContentType="application/json"/>');
+              entries[i].data = encodeUTF8(ct);
+            }
+            break;
+          }
+        }
+        return buildZip(entries);
+      } catch (e2) {
+        return input;
+      }
+    },
+
+    /* Returns the snapshot JSON text, or null when the bytes are not a zip or
+     * carry no snapshot part. Never throws - used to probe arbitrary files. */
+    extractSnapshot: function (bytes) {
+      try {
+        var entries = parseZip(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes));
+        if (!entries) { return null; }
+        for (var i = 0; i < entries.length; i++) {
+          if (entries[i].name === zipPatch.SNAPSHOT_PART) {
+            return decodeUTF8(entries[i].data);
+          }
+        }
+      } catch (e) { /* not a zip */ }
+      return null;
+    },
+
     /* Test/diagnostic helpers: the zip's entry names, and one entry's bytes. */
     entryNames: function (bytes) {
       var entries = parseZip(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes));

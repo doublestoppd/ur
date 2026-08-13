@@ -276,6 +276,11 @@ button.link { border: none; background: none; color: var(--accent); text-decorat
   font-weight: 600;
 }
 .period-presets-hint { margin: 0 .75rem .75rem; }
+
+.manual-obs { margin-top: .8rem; border-top: 1px dashed var(--line); padding-top: .6rem; }
+.manual-obs-form { display: flex; flex-direction: column; gap: .5rem; margin-top: .5rem; max-width: 34rem; }
+.manual-obs-form label { display: flex; flex-direction: column; font-size: .8rem; color: var(--muted); gap: .2rem; }
+.manual-obs-form button { align-self: flex-start; }
 .filter-row { display: flex; gap: .5rem; margin: .5rem 0 1rem; flex-wrap: wrap; }
 .filter-row input[type="search"] { flex: 1 1 320px; }
 

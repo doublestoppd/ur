@@ -278,7 +278,25 @@ unreadable comb of ninety daily points.
 Eighteen worksheets — nineteen with the **Graphs** sheet, where every populated
 graph from the Graphs view is embedded as an image with a caption naming its
 Rule IDs — opening on a **Contents** page where every sheet name is a link and
-each sheet has a one-line description. The **Executive Summary** reads
+each sheet has a one-line description.
+
+**The workbook is also a save file.** Every export embeds a session snapshot
+(source tables, field mapping, configuration, period choice, and manual
+observation entries) as an inert part inside the file. Importing an exported
+workbook back into the tool restores the session exactly as it was — and more
+data files can then be added on top of the restored state. Two limits: the
+snapshot is omitted when patient names were excluded from the export (it would
+smuggle them back in), and Excel may strip the part if someone edits and
+re-saves the workbook, so restore from the file as exported.
+
+**Manual observation segments.** CPSI sometimes exports a stay that began in
+observation as a single IP account. Every IP account's dossier offers *Add
+observation segment*: the operator enters the observation admit/discharge, a
+synthetic `<account>-MANUAL` observation account carries it (linked as a normal
+OS → IP conversion), the IP admission moves forward to the observation
+discharge so the hours are not double-counted, and everything reprocesses.
+Entries are session-only, noted on the account and the review queue
+(`DQ_MANUAL_OS`), listed in Run Metadata, and removable with one click. The **Executive Summary** reads
 month by month - one column per calendar month of the reporting period, left to
 right, then a Total column for the whole period - and deliberately carries no
 Rule ID column: it is written for a reader, and every line's rule is documented

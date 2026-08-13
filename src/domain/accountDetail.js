@@ -90,6 +90,8 @@
           inPeriod: !!(state.period && UR.scope.overlapsPeriod(e, state.period)),
           partialPeriod: !!(state.period && e.admitDT && UR.scope.overlapsPeriod(e, state.period) &&
                             !UR.scope.inPeriod(e.admitDT, state.period)),
+          manualEntry: !!e.manualEntry,
+          manualObsAdjusted: !!e.manualObsAdjusted,
           reviewRuleIds: reviewByAccount[e.account] || [],
           diagnosticCount: flags.length,
           worstSeverity: worstSeverity(flags),

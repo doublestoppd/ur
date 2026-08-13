@@ -814,6 +814,14 @@
       rows.push(['Configuration schema version', cfg.schemaVersion]);
       rows.push(['Reporting period', state.period.label]);
       rows.push(['Occupancy as-of datetime', D(state.period.asOf)]);
+      var manual = state.manualObservationsApplied || [];
+      rows.push(['Manually entered observation segments', manual.length ? String(manual.length) : 'none']);
+      for (var mo = 0; mo < manual.length; mo++) {
+        rows.push(['  ' + manual[mo].manualAccount,
+          'Observation ' + util.fmtDateTime(manual[mo].osAdmitDT) + ' to ' + util.fmtDateTime(manual[mo].osDischargeDT) +
+          '; inpatient admission of ' + manual[mo].account + ' moved from ' + util.fmtDateTime(manual[mo].admitMovedFrom) +
+          ' to the observation discharge. Session-only operator entry (DQ_MANUAL_OS).']);
+      }
       rows.push(['Discharged-stay period basis', cfg.processing.losBasis]);
       rows.push(['Open encounters included in occupancy', yn(cfg.processing.includeOpenInOccupancy)]);
       rows.push(['Patient names excluded from export', yn(cfg.processing.excludePatientNames)]);

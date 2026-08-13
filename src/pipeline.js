@@ -15,6 +15,115 @@
   var util = UR.util;
   var scope = UR.scope;
 
+  /*
+   * Operator-entered observation segments (spec deviation, hospital-directed):
+   * CPSI sometimes exports a stay that began in observation as a single IP
+   * account with no OS row. The operator supplies the observation admit and
+   * discharge datetimes for that IP account; this step then
+   *
+   *   1. creates a synthetic OS account named <account>-MANUAL carrying those
+   *      datetimes and discharge code B (09 ADMITTED OP TO IP), so the normal
+   *      transition linker connects it to the IP account like any real row;
+   *   2. moves the IP admission forward to the observation discharge, so the
+   *      observation hours are no longer double-counted as inpatient time;
+   *   3. raises an Info note (DQ_MANUAL_OS) on both accounts, which also lands
+   *      on the review queue, so the manual entry is never invisible.
+   *
+   * Entries live only in the operator's session - nothing is written to
+   * storage - and every applied entry is listed in the workbook Run Metadata.
+   * An entry that fails validation is refused with a warning naming why.
+   */
+  function applyManualObservations(state, entries, config, diag) {
+    var byAccount = {};
+    var i, e;
+    for (i = 0; i < state.encounters.length; i++) {
+      e = state.encounters[i];
+      if (!byAccount[e.account]) { byAccount[e.account] = e; }
+    }
+
+    function refuse(entry, why) {
+      diag.add('DQ_MANUAL_OS_REFUSED', {
+        message: 'The manual observation segment for account ' + entry.account + ' was NOT applied: ' + why
+      });
+    }
+
+    for (i = 0; i < entries.length; i++) {
+      var entry = entries[i];
+      var target = byAccount[entry.account];
+      var osAdmit = entry.osAdmitDT;
+      var osDis = entry.osDischargeDT;
+
+      if (!target) { refuse(entry, 'no imported account carries that number.'); continue; }
+      if (target.serviceClass !== UR.SERVICE.IP) { refuse(entry, 'the account is ' + target.serviceClass + ', not IP.'); continue; }
+      if (!target.metricEligible || !target.admitDT) { refuse(entry, 'the account is excluded from metrics, so a segment cannot attach to it.'); continue; }
+      if (!util.isDate(osAdmit) || !util.isDate(osDis)) { refuse(entry, 'the observation datetimes are unusable.'); continue; }
+      if (osDis.getTime() <= osAdmit.getTime()) { refuse(entry, 'the observation discharge must come after the observation admission.'); continue; }
+      var originalAdmit = target.admitDT;
+      if (osDis.getTime() < originalAdmit.getTime()) { refuse(entry, 'the observation discharge precedes the recorded inpatient admission; the inpatient admission only ever moves FORWARD.'); continue; }
+      if (target.dischargeDT && osDis.getTime() >= target.dischargeDT.getTime()) { refuse(entry, 'the observation discharge must precede the inpatient discharge.'); continue; }
+      var manualAccount = entry.account + '-MANUAL';
+      if (byAccount[manualAccount]) { refuse(entry, 'an account named ' + manualAccount + ' already exists.'); continue; }
+
+      var codeB = UR.configSchema.dischargeCode(config, 'B');
+      var os = {};
+      for (var k in target) {
+        if (Object.prototype.hasOwnProperty.call(target, k)) { os[k] = target[k]; }
+      }
+      os.rowId = 'manual-os:' + entry.account;
+      os.account = manualAccount;
+      os.serviceClass = UR.SERVICE.OS;
+      os.serviceCodeRaw = 'OS (manual)';
+      os.admitDT = osAdmit;
+      os.dischargeDT = osDis;
+      os.isOpen = false;
+      os.durationHours = util.hoursBetween(osAdmit, osDis);
+      os.durationDays = os.durationHours / 24;
+      os.midnights = util.midnightsCrossed(osAdmit, osDis);
+      os.dischargeCodeRaw = 'B';
+      os.dischargeCodeLabel = codeB ? codeB.label : '09 ADMITTED OP TO IP';
+      os.dispositionCategory = codeB ? codeB.category : 'Internal transition';
+      os.transitionTo = UR.SERVICE.IP;
+      os.transitionFrom = codeB ? codeB.transitionFrom : null;
+      os.isDeath = false;
+      os.excludedReason = null;
+      os.metricEligible = true;
+      os.sourceFile = 'Manual entry';
+      os.sourceSheet = '-';
+      os.sourceRowNumber = '-';
+      os.manualEntry = true;
+      state.encounters.push(os);
+      byAccount[manualAccount] = os;
+
+      target.manualObsOriginalAdmit = originalAdmit;
+      target.admitDT = osDis;
+      if (target.dischargeDT) {
+        target.durationHours = util.hoursBetween(target.admitDT, target.dischargeDT);
+        target.durationDays = target.durationHours / 24;
+        target.midnights = util.midnightsCrossed(target.admitDT, target.dischargeDT);
+      }
+      target.manualObsAdjusted = true;
+
+      state.manualObservationsApplied.push({
+        account: entry.account,
+        manualAccount: manualAccount,
+        osAdmitDT: osAdmit,
+        osDischargeDT: osDis,
+        admitMovedFrom: originalAdmit
+      });
+
+      diag.addFor('DQ_MANUAL_OS', target, {
+        message: 'Account ' + entry.account + ': an observation segment was added MANUALLY as ' + manualAccount +
+                 ' (' + util.fmtDateTime(osAdmit) + ' to ' + util.fmtDateTime(osDis) + '), and the inpatient admission was moved forward from ' +
+                 util.fmtDateTime(originalAdmit) + ' to ' + util.fmtDateTime(osDis) + ' so the observation hours are not double-counted as inpatient time. ' +
+                 'This entry lives only in this session; the durable fix is correcting the export or the source system.'
+      });
+      diag.addFor('DQ_MANUAL_OS', os, {
+        message: 'Account ' + manualAccount + ' is a MANUALLY ENTERED observation segment for account ' + entry.account +
+                 '; it exists in this session only and is not part of the imported export.'
+      });
+    }
+  }
+
   function calculateAll(encounters, transitions, episodes, config, period) {
     return {
       inpatient: UR.metrics.inpatient.calculate(encounters, config, period),
@@ -29,7 +138,10 @@
 
     /*
      * sources: [{ fileName, sheetName, headers, rows, mapping }]
-     * options: { periodStart, periodEnd, asOf }
+     * options: { periodStart, periodEnd, asOf, manualObservations }
+     *   manualObservations: [{ account, osAdmitDT, osDischargeDT }] - operator-
+     *   entered observation segments for IP accounts whose observation stay
+     *   CPSI did not export (see applyManualObservations below).
      *
      * Returns a state object. When `blocked` is true, `diagnostics` explains
      * why and no metrics were produced.
@@ -77,6 +189,11 @@
       if (!UR.validators.validateNormalized(state.encounters, diag)) {
         state.blocked = true;
         return state;
+      }
+
+      state.manualObservationsApplied = [];
+      if (opts.manualObservations && opts.manualObservations.length) {
+        applyManualObservations(state, opts.manualObservations, config, diag);
       }
 
       /* --------------------------------------------------- reporting period */

@@ -140,6 +140,12 @@
       'Readmission indicators understate the true count for the affected window. The affected date range and account count are reported.'),
 
     /* ----------------------------------------------------------------- info */
+    dq('DQ_MANUAL_OS', S.INFO, 'Manually entered observation segment',
+      'The operator added an observation admit/discharge to an IP account that CPSI exported without its observation stay.',
+      'A synthetic <account>-MANUAL observation account carries the entered datetimes and links to the IP account as a normal OS -> IP conversion; the inpatient admission moves forward to the observation discharge so the hours are not double-counted. Session-only: correct the export or source system for a durable fix. Every applied entry is listed in the workbook Run Metadata.'),
+    dq('DQ_MANUAL_OS_REFUSED', S.WARNING, 'Manual observation segment refused',
+      'An operator-entered observation segment failed validation (impossible datetimes, wrong service, or a conflicting account) and was not applied.',
+      'The run proceeds without the segment; the message names exactly what to fix.'),
     dq('DQ_EXCEL_GUARD', S.INFO, 'Excel text-guard wrappers stripped',
       'Cells arrived wrapped in an Excel text-guard formula (="04"), a CPSI export artifact that protects leading zeros.',
       'The wrapper is stripped and the underlying value used, so codes match the reference tables normally. Nothing else changes.'),
