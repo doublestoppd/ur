@@ -64,7 +64,7 @@
 
     rule({
       id: 'TRANS_001',
-      version: '1.3',
+      version: '1.4',
       name: 'Internal status-transition linkage',
       classification: C.HOSPITAL,
       definition: 'An account whose discharge code implies an internal status change is linked to the next same-patient account (same derived Patient ID) carrying the expected service, when the timing satisfies the configured tolerances.',
@@ -83,7 +83,8 @@
       notes: 'Code V is a hospital-specific reading; the published meaning is transfer to a Critical Access Hospital. ' +
              'v1.1: the overlap-tolerance default was raised from the specification\'s 15 minutes to 60 after live data showed ' +
              'registration entering the IP admission ~45 minutes before the SB discharge on a genuine SB -> IP transition ' +
-             '(spec B.1: adjust centralized configuration when observed exports conflict with the document). A coded transition ' +
+             '(spec B.1: adjust centralized configuration when observed exports conflict with the document). ' +
+             'v1.4: raised again to 120 minutes at the hospital\'s direction. A coded transition ' +
              'whose only matching successor overlaps beyond the tolerance is now refused with both accounts named ' +
              '(DQ_TRANS_OVERLAP_EXCEEDED) instead of surfacing as a missing successor beside an unrelated overlap warning. ' +
              'When a Probable overlap link IS accepted, the overlapping minutes remain in both segments\' durations and occupancy ' +

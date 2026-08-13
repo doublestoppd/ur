@@ -128,13 +128,15 @@
      *
      * The spec's initial default was 15 minutes; live data showed registration
      * entering the IP admission up to ~45 minutes before the SB discharge on a
-     * genuine SB -> IP transition, so the default is 60 (spec B.1: adjust the
-     * centralized configuration when observed exports conflict with the
-     * document, with the rule version updated - see TRANS_001 v1.1). The
-     * discharge code remains the driving signal: a wider tolerance never links
-     * anything that lacks a transition code, and ambiguity still refuses.
+     * genuine SB -> IP transition, so the default was raised from the spec's
+     * 15 to 60 (TRANS_001 v1.1), then to 120 at the hospital's direction
+     * (TRANS_001 v1.4) - spec B.1: adjust the centralized configuration when
+     * observed exports conflict with the document, with the rule version
+     * updated. The discharge code remains the driving signal: a wider
+     * tolerance never links anything that lacks a transition code, and
+     * ambiguity still refuses.
      */
-    overlapToleranceMinutes: 60,
+    overlapToleranceMinutes: 120,
     /* Require the successor admission to fall on the same wall-clock calendar
      * date as the prior discharge (spec 7.2). */
     requireSameCalendarDate: true,

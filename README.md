@@ -161,8 +161,9 @@ so an unexpected pattern is a work item rather than a silently uncounted link.
 
 **Contradictory registration times are tolerated up to a point, and named past it.** Live
 data showed registration entering the IP admission ~45 minutes *before* the SB discharge on a
-genuine SB → IP transition, so the overlap tolerance defaults to 60 minutes (raised from the
-spec's 15 per its own B.1 directive; `TRANS_001` v1.1): such a pair links as Probable and is
+genuine SB → IP transition, so the overlap tolerance defaults to 120 minutes (raised from the
+spec's 15 per its own B.1 directive to 60 at `TRANS_001` v1.1, then to 120 at the hospital's
+direction, v1.4): such a pair links as Probable and is
 flagged for verification. Beyond the tolerance the link is *refused* — but the finding names
 both accounts and says exactly what to do (fix the times in CPSI, or raise the tolerance),
 instead of a "missing successor" beside an unrelated "unexplained overlap".

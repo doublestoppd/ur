@@ -177,7 +177,7 @@ describe('configuration', function () {
     /* Raised from the spec's 15 after live data showed registration entering
      * the successor admission ~45 minutes before the prior discharge on a
      * genuine SB -> IP transition (spec B.1; TRANS_001 v1.1). */
-    assert.equal(config.transition.overlapToleranceMinutes, 60);
+    assert.equal(config.transition.overlapToleranceMinutes, 120);
     assert.equal(config.transition.requireSameCalendarDate, true);
     assert.equal(config.thresholds.acuteTargetHours, 96);
     assert.deepEqual(config.thresholds.obsThresholdHours, [24, 36, 48]);
