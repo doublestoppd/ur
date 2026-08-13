@@ -105,6 +105,13 @@
 
   function pct(v) { return v === null || v === undefined ? '-' : util.round(v, 1) + '%'; }
 
+  /* A count with its share of the whole on one line: "12 (34.5%)". */
+  function withPct(count, pctValue) {
+    if (count === null || count === undefined) { return '-'; }
+    if (pctValue === null || pctValue === undefined) { return String(count); }
+    return count + ' (' + util.round(pctValue, 1) + '%)';
+  }
+
   /* ------------------------------------------------------------- navigation */
 
   function showStep(id) {
@@ -1449,7 +1456,7 @@
         valueCell,
         el('td', { class: 'metric-detail-cell', text: r.detail }),
         el('td', { class: 'metric-rule-cell' }, [
-          r.ruleId ? ruleLink(r.ruleId) : null,
+          r.ruleId ? ruleLinkList(r.ruleId) : null,
           r.onDetail ? el('button', { type: 'button', class: 'link', onclick: r.onDetail }, ['rows']) : null
         ])
       ]);
@@ -1496,7 +1503,7 @@
       headline('Continuous episodes', m.census.EPISODE_CNT_001.value, '', 'EPISODE_CNT_001', 'Hospital episodes, internal transitions collapsed'),
       headline('Acute mean LOS', num(m.inpatient.IP_ALOS_001.days, 2), 'days', 'IP_ALOS_001', num(m.inpatient.IP_ALOS_001.hours, 1) + ' hours over ' + m.inpatient.IP_ALOS_001.n + ' discharges'),
       headline(th.acuteTargetDays + '-day target variance', (m.inpatient.IP_TARGET_001.varianceDays === null ? '-' : (m.inpatient.IP_TARGET_001.varianceDays > 0 ? '+' : '') + num(m.inpatient.IP_TARGET_001.varianceDays, 2)), 'days', 'IP_TARGET_001', 'Against the CAH ' + th.acuteTargetDays + '-day (' + (th.acuteTargetDays * 24) + '-hour) annual expectation', cahTone),
-      headline('Observation > ' + th.obsThresholdHours[0] + 'h', m.observation.OS_24_001.value, '', 'OS_24_001', 'of ' + m.observation.OS_ALOS_001.n + ' discharged observation stays'),
+      headline('Observation > ' + th.obsThresholdHours[0] + 'h', withPct(m.observation.OS_24_001.value, m.observation.OS_24_PCT_001.value), '', 'OS_24_001', 'of ' + m.observation.OS_ALOS_001.n + ' discharged observation stays'),
       headline('Accounts to review', state.reviewQueue.byAccount.length, '', '', state.reviewQueue.rows.length + ' reasons across the queue'),
       headline('Data issues', dq.Blocking + dq.Error, '', '', dq.Warning + ' warnings, ' + dq.Info + ' notices', (dq.Blocking + dq.Error) ? 'warn' : 'good')
     ]));
@@ -1511,20 +1518,17 @@
       metricRow('Median length of stay', num(m.inpatient.IP_MEDLOS_001.hours, 1), 'hours', num(m.inpatient.IP_MEDLOS_001.days, 2) + ' days', 'IP_MEDLOS_001'),
       metricRow(th.acuteTargetDays + '-day target variance', num(m.inpatient.IP_TARGET_001.varianceDays, 2), 'days',
         num(m.inpatient.IP_TARGET_001.varianceHours, 1) + ' hours. Surveillance estimate; the CAH requirement is an annual average', 'IP_TARGET_001', null, cahTone),
-      metricRow('Stays over ' + th.acuteTargetHours + 'h', m.inpatient.IP_GT4_001.value, '', '', 'IP_GT4_001',
+      metricRow('Stays over ' + th.acuteTargetHours + 'h', withPct(m.inpatient.IP_GT4_001.value, m.inpatient.IP_GT4_PCT_001.value), '',
+        'Of ' + m.inpatient.IP_GT4_PCT_001.denominator + ' discharged accounts', 'IP_GT4_001, IP_GT4_PCT_001',
         function () { showRows('IP_GT4_001 - stays over target', m.inpatient.IP_GT4_001.detail.map(function (d) { return d.encounter; })); }),
-      metricRow('Percent over ' + th.acuteTargetHours + 'h', pct(m.inpatient.IP_GT4_PCT_001.value), '',
-        m.inpatient.IP_GT4_PCT_001.numerator + ' of ' + m.inpatient.IP_GT4_PCT_001.denominator + ' discharged accounts', 'IP_GT4_PCT_001'),
       metricRow('Excess days above target', num(m.inpatient.IP_EXCESS_001.totalDays, 2), 'days',
         'Mean ' + num(m.inpatient.IP_EXCESS_001.meanDaysAmongLongStays, 2) + ' days among the long stays', 'IP_EXCESS_001'),
-      metricRow('One-day stays', m.inpatient.IP_SHORT_001.value, '', payerBreakdown(m.inpatient.IP_SHORT_001.byPayer), 'IP_SHORT_001',
+      metricRow('One-day stays', withPct(m.inpatient.IP_SHORT_001.value, m.inpatient.IP_1DAY_PCT_001.value), '',
+        'Of ' + m.inpatient.IP_1DAY_PCT_001.denominator + ' discharged accounts. ' + payerBreakdown(m.inpatient.IP_SHORT_001.byPayer), 'IP_SHORT_001, IP_1DAY_PCT_001',
         function () { showRows('IP_SHORT_001 - one-day acute stays', m.inpatient.IP_SHORT_001.encounters); }),
-      metricRow('Percent one-day stays', pct(m.inpatient.IP_1DAY_PCT_001.value), '',
-        m.inpatient.IP_1DAY_PCT_001.numerator + ' of ' + m.inpatient.IP_1DAY_PCT_001.denominator + ' discharged accounts', 'IP_1DAY_PCT_001'),
-      metricRow('Medicare/MA under ' + th.shortStayMidnights + ' midnights', m.inpatient.IP_2MN_001.value, '', 'Review candidates only; no appropriateness conclusion', 'IP_2MN_001',
-        function () { showRows('IP_2MN_001 - short Medicare inpatient stays', m.inpatient.IP_2MN_001.encounters); }),
-      metricRow('Percent of Medicare/MA under ' + th.shortStayMidnights + ' midnights', pct(m.inpatient.IP_2MN_PCT_001.value), '',
-        m.inpatient.IP_2MN_PCT_001.numerator + ' of ' + m.inpatient.IP_2MN_PCT_001.denominator + ' Medicare/MA discharged accounts', 'IP_2MN_PCT_001')
+      metricRow('Medicare/MA under ' + th.shortStayMidnights + ' midnights', withPct(m.inpatient.IP_2MN_001.value, m.inpatient.IP_2MN_PCT_001.value), '',
+        'Of ' + m.inpatient.IP_2MN_PCT_001.denominator + ' Medicare/MA discharged accounts. Review candidates only; no appropriateness conclusion', 'IP_2MN_001, IP_2MN_PCT_001',
+        function () { showRows('IP_2MN_001 - short Medicare inpatient stays', m.inpatient.IP_2MN_001.encounters); })
     ]);
 
     /* --------------------------------------------------------- observation */
@@ -1532,16 +1536,16 @@
       metricRow('Admissions', m.observation.OS_ADM_001.value, '', '', 'OS_ADM_001',
         function () { showRows('OS_ADM_001 - observation admissions', m.observation.OS_ADM_001.encounters); }),
       metricRow('Mean duration', num(m.observation.OS_ALOS_001.meanHours, 1), 'hours', 'Median ' + num(m.observation.OS_ALOS_001.medianHours, 1) + ' hours', 'OS_ALOS_001'),
-      metricRow('Over ' + th.obsThresholdHours[0] + ' hours', m.observation.OS_24_001.value, '', '', 'OS_24_001',
+      metricRow('Over ' + th.obsThresholdHours[0] + ' hours', withPct(m.observation.OS_24_001.value, m.observation.OS_24_PCT_001.value), '',
+        'Of ' + m.observation.OS_24_PCT_001.denominator + ' discharged observation stays', 'OS_24_001, OS_24_PCT_001',
         function () { showRows('OS_24_001', m.observation.OS_24_001.encounters); }),
-      metricRow('Percent over ' + th.obsThresholdHours[0] + ' hours', pct(m.observation.OS_24_PCT_001.value), '',
-        m.observation.OS_24_PCT_001.numerator + ' of ' + m.observation.OS_24_PCT_001.denominator + ' discharged observation stays', 'OS_24_PCT_001'),
-      metricRow('Over ' + th.obsThresholdHours[1] + ' hours', m.observation.OS_36_001.value, '', '', 'OS_36_001',
+      metricRow('Over ' + th.obsThresholdHours[1] + ' hours', withPct(m.observation.OS_36_001.value, m.observation.OS_36_001.percent), '', '', 'OS_36_001',
         function () { showRows('OS_36_001', m.observation.OS_36_001.encounters); }),
-      metricRow('Over ' + th.obsThresholdHours[2] + ' hours', m.observation.OS_48_001.value, '', 'High-priority prolonged observation', 'OS_48_001',
+      metricRow('Over ' + th.obsThresholdHours[2] + ' hours', withPct(m.observation.OS_48_001.value, m.observation.OS_48_001.percent), '',
+        'High-priority prolonged observation', 'OS_48_001',
         function () { showRows('OS_48_001', m.observation.OS_48_001.encounters); }),
-      metricRow('Conversions to inpatient', m.observation.OSIP_001.value, '', 'Accepted internal OS to IP transitions', 'OSIP_001'),
-      metricRow('Conversion rate', pct(m.observation.OSIP_RATE_001.value), '', m.observation.OSIP_RATE_001.denominatorNote, 'OSIP_RATE_001'),
+      metricRow('Conversions to inpatient', withPct(m.observation.OSIP_001.value, m.observation.OSIP_RATE_001.value), '',
+        'Accepted internal OS to IP transitions. ' + m.observation.OSIP_RATE_001.denominatorNote, 'OSIP_001, OSIP_RATE_001'),
       metricRow('Hours before conversion', num(m.observation.OSIP_TIME_001.meanHours, 1), 'hours mean', 'Median ' + num(m.observation.OSIP_TIME_001.medianHours, 1) + ' hours', 'OSIP_TIME_001')
     ]);
 
@@ -1572,7 +1576,7 @@
         'Midnight census; ' + num(m.census.PD_SB_001.equivalentDays, 2) + ' time-weighted', 'PD_SB_001'),
       metricRow('Time-weighted ADC', num(m.census.ADC_EQ_001.value, 2), '', 'Over ' + state.period.days + ' calendar days', 'ADC_EQ_001'),
       metricRow('Midnight ADC', num(m.census.ADC_MN_001.value, 2), '', 'Over ' + state.period.days + ' calendar days', 'ADC_MN_001'),
-      metricRow('Deaths', m.payer.DEATH_001.value, '', pct(m.payer.DEATH_001.percent) + ' of discharges in the period', 'DEATH_001',
+      metricRow('Deaths', withPct(m.payer.DEATH_001.value, m.payer.DEATH_001.percent), '', 'Of discharges in the period', 'DEATH_001',
         function () { showRows('DEATH_001 - deaths', m.payer.DEATH_001.encounters); })
     ]);
 
