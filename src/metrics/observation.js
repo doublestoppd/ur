@@ -70,11 +70,23 @@
       }
 
       /*
-       * Denominator (OSIP_RATE_001): observation accounts admitted in the period
-       * whose outcome is knowable - excludes open and invalid records. Both the
-       * denominator and what it excluded are reported.
+       * Denominator (OSIP_RATE_001): observation accounts in scope during the
+       * period whose outcome is knowable - excludes open and invalid records.
+       * The OS account of every conversion counted in the numerator is added
+       * even when its own stay does not overlap the period (possible when the
+       * stay ends at the period boundary and the conversion moment falls just
+       * inside): the rate must never report more conversions than eligible
+       * accounts. Both the denominator and what it excluded are reported.
        */
       var inScope = scope.inScopeInPeriod(encounters, OS, period);
+      var inScopeByRowId = {};
+      for (i = 0; i < inScope.length; i++) { inScopeByRowId[inScope[i].rowId] = true; }
+      for (i = 0; i < conversions.length; i++) {
+        if (!inScopeByRowId[conversions[i].os.rowId]) {
+          inScopeByRowId[conversions[i].os.rowId] = true;
+          inScope.push(conversions[i].os);
+        }
+      }
       var eligible = [];
       var excludedOpen = 0;
       var excludedInvalid = 0;

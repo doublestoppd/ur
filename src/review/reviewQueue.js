@@ -137,8 +137,9 @@
 
     RQ_IMM: function (ctx) {
       var rows = [];
-      /* In scope = the stay overlaps the period, even partially. */
-      var list = scope.inScopeInPeriod(ctx.encounters, UR.SERVICE.IP, ctx.period);
+      /* In scope = the stay overlaps the period (even partially) or is
+       * counted in this period's discharged-stay figures. */
+      var list = scope.inScopeOrCounted(ctx.encounters, UR.SERVICE.IP, ctx.config, ctx.period);
       for (var i = 0; i < list.length; i++) {
         var e = list[i];
         if (!isMedicare(e)) { continue; }
@@ -155,7 +156,7 @@
       var rows = [];
       var threshold = ctx.config.thresholds.moonThresholdHours;
       var escalated = ctx.config.thresholds.obsThresholdHours[1];
-      var list = scope.inScopeInPeriod(ctx.encounters, UR.SERVICE.OS, ctx.period);
+      var list = scope.inScopeOrCounted(ctx.encounters, UR.SERVICE.OS, ctx.config, ctx.period);
       for (var i = 0; i < list.length; i++) {
         var e = list[i];
         if (!isMedicare(e)) { continue; }
@@ -254,19 +255,37 @@
     var rows = [];
     var limit = ctx.config.thresholds.obsThresholdHours[thresholdIndex];
     if (limit === undefined) { return rows; }
+    var i, e;
+
+    /*
+     * The WORK LIST is overlap-gated, like RQ_MOON: any observation stay in
+     * scope during the period that passed the threshold belongs on it,
+     * including stays whose counting date (losBasis) falls outside the
+     * period. The OS_24/36/48 COUNT metrics stay anchored on discharged
+     * stays counted by the losBasis date, so a row is annotated when it is
+     * on the list but outside that count.
+     */
     var ruleIds = ['OS_24_001', 'OS_36_001', 'OS_48_001'];
     var metric = ctx.metrics.observation[ruleIds[thresholdIndex]];
-    var i, e;
+    var counted = {};
     if (metric) {
-      for (i = 0; i < metric.encounters.length; i++) {
-        e = metric.encounters[i];
-        rows.push(baseRow(ruleId, e, {
-          measure: e.durationHours,
-          measureLabel: 'Observation hours',
-          detail: util.round(e.durationHours, 1) + ' observation hours (threshold ' + limit + 'h).'
-        }));
-      }
+      for (i = 0; i < metric.encounters.length; i++) { counted[metric.encounters[i].rowId] = true; }
     }
+
+    var inScope = scope.inScopeOrCounted(ctx.encounters, UR.SERVICE.OS, ctx.config, ctx.period);
+    for (i = 0; i < inScope.length; i++) {
+      e = inScope[i];
+      if (e.isOpen) { continue; } /* open stays handled below with as-of hours */
+      if (e.durationHours === null || e.durationHours <= limit) { continue; }
+      rows.push(baseRow(ruleId, e, {
+        measure: e.durationHours,
+        measureLabel: 'Observation hours',
+        detail: util.round(e.durationHours, 1) + ' observation hours (threshold ' + limit + 'h).' +
+                (counted[e.rowId] ? '' : ' In scope by stay overlap; outside the discharged-stay COUNT metric, which anchors on the ' +
+                 ctx.config.processing.losBasis + ' date.')
+      }));
+    }
+
     /* Patients still in observation who have already passed the threshold. */
     var open = scope.openAccounts(ctx.encounters, UR.SERVICE.OS);
     for (i = 0; i < open.length; i++) {

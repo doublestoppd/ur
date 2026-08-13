@@ -64,11 +64,11 @@
 
     rule({
       id: 'TRANS_001',
-      version: '1.2',
+      version: '1.3',
       name: 'Internal status-transition linkage',
       classification: C.HOSPITAL,
       definition: 'An account whose discharge code implies an internal status change is linked to the next same-patient account (same derived Patient ID) carrying the expected service, when the timing satisfies the configured tolerances.',
-      formula: 'For a discharging account with a transition discharge code: consider same-patient accounts of the expected target service admitted at or after the discharge datetime minus the overlap tolerance; require the same calendar date when configured; choose the smallest nonnegative gap within the maximum gap. Exactly one candidate links as Confirmed; a candidate starting before the discharge but inside the overlap tolerance links as Probable with a warning; two or more plausible candidates are flagged Ambiguous and left unlinked; a same-day candidate of the expected service overlapping BEYOND the tolerance is flagged Refused (timing) with both accounts named; none at all is flagged Missing Expected Successor.',
+      formula: 'For a discharging account with a transition discharge code: consider same-patient accounts of the expected target service admitted at or after the discharge datetime minus the overlap tolerance; require the same calendar date when configured; a successor may never be the account this one already continues from, nor admit before this account itself admitted (v1.3 - prevents a two-account cycle of mutually accepted links); choose the smallest nonnegative gap within the maximum gap. Exactly one candidate links as Confirmed; a candidate starting before the discharge but inside the overlap tolerance links as Probable with a warning; two or more plausible candidates are flagged Ambiguous and left unlinked; a same-day candidate of the expected service overlapping BEYOND the tolerance is flagged Refused (timing) with both accounts named; none at all is flagged Missing Expected Successor.',
       inputs: ['Patient ID (derived from name and age)', 'Service code', 'Admission datetime', 'Discharge datetime', 'Discharge code'],
       inclusions: ['Discharge codes configured with a transition target, restricted by source service where configured (B: OS -> IP; Q: IP/OS -> SB; V: SB -> IP).'],
       exclusions: ['Timing alone never creates a link. A same-day service change with no transition discharge code is reported as a possible uncoded transition and left unlinked (spec 8.3 step 9).'],
@@ -221,7 +221,7 @@
       formula: 'count(0 < losHours <= 24), grouped by payer category',
       inputs: ['IP_LOS_001', 'Payer category'],
       inclusions: ['Qualifying discharged IP accounts.'],
-      exclusions: ['Open encounters.', 'Zero-length or negative durations, which are reported as data errors instead.'],
+      exclusions: ['Open encounters.', 'Zero-length durations, which are flagged as zero-length-stay warnings and counted in the lowest LOS distribution band instead.', 'Negative durations, which are data errors.'],
       thresholds: [t('One-day stay ceiling (hours)', 'thresholds.oneDayStayHours')],
       nullHandling: 'Unmapped insurance codes group under the Unknown payer category.',
       notes: 'An elapsed-hours definition, not a midnight count. IP_2MN_001 is the midnight-based companion.',
@@ -396,7 +396,7 @@
 
     rule({
       id: 'OSIP_RATE_001',
-      version: '1.1',
+      version: '1.2',
       name: 'Observation to inpatient conversion rate',
       classification: C.OPERATIONAL,
       definition: 'Accepted OS -> IP transitions divided by the observation accounts eligible for conversion analysis.',
@@ -405,7 +405,7 @@
       inclusions: ['OS accounts whose stay overlaps the reporting period - including stays admitted before the period that reach into it - with a usable admission and discharge datetime.'],
       exclusions: ['Open observation encounters, whose outcome is not yet known.', 'OS accounts with invalid dates.', 'OS stays with no overlap with the period.'],
       nullHandling: 'No rate is reported when the eligible denominator is zero.',
-      notes: 'The denominator and the excluded record counts are exported alongside the rate so the figure can be reconciled. (v1.1: the denominator changed from admitted-in-period to in-scope-during-period, matching the transition-moment anchoring of the numerator.)',
+      notes: 'The denominator and the excluded record counts are exported alongside the rate so the figure can be reconciled. (v1.1: the denominator changed from admitted-in-period to in-scope-during-period, matching the transition-moment anchoring of the numerator. v1.2: the OS account of every counted conversion is guaranteed a place in the denominator, so a conversion at the exact period boundary can never report more conversions than eligible accounts.)',
       implementationKey: 'metrics.observation.conversionRate'
     }),
 
@@ -666,14 +666,14 @@
     /* ------------------------------------------------ readmission indicators */
     rule({
       id: 'READMIT_7_001',
-      version: '1.1',
+      version: '1.2',
       name: 'Internal 7-day readmission indicator',
       classification: C.OPERATIONAL,
-      definition: 'A new acute inpatient episode for the same patient (same derived Patient ID) beginning more than 0 and at most 7 days after the FINAL discharge of a prior continuous episode that contained acute inpatient care.',
-      formula: 'for each pair of consecutive episodes of one patient containing acute IP care: daysBetween = newEpisodeStart - priorEpisodeFinalDischarge; flag when 0 < daysBetween <= 7',
+      definition: 'A new acute inpatient episode for the same patient (same derived Patient ID) beginning more than 0 and at most 7 days after the FINAL discharge of a prior continuous episode that contained acute inpatient care and ended in a true discharge.',
+      formula: 'for each acute-IP episode: index = the prior acute-IP episode with the LATEST final discharge before the new start (v1.2 - not the latest start, which differs when a patient\'s episodes overlap) whose final discharge code is a true discharge; daysBetween = newEpisodeStart - indexFinalDischarge; flag when 0 < daysBetween <= 7',
       inputs: ['EPISODE_001', 'Patient ID (derived from name and age)', 'Discharge datetime'],
       inclusions: ['Prior episodes that contained at least one acute IP account and ended with a true discharge.', 'Subsequent episodes that contain acute IP care.'],
-      exclusions: ['Internal OS/IP/SB status transitions inside one episode - by construction these are one episode and can never be a readmission.', 'Prior episodes still open at the end of the data.', 'Pairs whose prior episode cannot be dated.'],
+      exclusions: ['Internal OS/IP/SB status transitions inside one episode - by construction these are one episode and can never be a readmission.', 'Prior episodes still open at the end of the data.', 'Pairs whose prior episode cannot be dated.', 'Episodes that ended on an internal-transition discharge code (a failed or missing link ended them in a status change, not a discharge; v1.2).', 'Episodes that ended in death - a later admission under the same derived Patient ID is reported as an identity conflict, not a readmission (v1.2).'],
       thresholds: [t('Short readmission window (days)', 'thresholds.readmissionWindowDays.0')],
       nullHandling: 'Episodes near the start of the imported range may have no visible prior admission; the affected window is reported as an incomplete-lookback warning.',
       notes: 'INTERNAL OPERATIONAL INDICATOR. Not a CMS readmission rate: no risk standardization, no planned-readmission algorithm, no cross-facility data, and no condition cohorts.',
@@ -682,7 +682,7 @@
 
     rule({
       id: 'READMIT_30_001',
-      version: '1.1',
+      version: '1.2',
       name: 'Internal 30-day readmission indicator',
       classification: C.OPERATIONAL,
       definition: 'The same logic as READMIT_7_001 using a window of more than 0 and at most 30 days.',
@@ -698,7 +698,7 @@
 
     rule({
       id: 'READMIT_MCR_001',
-      version: '1.1',
+      version: '1.2',
       name: 'Medicare 30-day readmission indicator',
       classification: C.OPERATIONAL,
       definition: 'The subset of READMIT_30_001 in which the readmitting acute inpatient account is mapped to Medicare FFS or Medicare Advantage. The two categories are also reported separately.',
@@ -763,7 +763,7 @@
       inputs: ['Admission source'],
       inclusions: ['Included service accounts with an admission-source value.'],
       exclusions: ['Runs where no admission-source column was mapped, which report the metric as unavailable.'],
-      nullHandling: 'Blank or unmapped values report as Unknown and appear in the Code Inventory.',
+      nullHandling: 'Blank values are reported as their own "(blank)" row; a code absent from the reference table keeps its raw value, is listed with an empty category, and raises an unmapped-code warning. Nothing is silently relabeled.',
       notes: 'The hospital exports this as the `origin_code` column. Codes are 01 HOME, 02 CLINIC REFERRAL, ' +
              '03 OTHER HEALTHCARE FAC, 04 EMERGENCY ROOM, 05 LAW ENFORCEMENT, 6 OBSERVATION, and 07 SWING BED. ' +
              'OBSERVATION is published without a leading zero, and a numeric spreadsheet column drops the zeros ' +
@@ -787,19 +787,20 @@
 
     rule({
       id: 'LOSDIST_001',
+      version: '1.1',
       name: 'Acute inpatient LOS distribution',
       classification: C.OPERATIONAL,
       definition: 'Median, 75th and 90th percentile acute inpatient LOS, and counts within the bands at most 1 day, more than 1 to 2 days, more than 2 to 4 days, and more than 4 days.',
-      formula: 'percentiles by linear interpolation (equivalent to Excel PERCENTILE.INC); bands applied to losHours with lower bound exclusive and upper bound inclusive',
+      formula: 'percentiles by linear interpolation (equivalent to Excel PERCENTILE.INC); bands applied to losHours with lower bound exclusive and upper bound inclusive, except the lowest band, which also holds zero-length stays so the bands always partition the qualifying set',
       inputs: ['IP_LOS_001'],
-      inclusions: ['Qualifying discharged IP accounts.'],
+      inclusions: ['Qualifying discharged IP accounts, including flagged zero-length stays.'],
       exclusions: ['Open encounters.'],
       thresholds: [
         t('LOS bands', 'thresholds.losBands'),
         t('Percentiles', 'thresholds.losPercentiles')
       ],
       nullHandling: 'No percentiles when the qualifying set is empty.',
-      notes: 'Band boundaries are hour-based (24 / 48 / 96) so they agree exactly with IP_GT4_001 and IP_SHORT_001.',
+      notes: 'Band boundaries are hour-based (24 / 48 / 96) so they agree exactly with IP_GT4_001 and IP_SHORT_001, with one documented exception: a zero-length stay (a flagged registration artifact) sits in the lowest band but is excluded from IP_SHORT_001, which requires a positive duration. (v1.1 documents that boundary; the arithmetic is unchanged.)',
       implementationKey: 'metrics.inpatient.losDistribution'
     })
   ];

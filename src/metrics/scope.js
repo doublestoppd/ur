@@ -205,6 +205,16 @@
       if (!e.admitDT || !period) { return false; }
       var end = (e.isOpen || !e.dischargeDT) ? period.asOf : e.dischargeDT;
       if (!end) { end = period.endExclusiveDT; }
+      /*
+       * Degenerate effective interval - an open stay admitted after the as-of
+       * datetime, or a clamped registration inversion. The asOf bounds how
+       * much DURATION is measurable, not whether the stay exists, so such a
+       * stay participates by its admission moment (consistent with the
+       * admission-event metrics, which also ignore asOf).
+       */
+      if (end.getTime() <= e.admitDT.getTime()) {
+        return scope.inPeriod(e.admitDT, period);
+      }
       return e.admitDT.getTime() < period.endExclusiveDT.getTime() &&
              end.getTime() > period.startDT.getTime();
     },
@@ -218,6 +228,26 @@
         if (serviceClass && e.serviceClass !== serviceClass) { continue; }
         if (!scope.overlapsPeriod(e, period)) { continue; }
         out.push(e);
+      }
+      return out;
+    },
+
+    /*
+     * Work-list scope: stays that overlap the period PLUS discharged stays
+     * counted in this period by the losBasis anchor. The sets differ only at
+     * the period boundary (a stay discharged exactly at the period start is
+     * counted by a 'discharge' basis but its interval does not overlap);
+     * review lists take the union so no counted stay is missing from its
+     * work list.
+     */
+    inScopeOrCounted: function (encounters, serviceClass, config, period) {
+      var out = scope.inScopeInPeriod(encounters, serviceClass, period);
+      var seen = {};
+      var i;
+      for (i = 0; i < out.length; i++) { seen[out[i].rowId] = true; }
+      var counted = scope.qualifyingDischarged(encounters, serviceClass, config, period);
+      for (i = 0; i < counted.length; i++) {
+        if (!seen[counted[i].rowId]) { seen[counted[i].rowId] = true; out.push(counted[i]); }
       }
       return out;
     },

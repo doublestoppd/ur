@@ -53,17 +53,41 @@
           var next = list[i];
           if (!next.containsIP || !next.startDT) { continue; }
 
-          /* Most recent earlier episode that contained acute inpatient care and
-           * reached a final discharge. */
+          /*
+           * The index stay: the prior episode with the LATEST final discharge
+           * before this admission (episodes are start-sorted, and a patient's
+           * episodes can overlap when the source data does, so the latest
+           * START is not necessarily the latest DISCHARGE). It must have
+           * contained acute inpatient care and ended in a TRUE discharge:
+           * an episode ending on an internal-transition code (a failed or
+           * missing link) ended in a status change, not a discharge, and can
+           * never be an index stay - the registry requires "ended with a true
+           * discharge". A death-ended episode cannot be readmitted either; a
+           * later admission for that Patient ID is an identity conflict and
+           * is diagnosed rather than counted.
+           */
           var prior = null;
           for (var j = i - 1; j >= 0; j--) {
             var cand = list[j];
             if (!cand.containsIP || !cand.endDT) { continue; }
             if (cand.endDT.getTime() > next.startDT.getTime()) { continue; }
-            prior = cand;
-            break;
+            if (cand.endedInTransition) { continue; }
+            if (!prior || cand.endDT.getTime() > prior.endDT.getTime()) { prior = cand; }
           }
           if (!prior) { continue; }
+          if (prior.isDeath) {
+            if (diag) {
+              diag.add('DQ_POSTMORTEM_ADMIT', {
+                message: 'Episode ' + next.episodeId + ' (accounts ' + next.accounts.join(', ') +
+                         ') admits after episode ' + prior.episodeId + ' of the same derived patient (' +
+                         (next.patientName || 'name unavailable') + ') ended in death on ' + util.fmtDateTime(prior.endDT) +
+                         '. A deceased patient cannot be readmitted: two different patients most likely share a name and age, ' +
+                         'or a discharge code is wrong. The pair is excluded from the readmission indicators. ' +
+                         'Verify the identities and correct the source data.'
+              });
+            }
+            continue;
+          }
 
           var daysBetween = util.daysBetween(prior.endDT, next.startDT);
           if (daysBetween <= 0 || daysBetween > maxWindow) { continue; }

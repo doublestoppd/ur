@@ -229,9 +229,10 @@ describe('patient days and census', function () {
     assert.includes(c.ADM_SVC_001.note, 'internal status transitions');
   });
 
-  test('unique patients counts distinct MRNs', function () {
+  test('unique patients counts distinct Patient IDs over in-scope stays', function () {
+    /* v1.2 semantics: a stay that overlaps the period even partly counts. */
     var mrns = {};
-    UR.scope.includedAdmittedInPeriod(state.encounters, state.period).forEach(function (e) {
+    UR.scope.inScopeInPeriod(state.encounters, null, state.period).forEach(function (e) {
       if (e.mrn) { mrns[e.mrn] = true; }
     });
     assert.equal(m.census.PATIENT_CNT_001.value, Object.keys(mrns).length);

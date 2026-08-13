@@ -91,6 +91,14 @@
     return String(util.round(value, decimals === undefined ? 0 : decimals));
   }
 
+  /* Decimals needed so consecutive tick labels stay distinct. */
+  function tickDecimals(scale) {
+    var step = scale.ticks.length > 1 ? scale.ticks[1] - scale.ticks[0] : 1;
+    if (step >= 1) { return 0; }
+    if (step >= 0.1) { return 1; }
+    return 2;
+  }
+
   /* ---------------------------------------------------------------- shapes */
 
   /* Bar with rounded data-end; the baseline end stays square. */
@@ -195,7 +203,9 @@
     ctx.font = '11px ' + FONT;
 
     if (horizontal) {
-      /* Vertical gridlines for a horizontal magnitude scale. */
+      /* Vertical gridlines for a horizontal magnitude scale. Label precision
+       * follows the tick step: rounding a fractional step to fewer decimals
+       * would print the same number on two different gridlines. */
       for (i = 0; i < scale.ticks.length; i++) {
         var gx = Math.round(plotX + (scale.ticks[i] / scale.max) * plotW) + 0.5;
         ctx.strokeStyle = scale.ticks[i] === 0 ? t.axis : t.grid;
@@ -205,7 +215,7 @@
         ctx.stroke();
         ctx.fillStyle = t.muted;
         ctx.textAlign = 'center';
-        ctx.fillText(fmt(scale.ticks[i], 0), gx, plotY + plotH + 13);
+        ctx.fillText(fmt(scale.ticks[i], tickDecimals(scale)), gx, plotY + plotH + 13);
       }
     } else {
       for (i = 0; i < scale.ticks.length; i++) {
@@ -217,7 +227,7 @@
         ctx.stroke();
         ctx.fillStyle = t.muted;
         ctx.textAlign = 'right';
-        ctx.fillText(fmt(scale.ticks[i], scale.max < 5 ? 1 : 0), plotX - 8, gy);
+        ctx.fillText(fmt(scale.ticks[i], tickDecimals(scale)), plotX - 8, gy);
       }
     }
 

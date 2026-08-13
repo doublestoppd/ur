@@ -342,16 +342,34 @@
         } else {
           diag.addFor('DQ_NEG_LOS', e, {
             message: 'Account ' + e.account + ' discharges ' + util.round(-hours, 2) +
-                     ' hours before it admits. The row is excluded from duration, LOS, and occupancy metrics.'
+                     ' hours before it admits. The row is excluded from ALL figures - admissions, patients, ' +
+                     'LOS, occupancy, and review lists - until the dates are corrected in the source system.'
           });
           if (!e.excludedReason) { e.excludedReason = 'Discharge precedes admission'; }
         }
       } else {
         e.durationHours = hours;
+        if (hours === 0 && !e.durationClamped) {
+          /* Admit and discharge at the same minute: almost certainly a
+           * registration artifact. The row stays in the figures (excluding it
+           * would silently change counts) but is flagged, because a genuine
+           * zero-length stay deflates the LOS averages. */
+          diag.addFor('DQ_ZERO_LOS', e, {
+            severity: UR.SEVERITY.WARNING,
+            message: 'Account ' + e.account + ' admits and discharges at the same minute (' +
+                     util.fmtDateTime(e.admitDT) + '). The zero-length stay counts in LOS averages and the ' +
+                     'lowest LOS distribution band, but not in the one-day-stay count, which requires a positive duration. ' +
+                     'Verify the times in the source system.'
+          });
+        }
       }
       if (e.durationHours !== null) {
         e.durationDays = e.durationHours / 24;
-        e.midnights = util.midnightsCrossed(e.admitDT, e.dischargeDT);
+        /* A clamped inversion is treated as an instantaneous stay: its
+         * contradictory raw times would otherwise yield a negative midnight
+         * count, which is nonsensical in every consumer (two-midnight rule,
+         * review rows). */
+        e.midnights = e.durationClamped ? 0 : util.midnightsCrossed(e.admitDT, e.dischargeDT);
       }
     }
 

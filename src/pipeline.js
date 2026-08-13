@@ -87,6 +87,15 @@
       state.inferredPeriod = suggested ? suggested.period : span;
 
       if (opts.periodStart && opts.periodEnd) {
+        if (opts.periodEnd.getTime() < opts.periodStart.getTime()) {
+          /* A reversed range would make every figure silently zero. */
+          diag.add('DQ_PERIOD_REVERSED', {
+            message: 'The chosen reporting period ends (' + util.fmtDate(opts.periodEnd) +
+                     ') before it starts (' + util.fmtDate(opts.periodStart) + '). Swap the dates and reprocess.'
+          });
+          state.blocked = true;
+          return state;
+        }
         state.period = scope.makePeriod(opts.periodStart, opts.periodEnd, opts.asOf);
         state.periodSource = 'Chosen by user';
       } else if (suggested) {

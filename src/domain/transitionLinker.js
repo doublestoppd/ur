@@ -109,6 +109,13 @@
             var to = list[b];
             if (to === from || to.takenAsSuccessor) { continue; }
             if (!to.admitDT) { continue; }
+            /* A successor cannot be the account this one already continues
+             * from (a within-tolerance overlap in BOTH directions would
+             * otherwise close a two-account cycle: both links "accepted" yet
+             * no buildable episode), and it cannot begin before this account
+             * itself began. */
+            if (from.linkPrev && from.linkPrev.rowId === to.rowId) { continue; }
+            if (from.admitDT && to.admitDT.getTime() < from.admitDT.getTime()) { continue; }
             var gapMinutes = (to.admitDT.getTime() - disMs) / 60000;
             if (gapMinutes > maxGapMin) { continue; }
             var sameDay = util.dayIndex(to.admitDT) === util.dayIndex(from.dischargeDT);
@@ -153,7 +160,7 @@
               rec.toService = far.enc.serviceClass;
               rec.toAdmit = far.enc.admitDT;
               rec.gapMinutes = far.gapMinutes;
-              rec.sameDay = true;
+              rec.sameDay = util.dayIndex(far.enc.admitDT) === util.dayIndex(from.dischargeDT);
               rec.issue = 'The expected successor exists, but its admission is recorded ' +
                           util.round(-far.gapMinutes, 0) + ' minutes BEFORE this discharge - beyond the ' +
                           overlapTolMin + '-minute overlap tolerance. The registration times contradict the transition.';

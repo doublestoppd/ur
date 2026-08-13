@@ -47,9 +47,11 @@ describe('review queue', function () {
     assert.ok(sbip.some(function (r) { return r.account === 'A103' && r.relatedAccount === 'A104'; }));
   });
 
-  test('IMM candidates are every mapped Medicare inpatient admission', function () {
+  test('IMM candidates are every mapped Medicare inpatient stay in scope', function () {
     var imm = rowsFor('RQ_IMM');
-    var expected = UR.scope.admittedInPeriod(state.encounters, UR.SERVICE.IP, state.period)
+    /* v1.2 semantics: stays overlapping the period or counted in its
+     * discharged-stay figures, not just admissions inside it. */
+    var expected = UR.scope.inScopeOrCounted(state.encounters, UR.SERVICE.IP, fixtures.buildConfig(UR), state.period)
       .filter(function (e) { return UR.util.contains(UR.MEDICARE_CATEGORIES, e.payerCategory); });
     assert.equal(imm.length, expected.length);
     imm.forEach(function (r) {

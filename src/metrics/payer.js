@@ -79,7 +79,15 @@
         if (!e.metricEligible) { continue; }
         var admittedInPeriod = scope.inPeriod(e.admitDT, period);
         var occ = scope.inPeriodOccupancyHours(e, period, includeOpen);
-        if (!admittedInPeriod && occ <= 0) { continue; }
+        /* Review-sensitive counts use the discharged-stay qualifying basis;
+         * a stay can qualify (e.g. discharged exactly at the period start
+         * midnight) while contributing zero in-period occupancy, and must
+         * still reach the counting block so the per-payer long-stay /
+         * one-day / death columns reconcile with IP_GT4_001, IP_SHORT_001,
+         * and DEATH_001. */
+        var qualifies = !e.isOpen && e.durationHours !== null &&
+          scope.inPeriod(config.processing.losBasis === 'admission' ? e.admitDT : e.dischargeDT, period);
+        if (!admittedInPeriod && occ <= 0 && !qualifies) { continue; }
 
         var cat = bucket(byCategory, e.payerCategory || UR.PAYER_CATEGORY.UNKNOWN);
         var raw = bucket(byRawCode, e.insuranceRaw === '' ? '(blank)' : e.insuranceRaw);
@@ -99,9 +107,6 @@
           row.equivalentPatientDays = row.occupancyHours / 24;
         }
 
-        /* Review-sensitive counts use the discharged-stay qualifying basis. */
-        var qualifies = !e.isOpen && e.durationHours !== null &&
-          scope.inPeriod(config.processing.losBasis === 'admission' ? e.admitDT : e.dischargeDT, period);
         if (qualifies) {
           for (var u = 0; u < targets.length; u++) {
             var r2 = targets[u];

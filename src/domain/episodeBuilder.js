@@ -117,6 +117,10 @@
           accountCount: chain2.length,
           finalDischargeCode: last.dischargeCodeRaw,
           finalDisposition: last.dispositionCategory,
+          /* True when the last account's discharge code expects an internal
+           * successor: the episode ended in a status change (whose link failed
+           * or whose successor is missing), not a true discharge. */
+          endedInTransition: !!last.transitionTo,
           isDeath: !!last.isDeath,
           finalPayerCategory: last.payerCategory,
           firstPayerCategory: first.payerCategory,

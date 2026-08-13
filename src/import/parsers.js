@@ -142,8 +142,10 @@
     },
 
     /*
-     * Parse a time cell into minutes past midnight (0-1439).
-     * Accepts 14:32, 2:32 PM, 1432, 832, 0, 14:32:07, and Excel time fractions.
+     * Parse a time cell into minutes past midnight (0-1439, or 1440 for the
+     * military end-of-day midnight "2400", which combine() rolls into the next
+     * calendar day). Accepts 14:32, 2:32 PM, 1432, 832, 0, 2400, 14:32:07, and
+     * Excel time fractions.
      */
     parseTime: function (raw) {
       if (raw === null || raw === undefined) { return fail('blank'); }
@@ -197,7 +199,11 @@
           hh = Math.floor(n / 100);
           mmn = n % 100;
         }
-        if (hh === 24 && mmn === 0) { return ok(0); }
+        /* Military 2400 means midnight at the END of the date. Returning 0
+         * would move the timestamp back a full day (admit 08:00, discharge
+         * 2400 would compute as -8 hours); 1440 minutes rolls combine() into
+         * the next day's 00:00, which is what the convention means. */
+        if (hh === 24 && mmn === 0) { return ok(1440); }
         if (hh > 23 || mmn > 59) { return fail('time out of range "' + text + '"'); }
         return ok(hh * 60 + mmn);
       }

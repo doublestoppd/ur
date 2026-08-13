@@ -83,7 +83,10 @@ describe('chart specifications', function () {
 
   test('the acute LOS chart carries the CAH target as a reference line', function () {
     var s = spec('monthly-acute-los');
-    assert.equal(s.reference.value, state.config.thresholds.acuteTargetHours);
+    /* The chart draws acuteTargetDays * 24 so it always agrees with
+     * IP_TARGET_001's variance, even if acuteTargetHours is configured
+     * independently. */
+    assert.equal(s.reference.value, state.config.thresholds.acuteTargetDays * 24);
     assert.includes(s.reference.label, 'annual average');
     assert.includes(s.subtitle, 'ANNUAL');
   });

@@ -79,7 +79,9 @@ describe('parsers - times', function () {
       ['14:32:07', 14 * 60 + 32],
       [0, 0],
       ['0000', 0],
-      ['2400', 0]
+      /* 2400 is end-of-day midnight: 1440 minutes rolls combine() into the
+       * next calendar day instead of moving the timestamp back a full day. */
+      ['2400', 1440]
     ];
     cases.forEach(function (c) {
       var r = parsers.parseTime(c[0]);
