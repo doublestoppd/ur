@@ -652,6 +652,40 @@
       return cards;
     },
 
+    /*
+     * Render chart specs straight to PNG bytes for the workbook export - no
+     * DOM cards, always the light surface with the title baked in, so the
+     * images read as document figures regardless of the screen theme.
+     * Specs with no data (spec.empty) are skipped. Returns
+     * [{ id, title, subtitle, ruleIds, bytes, width, height }].
+     */
+    exportImages: function (specs, width) {
+      var w = width || 900;
+      var out = [];
+      (specs || []).forEach(function (spec) {
+        if (spec.empty) { return; }
+        var h = heightFor(spec) + 44;
+        var canvas = doc.createElement('canvas');
+        var scale = 2;
+        canvas.width = w * scale;
+        canvas.height = h * scale;
+        var ctx = canvas.getContext('2d');
+        if (!ctx) { return; }
+        ctx.setTransform(scale, 0, 0, scale, 0, 0);
+        draw(ctx, spec, w, h, THEMES.light, { header: true });
+        var url = canvas.toDataURL('image/png');
+        var binary = global.atob(url.split(',')[1]);
+        var bytes = new global.Uint8Array(binary.length);
+        for (var i = 0; i < binary.length; i++) { bytes[i] = binary.charCodeAt(i); }
+        out.push({
+          id: spec.id, title: spec.title, subtitle: spec.subtitle || '',
+          ruleIds: (spec.ruleIds || []).slice(),
+          bytes: bytes, width: w, height: h
+        });
+      });
+      return out;
+    },
+
     /* Export every chart in sequence, one PNG per graph. */
     exportAll: function (cards, download, onProgress) {
       var index = 0;

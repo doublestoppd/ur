@@ -50,13 +50,57 @@
       return { ticks: ticks, min: start, max: end };
     },
 
-    /* Daily midnight census across the reporting period (PD_MN_001). */
+    /*
+     * Midnight census across the reporting period (PD_MN_001). A single-month
+     * period plots every day; a longer period would be an unreadable comb of
+     * daily points, so it aggregates to the average midnight census per month
+     * (the ADC) instead - same underlying data, one point per month.
+     */
     dailyCensus: function (state) {
       var daily = state.metrics.census.PD_MN_001.dailyCensus;
       var categories = [];
       var axisLabels = [];
       var ip = [], os = [], sb = [];
-      for (var i = 0; i < daily.length; i++) {
+      var i;
+
+      var months = UR.scope.monthsIn(state.period);
+      if (months.length > 1) {
+        var byKey = {};
+        var order = [];
+        for (i = 0; i < daily.length; i++) {
+          var k = util.monthKey(daily[i].date);
+          if (!byKey[k]) { byKey[k] = { n: 0, IP: 0, OS: 0, SB: 0 }; order.push(k); }
+          byKey[k].n++;
+          byKey[k].IP += daily[i].IP;
+          byKey[k].OS += daily[i].OS;
+          byKey[k].SB += daily[i].SB;
+        }
+        for (i = 0; i < order.length; i++) {
+          var g = byKey[order[i]];
+          categories.push(util.monthLabel(order[i]));
+          ip.push(round(g.IP / g.n, 1));
+          os.push(round(g.OS / g.n, 1));
+          sb.push(round(g.SB / g.n, 1));
+        }
+        return {
+          id: 'daily-census',
+          title: 'Average midnight census by month',
+          subtitle: 'Mean patients occupying a bed at local midnight, averaged over each month\'s days in the period. The per-day line is shown when the period is a single month.',
+          ruleIds: ['PD_MN_001', 'ADC_MN_001'],
+          form: 'line',
+          categories: categories,
+          series: [
+            { name: 'Acute inpatient', values: ip },
+            { name: 'Observation', values: os },
+            { name: 'Swing bed', values: sb }
+          ],
+          valueLabel: 'Patients',
+          decimals: 1,
+          empty: daily.length ? '' : 'The reporting period contains no days.'
+        };
+      }
+
+      for (i = 0; i < daily.length; i++) {
         categories.push(util.fmtDate(daily[i].date));
         /* The axis is dense, so it drops the year; tooltips and the table keep it. */
         axisLabels.push(util.pad2(daily[i].date.getUTCMonth() + 1) + '/' + util.pad2(daily[i].date.getUTCDate()));

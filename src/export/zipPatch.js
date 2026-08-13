@@ -443,6 +443,146 @@
       } catch (e2) {
         return input;
       }
+    },
+
+    /*
+     * Embed rendered chart PNGs on one worksheet.
+     *
+     * graphs - { sheetIndex, images: [{ name, bytes, width, height, row, col }] }
+     *   sheetIndex - 1-based worksheet position (matches sheetN.xml)
+     *   row/col    - 0-based anchor cell; width/height in CSS pixels
+     *
+     * The bundled spreadsheet library cannot write drawing parts, so the
+     * images are wired in at the zip level: media parts, one drawing part
+     * with a one-cell anchor per image, the relationship files, and the
+     * content-type declarations. Every failure path returns the original
+     * bytes - a workbook without graphs beats a corrupted one.
+     */
+    embedChartImages: function (bytes, graphs) {
+      var input = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+      if (!graphs || !graphs.images || !graphs.images.length || !graphs.sheetIndex) { return input; }
+      var entries;
+      try {
+        entries = parseZip(input);
+      } catch (e) {
+        return input;
+      }
+      if (!entries) { return input; }
+      for (var s = 0; s < entries.length; s++) {
+        if (entries[s].method !== 0) { return input; }
+      }
+
+      try {
+        var EMU_PER_PX = 9525;
+        var R_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+        var i;
+        var byName = {};
+        for (i = 0; i < entries.length; i++) { byName[entries[i].name] = entries[i]; }
+
+        var sheetPath = 'xl/worksheets/sheet' + graphs.sheetIndex + '.xml';
+        var relsPath = 'xl/worksheets/_rels/sheet' + graphs.sheetIndex + '.xml.rels';
+        if (!byName[sheetPath]) { return input; }
+
+        var dnum = 1;
+        while (byName['xl/drawings/drawing' + dnum + '.xml']) { dnum++; }
+        var drawingPath = 'xl/drawings/drawing' + dnum + '.xml';
+
+        function addEntry(name, data) {
+          var entry = { name: name, method: 0, modTime: 0, modDate: 0, data: data };
+          entries.push(entry);
+          byName[name] = entry;
+        }
+
+        var drawingRels = [];
+        var anchors = [];
+        for (i = 0; i < graphs.images.length; i++) {
+          var img = graphs.images[i];
+          var mediaName = img.name || 'urchart' + (i + 1) + '.png';
+          while (byName['xl/media/' + mediaName]) { mediaName = 'x' + mediaName; }
+          addEntry('xl/media/' + mediaName,
+            img.bytes instanceof Uint8Array ? img.bytes : new Uint8Array(img.bytes));
+          var rid = 'rIdUR' + (i + 1);
+          var cx = Math.round(img.width * EMU_PER_PX);
+          var cy = Math.round(img.height * EMU_PER_PX);
+          drawingRels.push('<Relationship Id="' + rid +
+            '" Type="' + R_NS + '/image" Target="../media/' + mediaName + '"/>');
+          anchors.push(
+            '<xdr:oneCellAnchor>' +
+              '<xdr:from><xdr:col>' + (img.col || 0) + '</xdr:col><xdr:colOff>0</xdr:colOff>' +
+              '<xdr:row>' + (img.row || 0) + '</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>' +
+              '<xdr:ext cx="' + cx + '" cy="' + cy + '"/>' +
+              '<xdr:pic>' +
+                '<xdr:nvPicPr><xdr:cNvPr id="' + (i + 1) + '" name="Chart ' + (i + 1) + '"/><xdr:cNvPicPr/></xdr:nvPicPr>' +
+                '<xdr:blipFill><a:blip r:embed="' + rid + '"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>' +
+                '<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' + cx + '" cy="' + cy + '"/></a:xfrm>' +
+                '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr>' +
+              '</xdr:pic>' +
+              '<xdr:clientData/>' +
+            '</xdr:oneCellAnchor>');
+        }
+
+        addEntry(drawingPath, encodeUTF8(
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+          '<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing"' +
+          ' xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"' +
+          ' xmlns:r="' + R_NS + '">' + anchors.join('') + '</xdr:wsDr>'));
+        addEntry(drawingPath.replace('xl/drawings/', 'xl/drawings/_rels/') + '.rels', encodeUTF8(
+          '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+          '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+          drawingRels.join('') + '</Relationships>'));
+
+        /* Wire the drawing into the worksheet and its relationships. */
+        var drawingRelId = 'rIdURDrawing';
+        var relXml = '<Relationship Id="' + drawingRelId +
+          '" Type="' + R_NS + '/drawing" Target="../drawings/drawing' + dnum + '.xml"/>';
+        if (byName[relsPath]) {
+          var rels = decodeUTF8(byName[relsPath].data);
+          if (rels.indexOf('</Relationships>') < 0) { return input; }
+          byName[relsPath].data = encodeUTF8(rels.replace('</Relationships>', relXml + '</Relationships>'));
+        } else {
+          addEntry(relsPath, encodeUTF8(
+            '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+            '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+            relXml + '</Relationships>'));
+        }
+
+        var sheetXml = decodeUTF8(byName[sheetPath].data);
+        if (sheetXml.indexOf('</worksheet>') < 0 || sheetXml.indexOf('<drawing ') >= 0) { return input; }
+        byName[sheetPath].data = encodeUTF8(sheetXml.replace('</worksheet>',
+          '<drawing r:id="' + drawingRelId + '"/></worksheet>'));
+
+        var ct = byName['[Content_Types].xml'];
+        if (!ct) { return input; }
+        var ctXml = decodeUTF8(ct.data);
+        if (ctXml.indexOf('Extension="png"') < 0) {
+          ctXml = ctXml.replace(/(<Types[^>]*>)/, '$1<Default Extension="png" ContentType="image/png"/>');
+        }
+        ctXml = ctXml.replace('</Types>',
+          '<Override PartName="/' + drawingPath +
+          '" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/></Types>');
+        ct.data = encodeUTF8(ctXml);
+
+        return buildZip(entries);
+      } catch (e2) {
+        return input;
+      }
+    },
+
+    /* Test/diagnostic helpers: the zip's entry names, and one entry's bytes. */
+    entryNames: function (bytes) {
+      var entries = parseZip(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes));
+      if (!entries) { return []; }
+      var out = [];
+      for (var i = 0; i < entries.length; i++) { out.push(entries[i].name); }
+      return out;
+    },
+    entryData: function (bytes, name) {
+      var entries = parseZip(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes));
+      if (!entries) { return null; }
+      for (var i = 0; i < entries.length; i++) {
+        if (entries[i].name === name) { return entries[i].data; }
+      }
+      return null;
     }
   };
 

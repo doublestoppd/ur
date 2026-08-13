@@ -1911,7 +1911,17 @@
     global.setTimeout(function () {
       try {
         var stamp = new Date();
-        var bytes = UR.workbookBuilder.toBytes(ui.state, stamp.toLocaleString());
+        /* Render every populated graph to a PNG so the workbook carries the
+         * charts, not just the numbers behind them. A canvas failure only
+         * costs the Graphs sheet, never the export. */
+        var chartImages = [];
+        try {
+          chartImages = UR.charts.exportImages(UR.chartData.all(ui.state), 900);
+        } catch (imgErr) {
+          chartImages = [];
+        }
+        var bytes = UR.workbookBuilder.toBytes(ui.state, stamp.toLocaleString(),
+          { chartImages: chartImages });
         var name = 'UR-Compiled-' + util.fmtISODate(ui.state.period.startDT) + '-to-' +
           util.fmtISODate(new Date(ui.state.period.endExclusiveDT.getTime() - 1)) + '.xlsx';
         download(bytes, name, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

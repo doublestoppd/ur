@@ -262,12 +262,20 @@ colour-vision separation and contrast against both the light and dark chart
 surfaces. A chart with one measure uses one colour, because there is no identity
 to encode; severity uses the reserved status colours and never a series slot.
 
+Time charts follow the reporting period: a single-month period plots the
+midnight census day by day, while a period spanning more than one month shows
+the average midnight census per month (the ADC) instead - one point per month,
+from the same underlying daily data - so a quarter never renders as an
+unreadable comb of ninety daily points.
+
 ---
 
 ## The exported workbook
 
-Eighteen worksheets, opening on a **Contents** page where every sheet name is a
-link and each sheet has a one-line description. The **Executive Summary** reads
+Eighteen worksheets — nineteen with the **Graphs** sheet, where every populated
+graph from the Graphs view is embedded as an image with a caption naming its
+Rule IDs — opening on a **Contents** page where every sheet name is a link and
+each sheet has a one-line description. The **Executive Summary** reads
 month by month - one column per calendar month of the reporting period, left to
 right, then a Total column for the whole period - and deliberately carries no
 Rule ID column: it is written for a reader, and every line's rule is documented

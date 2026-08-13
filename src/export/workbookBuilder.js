@@ -886,14 +886,42 @@
     },
 
     /*
+     * Graphs sheet: a caption block per chart, with rows reserved beneath each
+     * so the embedded image (anchored by the zip patch) does not overlay the
+     * next caption. Returns the worksheet plus the 0-based anchor row of each
+     * image via __urGraphAnchors.
+     */
+    graphsSheet: function (state, images) {
+      var ROW_PX = 20; /* the default 15pt row is ~20 CSS pixels at 96dpi */
+      var rows = [];
+      rows.push(TITLE(['Graphs']));
+      rows.push(NOTE(['Rendered from the same calculated results as the worksheets around them; each caption names the Rule IDs behind the graph. When the reporting period spans more than one month, time charts show monthly figures.']));
+      rows.push([]);
+      var anchors = [];
+      for (var i = 0; i < images.length; i++) {
+        var img = images[i];
+        rows.push(SEC([img.title]));
+        rows.push(NOTE([(img.ruleIds && img.ruleIds.length ? img.ruleIds.join(', ') + '  -  ' : '') + (img.subtitle || '')]));
+        anchors.push({ row: rows.length, col: 0 });
+        var reserve = Math.ceil(img.height / ROW_PX) + 2;
+        for (var b = 0; b < reserve; b++) { rows.push([]); }
+      }
+      var ws = makeSheet(rows, { zebra: false, maxWidth: 100 });
+      ws.__urGraphAnchors = anchors;
+      return ws;
+    },
+
+    /*
      * Assemble the workbook. Returns { workbook, freezeRows, plan }:
      * freezeRows maps 1-based worksheet position to frozen header rows (kept
      * for compatibility), and plan is the full per-sheet styling plan the
-     * zip patcher applies - tab colors, styled rows, severity cells, zebra.
+     * zip patcher applies - tab colors, styled rows, severity cells, zebra,
+     * and (when chart images were supplied) the graph-embedding plan.
      */
-    build: function (state, generatedAtText) {
+    build: function (state, generatedAtText, opts) {
       var X = xlsx();
       state.generatedAtText = generatedAtText || '';
+      var chartImages = opts && opts.chartImages && opts.chartImages.length ? opts.chartImages : null;
 
       var TAB = {
         Summary: 'FF2A78D6', Review: 'FFEB6834', Detail: 'FF5B6B7B',
@@ -937,6 +965,16 @@
           desc: 'Versions, source files, field mapping, and thresholds for reproducibility.' }
       ];
 
+      var graphAnchors = null;
+      if (chartImages) {
+        var gws = workbookBuilder.graphsSheet(state, chartImages);
+        graphAnchors = gws.__urGraphAnchors;
+        delete gws.__urGraphAnchors;
+        /* After Monthly Trends, with the other summaries. */
+        sheets.splice(2, 0, { name: 'Graphs', group: 'Summary', freeze: 0, ws: gws,
+          desc: 'Every graph from the Graphs view, embedded as an image with its Rule IDs.' });
+      }
+
       var wb = X.utils.book_new();
       var freeze = {};
       var plan = { sheets: {} };
@@ -962,16 +1000,34 @@
         add(sheets[i].name, sheets[i].ws, sheets[i].group, sheets[i].freeze);
       }
 
+      if (chartImages) {
+        plan.graphs = {
+          sheetIndex: wb.SheetNames.indexOf('Graphs') + 1,
+          images: chartImages.map(function (img, k) {
+            return {
+              name: 'urchart' + (k + 1) + '.png',
+              bytes: img.bytes, width: img.width, height: img.height,
+              row: graphAnchors[k].row, col: graphAnchors[k].col
+            };
+          })
+        };
+      }
+
       return { workbook: wb, freezeRows: freeze, plan: plan };
     },
 
-    /* Build and serialize to bytes, with styling and frozen panes applied. */
-    toBytes: function (state, generatedAtText) {
+    /* Build and serialize to bytes, with styling, frozen panes, and any
+     * supplied chart images applied. */
+    toBytes: function (state, generatedAtText, opts) {
       var X = xlsx();
-      var built = workbookBuilder.build(state, generatedAtText);
+      var built = workbookBuilder.build(state, generatedAtText, opts);
       var raw = X.write(built.workbook, { bookType: 'xlsx', type: 'array', compression: false });
       var bytes = new Uint8Array(raw);
-      return UR.zipPatch.applyWorkbookPolish(bytes, built.plan);
+      var polished = UR.zipPatch.applyWorkbookPolish(bytes, built.plan);
+      if (built.plan.graphs) {
+        polished = UR.zipPatch.embedChartImages(polished, built.plan.graphs);
+      }
+      return polished;
     }
   };
 
