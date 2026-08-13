@@ -1917,15 +1917,25 @@
 
   /* ----------------------------------------- manual observation segments */
 
-  function dtLocalValue(dt) {
-    if (!dt) { return ''; }
-    return util.fmtISODate(dt) + 'T' + util.pad2(dt.getUTCHours()) + ':' + util.pad2(dt.getUTCMinutes());
+  /*
+   * The manual-entry time fields take MILITARY time - the convention the
+   * operator already reads in CPSI - through the same parser the importer
+   * uses, so 830, 1430, 14:30, 2400, and even "2:30 PM" all mean what they
+   * mean there. A datetime-local input would force the browser's 12-hour
+   * picker instead.
+   */
+  function parseDateAndMilitaryTime(dateValue, timeValue) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(dateValue || ''));
+    if (!m) { return { error: 'a date is required' }; }
+    var day = util.mkDT(Number(m[1]), Number(m[2]), Number(m[3]), 0, 0);
+    var t = UR.parsers.parseTime(String(timeValue === undefined ? '' : timeValue).trim());
+    if (!t.ok) { return { error: 'the time could not be read - use military time such as 0830 or 1430 (' + t.reason + ')' }; }
+    return { dt: new Date(day.getTime() + t.value * 60000) };
   }
 
-  function parseDtLocal(value) {
-    var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(String(value || ''));
-    if (!m) { return null; }
-    return util.mkDT(Number(m[1]), Number(m[2]), Number(m[3]), Number(m[4]), Number(m[5]));
+  function militaryValue(dt) {
+    if (!dt) { return ''; }
+    return util.pad2(dt.getUTCHours()) + util.pad2(dt.getUTCMinutes());
   }
 
   function reprocessToAccounts() {
@@ -1961,20 +1971,33 @@
       return wrap;
     }
 
-    var admitInput = el('input', { type: 'datetime-local', step: '60', value: dtLocalValue(e.manualObsOriginalAdmit || e.admitDT) });
-    var disInput = el('input', { type: 'datetime-local', step: '60' });
+    var seed = e.manualObsOriginalAdmit || e.admitDT;
+    var admitDateInput = el('input', { type: 'date', value: seed ? util.fmtISODate(seed) : '' });
+    var admitTimeInput = el('input', { type: 'text', inputmode: 'numeric', placeholder: 'e.g. 1430', value: militaryValue(seed) });
+    var disDateInput = el('input', { type: 'date', value: seed ? util.fmtISODate(seed) : '' });
+    var disTimeInput = el('input', { type: 'text', inputmode: 'numeric', placeholder: 'e.g. 1430' });
     var msg = el('p', { class: 'hint' });
     var form = el('div', { class: 'manual-obs-form' }, [
       el('p', { class: 'hint', text:
-        'Enter the observation stay CPSI did not export. A new account ' + e.account + '-MANUAL will carry it, ' +
-        'linked to this account as a normal OS -> IP conversion, and this inpatient admission will move forward to the ' +
-        'observation discharge so the hours are not double-counted. Everything reprocesses immediately.' }),
-      el('label', null, ['Observation admit ', admitInput]),
-      el('label', null, ['Observation discharge ', disInput]),
+        'Enter the observation stay CPSI did not export, times in MILITARY time (0830, 1430, 2400) exactly as CPSI shows them. ' +
+        'A new account ' + e.account + '-MANUAL will carry it, linked to this account as a normal OS -> IP conversion, ' +
+        'and this inpatient admission will move forward to the observation discharge so the hours are not double-counted. ' +
+        'Everything reprocesses immediately.' }),
+      el('div', { class: 'manual-obs-row' }, [
+        el('label', null, ['Observation admit date ', admitDateInput]),
+        el('label', null, ['Time (military) ', admitTimeInput])
+      ]),
+      el('div', { class: 'manual-obs-row' }, [
+        el('label', null, ['Observation discharge date ', disDateInput]),
+        el('label', null, ['Time (military) ', disTimeInput])
+      ]),
       el('button', { type: 'button', class: 'primary', onclick: function () {
-        var osAdmit = parseDtLocal(admitInput.value);
-        var osDis = parseDtLocal(disInput.value);
-        if (!osAdmit || !osDis) { msg.textContent = 'Both datetimes are required.'; return; }
+        var admitRes = parseDateAndMilitaryTime(admitDateInput.value, admitTimeInput.value);
+        var disRes = parseDateAndMilitaryTime(disDateInput.value, disTimeInput.value);
+        if (admitRes.error) { msg.textContent = 'Observation admit: ' + admitRes.error + '.'; return; }
+        if (disRes.error) { msg.textContent = 'Observation discharge: ' + disRes.error + '.'; return; }
+        var osAdmit = admitRes.dt;
+        var osDis = disRes.dt;
         if (osDis.getTime() <= osAdmit.getTime()) { msg.textContent = 'The observation discharge must come after the observation admission.'; return; }
         if (osDis.getTime() < e.admitDT.getTime()) { msg.textContent = 'The observation discharge precedes the recorded inpatient admission; the inpatient admission only moves forward.'; return; }
         if (e.dischargeDT && osDis.getTime() >= e.dischargeDT.getTime()) { msg.textContent = 'The observation discharge must precede the inpatient discharge.'; return; }

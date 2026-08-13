@@ -281,6 +281,8 @@ button.link { border: none; background: none; color: var(--accent); text-decorat
 .manual-obs-form { display: flex; flex-direction: column; gap: .5rem; margin-top: .5rem; max-width: 34rem; }
 .manual-obs-form label { display: flex; flex-direction: column; font-size: .8rem; color: var(--muted); gap: .2rem; }
 .manual-obs-form button { align-self: flex-start; }
+.manual-obs-row { display: flex; gap: 1rem; flex-wrap: wrap; }
+.manual-obs-row input[type="text"] { width: 7rem; }
 .filter-row { display: flex; gap: .5rem; margin: .5rem 0 1rem; flex-wrap: wrap; }
 .filter-row input[type="search"] { flex: 1 1 320px; }
 
