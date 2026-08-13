@@ -1847,8 +1847,9 @@
     host.appendChild(el('h4', { text: 'Visits (' + dossier.visits.length + ')' }));
     dossier.visits.forEach(function (visit, index) {
       var e = visit.encounter;
-      var isSelected = e.account === ui.selectedAccount;
-      var open = isSelected || dossier.visits.length <= 3;
+      /* Collapsed by default: the summary line carries the account, service,
+       * interval, and status, so the list scans without scrolling. */
+      var open = false;
 
       var body = el('div', { class: 'visit-body' });
 
