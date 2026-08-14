@@ -38,13 +38,13 @@ describe('workbook styling', function () {
 
   test('the styled workbook still reads back with all sheets and values', function () {
     var wb = XLSX.read(bytes, { type: 'array' });
-    assert.equal(wb.SheetNames.length, 18);
+    assert.equal(wb.SheetNames.length, 17);
     var text = XLSX.utils.sheet_to_csv(wb.Sheets['Executive Summary']);
     assert.includes(text, 'CAH ACUTE INPATIENT', 'metric content survives the styling pass');
   });
 
   test('every sheet tab carries a group color', function () {
-    for (var n = 1; n <= 18; n++) {
+    for (var n = 1; n <= 17; n++) {
       assert.ok(/<tabColor rgb="FF[0-9A-F]{6}"\/>/.test(sheetXml(n)), 'sheet ' + n + ' has a tab color');
     }
   });
@@ -85,7 +85,7 @@ describe('workbook styling', function () {
   test('the Contents sheet links to every other worksheet', function () {
     var contents = sheetXml(1);
     var links = contents.match(/<hyperlink /g) || [];
-    assert.equal(links.length, 17, 'one link per worksheet');
+    assert.equal(links.length, 16, 'one link per worksheet');
     assert.includes(contents, "location=\"&apos;Data Quality&apos;!A1\"");
   });
 
@@ -108,7 +108,7 @@ describe('workbook styling', function () {
       { bookType: 'xlsx', type: 'array', compression: false }));
     var styled = UR.zipPatch.applyWorkbookPolish(unstyled, { sheets: {} });
     var wb = XLSX.read(styled, { type: 'array' });
-    assert.equal(wb.SheetNames.length, 18, 'an empty plan still yields a readable workbook');
+    assert.equal(wb.SheetNames.length, 17, 'an empty plan still yields a readable workbook');
   });
 
   test('patchStylesXml refuses XML it does not recognize', function () {

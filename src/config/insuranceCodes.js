@@ -15,8 +15,8 @@
  *
  * WHAT THE CATEGORIES DRIVE
  * -------------------------
- * Medicare FFS and Medicare Advantage decide the IMM, MOON, and two-midnight
- * review lists (RQ_IMM, RQ_MOON, RQ_SHORT_MCR, IP_2MN_001). Only 20 codes are
+ * Medicare FFS and Medicare Advantage decide the two-midnight review list
+ * (RQ_SHORT_MCR, IP_2MN_001) and the Medicare readmission subset. Only 20 codes are
  * Medicare fee-for-service and 103 are Medicare Advantage; everything else,
  * including every Medicare supplement plan, is outside those lists.
  *

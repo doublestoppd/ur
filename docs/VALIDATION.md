@@ -26,8 +26,8 @@ decisions below are the ones you want.
 | Code `V` still means SB → IP locally (the published meaning of 66 is transfer to another CAH) | Rules & codes → Discharge codes | |
 | Code `Z` (10 ADMIT TO OBSERVATION) really is used as an internal status change; disable the row if not | Rules & codes → Discharge codes | |
 | Every insurance code appearing in the data still carries the right payer category — tick "Only codes found in the loaded data" | Rules & codes → Insurance / payer codes | |
-| The 20 Medicare FFS and 103 Medicare Advantage codes are still current: these alone decide the IMM, MOON, and two-midnight lists | Rules & codes → "Only Medicare rows" | |
-| **Medicare supplement / Medigap is classified as Commercial**, so a Medigap account is *not* an IMM or MOON candidate. Confirm that is still intended | same filter | |
+| The 20 Medicare FFS and 103 Medicare Advantage codes are still current: these alone decide the two-midnight list and the Medicare readmission subset | Rules & codes → "Only Medicare rows" | |
+| **Medicare supplement / Medigap is classified as Commercial**, so a Medigap account is *not* a two-midnight review candidate. Confirm that is still intended | same filter | |
 | Any account reported with a *retired* insurance code is investigated — the hospital marks 163 codes "Do Not Use / Inactive" and they ship disabled so their use is visible | Overview → attention digest / Diagnostics | |
 | `ipv1_origin` is the right column (`origin_code` is still accepted), and origin values resolve (note that OBSERVATION is published as `6`, not `06`) | Field Mapping + Overview → Code inventory | |
 | Patient identity spot-check: pick a patient with several accounts and confirm all carry ONE Patient ID (identity = name + age from `ipv1_age_years`) | Accounts → dossier | |
@@ -35,7 +35,7 @@ decisions below are the ones you want.
 | Configuration exported to JSON and stored somewhere backed up | Rules & codes → Export configuration | |
 
 An unmapped or wrongly categorized payer code is not cosmetic: it silently adds or removes
-accounts from the IMM, MOON, and two-midnight review lists. The tool reports unmapped and
+accounts from the two-midnight review list and the Medicare readmission subset. The tool reports unmapped and
 retired codes as warnings rather than guessing — resolve them before relying on those lists.
 
 **Codes are case-sensitive.** The insurance table contains 21 pairs differing only in case
@@ -125,8 +125,6 @@ setting at a time and re-check the Transitions worksheet.
 |---|---|---|
 | 4-day (96-hour) target variance | `IP_TARGET_001` | A **surveillance estimate over the selected period**. The CAH requirement is an *annual* average across the cost-reporting year, excluding swing-bed and distinct-part-unit services. Do not treat the monthly figure as a certification calculation until it has been reconciled with the cost report methodology. (v1.1 absorbs the retired `CAH96_001`, which computed the same variance in hours.) |
 | Two-midnight review list | `IP_2MN_001` / `RQ_SHORT_MCR` | Identifies **candidates only**. It cannot see the physician's expectation at admission, case-by-case exceptions, or inpatient-only procedures. Nothing on this list is "inappropriate" by virtue of being on it. |
-| IMM candidates | `RQ_IMM` | An **eligibility list, not proof of delivery**. CPSI cannot export scanned or signed notice status. Every row still needs manual confirmation, including any required follow-up copy. |
-| MOON candidates | `RQ_MOON` | Same: eligibility only. Verify timing requirements against current CMS guidance and hospital procedure. |
 | Readmission indicators | `READMIT_*` | **Internal operational indicators.** No risk standardization, no planned-readmission algorithm, no condition cohorts, and no visibility of admissions at other facilities. Never present these as a CMS readmission rate. |
 
 Recheck references R1–R9 (listed in the Calculation Reference) whenever calculation rules or
@@ -170,7 +168,7 @@ least one of each:
 | A refused transition | The reason given is a real data or coding issue, not a tool misreading |
 | An excluded account | The stated reason is correct — an unrecognized service code, a bad date, a duplicate |
 | A record with no time on a timestamp | "Midnight assumed" is acceptable for that account, or the export needs the time column |
-| A Medicare account | The insurance code maps to the right category; this drives the IMM, MOON, and two-midnight lists |
+| A Medicare account | The insurance code maps to the right category; this drives the two-midnight list and the Medicare readmission subset |
 | An open encounter | It really was still in house when the export was pulled |
 
 Anything that does not match is a finding: record it, and fix it in the reference mappings or

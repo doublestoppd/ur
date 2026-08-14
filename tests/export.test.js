@@ -21,7 +21,7 @@ var EXPECTED_SHEETS = [
   'Executive Summary', 'Monthly Trends', 'Review Queue', 'Review by Account',
   'Inpatient Detail', 'Observation Detail', 'Swing Bed Detail', 'Episodes',
   'Transitions', 'Readmissions', 'Payer Summary', 'Disposition & Source',
-  'Notice Review', 'Data Quality', 'Code Inventory', 'Calculation Reference', 'Run Metadata'
+  'Data Quality', 'Code Inventory', 'Calculation Reference', 'Run Metadata'
 ];
 
 function readBack(bytes) {
@@ -188,12 +188,6 @@ describe('workbook content', function () {
     assert.includes(text, 'Incomplete lookback');
   });
 
-  test('the Notice Review sheet states that it is not proof of delivery', function () {
-    var text = sheetText(wb, 'Notice Review');
-    assert.includes(text, 'not proof of delivery');
-    assert.includes(text, 'verified manually');
-  });
-
   test('the Code Inventory lists every encountered code with a status', function () {
     var text = sheetText(wb, 'Code Inventory');
     ['IP', 'OS', 'SB', 'ZZ', 'OP', 'Unrecognized', 'Recognized / ignored', 'Recognized / used'].forEach(function (token) {
@@ -265,7 +259,7 @@ describe('PHI controls', function () {
     config.processing.excludePatientNames = true;
     var s = fixtures.run(UR, { config: config });
     var wb = UR.workbookBuilder.build(s, '').workbook;
-    ['Inpatient Detail', 'Review Queue', 'Episodes', 'Readmissions', 'Notice Review'].forEach(function (name) {
+    ['Inpatient Detail', 'Review Queue', 'Episodes', 'Readmissions'].forEach(function (name) {
       var text = XLSX.utils.sheet_to_csv(wb.Sheets[name]);
       assert.ok(text.indexOf('TEST, ALPHA') < 0, name + ' contains no patient name');
       assert.ok(text.indexOf('Patient name') < 0, name + ' has no patient-name column');

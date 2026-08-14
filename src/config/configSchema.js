@@ -175,7 +175,7 @@
       }
 
       mergeSettings('transition', ['maxGapMinutes', 'overlapToleranceMinutes', 'suspiciousGapMinutes', 'uncodedTransitionWindowMinutes']);
-      mergeSettings('thresholds', ['acuteTargetHours', 'acuteTargetDays', 'oneDayStayHours', 'shortStayMidnights', 'moonThresholdHours']);
+      mergeSettings('thresholds', ['acuteTargetHours', 'acuteTargetDays', 'oneDayStayHours', 'shortStayMidnights']);
       mergeSettings('processing', []);
 
       if (cfg.processing && !util.contains(['discharge', 'admission'], cfg.processing.losBasis)) {

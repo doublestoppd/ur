@@ -19,8 +19,7 @@ hospital episodes across CPSI's status-change accounts, and produce a list of ac
 should be individually reviewed by a person.
 
 **It does not** decide whether a case is medically necessary, correctly statused, avoidable,
-denied, compliant, or clinically appropriate. It cannot verify that an IMM or MOON was
-delivered or signed, because CPSI cannot export that. Regulatory figures are *surveillance
+denied, compliant, or clinically appropriate. Regulatory figures are *surveillance
 aids* and must be validated against hospital policy and current payer/CMS requirements before
 being treated as official compliance reporting.
 
@@ -95,10 +94,10 @@ this tool is a statement by the hospital rather than a guess. Two consequences a
 knowing, because both decide who lands on the Medicare review lists:
 
 - **Only 20 codes are Medicare fee-for-service** (Medicare itself, plus Palmetto GBA) and 103
-  are Medicare Advantage. Everything else is outside `RQ_IMM`, `RQ_MOON`, `RQ_SHORT_MCR`, and
+  are Medicare Advantage. Everything else is outside `RQ_SHORT_MCR` and
   `IP_2MN_001`.
 - **Medicare supplement plans are Commercial/Managed Care, not Medicare.** A Medigap account
-  is therefore not an IMM or MOON candidate. That is the hospital's classification and the
+  is therefore not a two-midnight review candidate. That is the hospital's classification and the
   test suite asserts it, so it will survive a future tidy-up of the payer table.
 
 The 163 codes the hospital marks "Do Not Use / Inactive" ship **disabled** — the one
@@ -184,7 +183,7 @@ the inference entirely.
 
 **A stay that only partly overlaps the period still counts.** A patient
 admitted before the period start whose stay reaches into it participates in
-unique-patient, occupancy, review-list (IMM/MOON/observation-threshold), and
+unique-patient, occupancy, review-list (observation-threshold), and
 conversion-denominator figures; internal transitions are counted in the period
 their transition *moment* falls in, so an observation stay that began in the
 prior month still counts as a conversion when the status change happened inside
@@ -277,7 +276,7 @@ unreadable comb of ninety daily points.
 
 ## The exported workbook
 
-Eighteen worksheets — nineteen with the **Graphs** sheet, where every populated
+Seventeen worksheets — eighteen with the **Graphs** sheet, where every populated
 graph from the Graphs view is embedded as an image with a caption naming its
 Rule IDs — opening on a **Contents** page where every sheet name is a link and
 each sheet has a one-line description.
@@ -409,7 +408,7 @@ outside the centralized rule and configuration modules.
 ## Deferred by design (spec 17)
 
 Automated InterQual or avoidable-day determination; automated Code 44 decisions; denial
-adjudication or appeal recommendations; automated proof of IMM/MOON completion;
+adjudication or appeal recommendations;
 outpatient-in-a-bed detection; DRG/case-mix benchmarking; direct CPSI database or API
 integration; multi-user server hosting; AI-generated clinical or payer decisions; the
 official CMS risk-standardized readmission methodology; hard-coded payer authorization rules.

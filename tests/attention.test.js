@@ -95,12 +95,12 @@ describe('attention digest', function () {
     var s = fixtures.run(UR, {
       matrix: [
         fixtures.HEADERS.slice(),
-        [25, 'CLEAN1', 'CLEAN, TEST', 'IP', '08/10/2026', 600, '08/12/2026', 600, 'M', 'H', '04']
+        [25, 'CLEAN1', 'CLEAN, TEST', 'IP', '08/10/2026', 600, '08/10/2026', 2000, 'M', 'H', '04']
       ],
       config: UR.configSchema.defaults()
     });
     var items = UR.attention.build(s);
     assert.notOk(UR.attention.hasProblems(items), 'nothing above Info: ' + messagesOf(items));
-    assert.includes(messagesOf(items), 'review queue', 'the work item still shows (an IMM candidate exists)');
+    assert.includes(messagesOf(items), 'review queue', 'the work item still shows (review rows exist)');
   });
 });

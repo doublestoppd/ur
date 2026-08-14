@@ -72,8 +72,9 @@
     UR.PAYER_CATEGORY.UNKNOWN
   ];
 
-  /* Payer categories that make an account a Medicare notice / two-midnight
-   * review candidate (spec 9.2 IP_2MN_001, spec 10 RQ_IMM / RQ_MOON). */
+  /* Payer categories that make an account a two-midnight review candidate
+   * (spec 9.2 IP_2MN_001, spec 10 RQ_SHORT_MCR) and drive the Medicare
+   * readmission subset. */
   UR.MEDICARE_CATEGORIES = [
     UR.PAYER_CATEGORY.MEDICARE_FFS,
     UR.PAYER_CATEGORY.MEDICARE_ADVANTAGE
@@ -109,7 +110,7 @@
     {
       id: 'R3',
       title: 'CMS - Medicare Outpatient Observation Notice (MOON)',
-      note: 'MOON framework for Medicare beneficiaries receiving observation services. Used here only to build manual-review candidate lists; CPSI cannot export proof of notice completion.',
+      note: 'Background for the observation-hour thresholds. The tool no longer builds notice candidate lists; the reference is retained for the threshold rationale.',
       url: 'https://www.cms.gov/newsroom/fact-sheets/medicare-outpatient-observation-notice-moon'
     },
     {

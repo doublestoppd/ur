@@ -113,9 +113,8 @@ describe('observation metrics', function () {
     assert.ok(m.observation.OS_36_001.accounts.indexOf('B201') < 0, 'not past 36 hours');
     assert.ok(m.observation.OS_48_001.accounts.indexOf('B201') < 0);
 
-    var moon = state.reviewQueue.rows.filter(function (r) { return r.ruleId === 'RQ_MOON' && r.account === 'B201'; });
-    assert.equal(moon.length, 1, 'and it is a MOON manual-check candidate');
-    assert.equal(moon[0].past36, false);
+    var os24 = state.reviewQueue.rows.filter(function (r) { return r.ruleId === 'RQ_OS_24' && r.account === 'B201'; });
+    assert.equal(os24.length, 1, 'and it is on the over-24-hour work list');
   });
 
   test('the conversion rate documents its denominator and exclusions', function () {
@@ -134,6 +133,32 @@ describe('observation metrics', function () {
       assert.equal(c.ip.serviceClass, 'IP');
       assert.close(c.osHours, c.os.durationHours, 1e-12);
     });
+  });
+});
+
+describe('respite care', function () {
+
+  test('RP rows are counted by RESPITE_001 and join no other figure', function () {
+    var matrix = [
+      fixtures.HEADERS.slice(),
+      [41, 'RP1', 'RESPITE, TEST', 'RP', '08/05/2026', 800, '08/09/2026', 900, 'BCBS', 'H', 1],
+      [43, 'RP2', 'RESPITE B, TEST', 'RP', '07/02/2026', 800, '07/04/2026', 900, 'BCBS', 'H', 1],
+      [45, 'IPX', 'CONTROL, TEST', 'IP', '08/10/2026', 800, '08/12/2026', 900, 'BCBS', 'H', 1]
+    ];
+    var s = fixtures.run(UR, { matrix: matrix });
+    assert.equal(s.metrics.census.RESPITE_001.value, 2, 'both RP rows count, period or not');
+    assert.deepEqual(s.metrics.census.RESPITE_001.accounts.slice().sort(), ['RP1', 'RP2']);
+    assert.equal(s.metrics.inpatient.IP_ADM_001.value, 1, 'RP rows are not admissions');
+    assert.equal(s.metrics.census.PATIENT_CNT_001.value, 1, 'RP rows are not patients in the count');
+    assert.equal(s.metrics.census.PD_EQ_001.value > 0 && s.metrics.census.PD_MN_001.value, 2,
+      'occupancy comes from the control stay only');
+    assert.ok(!s.diagnostics.all().some(function (d) { return d.ruleId === 'DQ_SVC_UNKNOWN'; }),
+      'RP is a recognized code, never an unknown-code warning');
+    assert.equal(s.counts.ignored, 2, 'RP rows land in the ignored-by-policy census');
+  });
+
+  test('a run with no RP rows reports zero', function () {
+    assert.equal(m.census.RESPITE_001.value, 0);
   });
 });
 

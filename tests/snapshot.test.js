@@ -52,7 +52,7 @@ describe('workbook session snapshot', function () {
 
   test('the workbook still opens as a spreadsheet with every sheet', function () {
     var wb = XLSX.read(withSnap, { type: 'array' });
-    assert.equal(wb.SheetNames.length, 18);
+    assert.equal(wb.SheetNames.length, 17);
     var ct = Buffer.from(UR.zipPatch.entryData(withSnap, '[Content_Types].xml')).toString('utf8');
     assert.ok(ct.indexOf('Extension="json"') >= 0, 'the part is covered by a content type');
   });

@@ -332,7 +332,7 @@
       thresholds: [t('Observation threshold 1 (hours)', 'thresholds.obsThresholdHours.0')],
       nullHandling: 'Open encounters are excluded.',
       sourceRefs: ['R3'],
-      notes: 'The 24-hour mark is also the MOON manual-check screening point for Medicare beneficiaries.',
+      notes: 'The 24-hour mark is the operational escalation point for observation stays.',
       implementationKey: 'metrics.observation.overThreshold'
     }),
 
@@ -662,6 +662,20 @@
       nullHandling: 'Records without a Patient ID are counted separately as a data-quality warning rather than pooled into one pseudo-patient.',
       notes: '(v1.2: stays that only partly overlap the period now count; previously only stays ADMITTED inside the period did. v1.3: same-name records with ages one year apart merge as one patient - a birthday inside the data range - with every merge noted on the review queue.)',
       implementationKey: 'metrics.census.uniquePatients'
+    }),
+
+    rule({
+      id: 'RESPITE_001',
+      name: 'Respite-care rows uploaded',
+      classification: C.OPERATIONAL,
+      definition: 'Count of uploaded rows carrying service code RP (respite care). Respite rows join NO other figure - no admission, LOS, occupancy, patient, episode, or review count.',
+      formula: 'count(rows where service code = RP), over everything uploaded - not filtered by the reporting period',
+      inputs: ['Service code'],
+      inclusions: ['Every uploaded row whose service code is RP, regardless of dates or period.'],
+      exclusions: ['Nothing: the count is unconditional so respite volume is never invisible.'],
+      nullHandling: 'Zero when no RP row was uploaded.',
+      notes: 'RP ships in the service-code table as a recognized, deliberately IGNORED code: it never surfaces as an unknown-code warning and never joins a utilization figure. This count is the only place it appears.',
+      implementationKey: 'metrics.census.respiteRows'
     }),
 
     /* ------------------------------------------------ readmission indicators */

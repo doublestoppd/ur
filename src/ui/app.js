@@ -976,7 +976,7 @@
           type: 'checkbox', checked: ui.insuranceNeedsCheck ? true : null,
           onchange: function (ev) { ui.insuranceNeedsCheck = ev.target.checked; renderRules(); }
         }),
-        /* These are the rows that decide the IMM, MOON, and two-midnight lists. */
+        /* These are the rows that decide the two-midnight review list. */
         doc.createTextNode(' Only Medicare rows')
       ])
     ]);
@@ -1076,7 +1076,6 @@
       ['Observation thresholds (hours)', editList(th, 'obsThresholdHours', function () { markConfigChanged(); }), ruleLinkList('OS_24_001, OS_36_001, OS_48_001, RQ_OS_*')],
       ['One-day stay ceiling (hours)', editNumber(th, 'oneDayStayHours', function () { markConfigChanged(); }), ruleLinkList('IP_SHORT_001, RQ_1DAY')],
       ['Short-stay midnight threshold', editNumber(th, 'shortStayMidnights', function () { markConfigChanged(); }), ruleLinkList('IP_2MN_001, RQ_SHORT_MCR')],
-      ['MOON screening threshold (hours)', editNumber(th, 'moonThresholdHours', function () { markConfigChanged(); }), ruleLinkList('RQ_MOON')],
       ['Readmission windows (days)', editList(th, 'readmissionWindowDays', function () { markConfigChanged(); }), ruleLinkList('READMIT_7_001, READMIT_30_001, READMIT_MCR_001')]
     ]));
     return wrap;
@@ -1710,7 +1709,9 @@
       metricRow('Time-weighted ADC', num(m.census.ADC_EQ_001.value, 2), '', 'Over ' + state.period.days + ' calendar days', 'ADC_EQ_001'),
       metricRow('Midnight ADC', num(m.census.ADC_MN_001.value, 2), '', 'Over ' + state.period.days + ' calendar days', 'ADC_MN_001'),
       metricRow('Deaths', withPct(m.payer.DEATH_001.value, m.payer.DEATH_001.percent), '', 'Of discharges in the period', 'DEATH_001',
-        function () { showRows('DEATH_001 - deaths', m.payer.DEATH_001.encounters); })
+        function () { showRows('DEATH_001 - deaths', m.payer.DEATH_001.encounters); }),
+      metricRow('Respite-care rows uploaded (RP)', m.census.RESPITE_001.value, '',
+        'Counted across everything uploaded; excluded from every other figure', 'RESPITE_001')
     ]);
 
     /* --------------------------------------------------------- readmission */

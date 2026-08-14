@@ -41,7 +41,7 @@
       name: 'Observation longer than 24 hours',
       classification: C.OPERATIONAL,
       trigger: 'Observation duration greater than 24 hours.',
-      definition: 'Observation accounts past the 24-hour mark, useful for status review and Medicare notice screening. Accounts still open at export time are included with their elapsed time measured to the as-of datetime, so a patient currently in observation is not missed. The work list covers every stay in scope for the period: stays that overlap it even partly AND stays counted in this period\'s discharged-stay figures by the period basis (v1.2 - previously the discharged rows followed the count metric only). A row outside the discharged-stay COUNT metric says so in its detail.',
+      definition: 'Observation accounts past the 24-hour mark, useful for status review. Accounts still open at export time are included with their elapsed time measured to the as-of datetime, so a patient currently in observation is not missed. The work list covers every stay in scope for the period: stays that overlap it even partly AND stays counted in this period\'s discharged-stay figures by the period basis (v1.2 - previously the discharged rows followed the count metric only). A row outside the discharged-stay COUNT metric says so in its detail.',
       formula: 'observationHours > thresholds.obsThresholdHours[0]; for open accounts, hours are measured from admission to the as-of datetime',
       thresholds: [t('Observation threshold 1 (hours)', 'thresholds.obsThresholdHours.0')],
       fields: ['Account', 'Patient ID', 'Patient name', 'Payer category', 'Admit', 'Discharge', 'Observation hours'],
@@ -165,35 +165,6 @@
       sourceRefs: ['HOSP'],
       notes: DISCLAIMER + ' An internal operational indicator, not a CMS readmission measure.',
       relatedRules: ['READMIT_30_001', 'READMIT_MCR_001']
-    },
-    {
-      id: 'RQ_IMM', version: '1.2', priority: 30,
-      name: 'IMM manual check candidate',
-      classification: C.REGULATORY,
-      trigger: 'Medicare FFS or MA acute inpatient stay in scope during the period.',
-      definition: 'Lists every mapped Medicare FFS and Medicare Advantage acute inpatient stay in scope for the period - overlapping it even partly, or counted in this period\'s discharged-stay figures (v1.2) - as a candidate for manual Important Message verification.',
-      formula: 'serviceClass = IP and payerCategory in {Medicare FFS, Medicare Advantage} and the stay interval overlaps the period, where the category comes from the hospital insurance table',
-      thresholds: [],
-      fields: ['Account', 'Patient ID', 'Patient name', 'Payer category', 'Admit', 'Discharge', 'LOS hours', 'Follow-up copy due window'],
-      sourceRefs: ['R4'],
-      notes: 'ELIGIBILITY LIST ONLY - THIS IS NOT PROOF OF DELIVERY. CPSI cannot export scanned or signed notice status, so the tool cannot verify that an Important Message was delivered, signed, or that any required follow-up copy was issued. Every listed account still requires manual confirmation.',
-      relatedRules: []
-    },
-    {
-      id: 'RQ_MOON', version: '1.2', priority: 30,
-      name: 'MOON manual check candidate',
-      classification: C.REGULATORY,
-      trigger: 'Medicare FFS or MA observation account exceeding 24 hours, in scope during the period.',
-      definition: 'Lists mapped Medicare observation accounts past 24 hours, showing the 24- and 36-hour milestones. Accounts still open at export time are included, measured to the as-of datetime. The work list covers stays that overlap the period even partly and stays counted in this period\'s discharged-stay figures (v1.2).',
-      formula: 'serviceClass = OS and payerCategory in {Medicare FFS, Medicare Advantage} and observationHours > thresholds.moonThresholdHours; for open accounts, hours are measured from admission to the as-of datetime',
-      thresholds: [
-        t('MOON screening threshold (hours)', 'thresholds.moonThresholdHours'),
-        t('Escalated observation threshold (hours)', 'thresholds.obsThresholdHours.1')
-      ],
-      fields: ['Account', 'Patient ID', 'Patient name', 'Payer category', 'Admit', 'Discharge', 'Observation hours', 'Past 24h', 'Past 36h'],
-      sourceRefs: ['R3'],
-      notes: 'ELIGIBILITY LIST ONLY - THIS IS NOT PROOF OF DELIVERY. CPSI cannot export scanned or signed MOON status. Timing requirements are policy-driven and must be verified against current CMS guidance and hospital procedure.',
-      relatedRules: ['OS_24_001']
     },
     {
       id: 'RQ_TRANSITION', version: '1.1', priority: 20,

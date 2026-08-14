@@ -125,7 +125,7 @@ describe('chart images in the exported workbook', function () {
   test('the workbook with graphs still opens and keeps every sheet', function () {
     var bytes = UR.workbookBuilder.toBytes(state, 'test', { chartImages: images(1) });
     var wb = XLSX.read(bytes, { type: 'array' });
-    assert.equal(wb.SheetNames.length, 19, '18 standard sheets plus Graphs');
+    assert.equal(wb.SheetNames.length, 18, '17 standard sheets plus Graphs');
     assert.equal(wb.SheetNames[3], 'Graphs');
     var text = XLSX.utils.sheet_to_csv(wb.Sheets.Graphs);
     assert.ok(text.indexOf('Chart 0') >= 0, 'the caption block is on the sheet');

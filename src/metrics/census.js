@@ -132,7 +132,24 @@
         PATIENT_CNT_001: {
           value: uniquePatients,
           missingMrnRecords: missingMrn
-        }
+        },
+        /*
+         * Respite-care rows (service code RP) are deliberately excluded from
+         * every utilization figure; this count exists so their presence in
+         * the upload is visible rather than silently absorbed. Counted over
+         * everything uploaded, not period-filtered.
+         */
+        RESPITE_001: (function () {
+          var rows = [];
+          for (var r = 0; r < encounters.length; r++) {
+            var raw = String(encounters[r].serviceRaw || '').trim().toUpperCase();
+            if (raw === 'RP') { rows.push(encounters[r]); }
+          }
+          return {
+            value: rows.length,
+            accounts: scope.accounts(rows)
+          };
+        })()
       };
     }
   };

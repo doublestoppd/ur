@@ -26,7 +26,7 @@ var SPEC_CALCULATION_RULES = [
 
 var SPEC_REVIEW_RULES = [
   'RQ_IP_GT4', 'RQ_OS_24', 'RQ_OS_36', 'RQ_OS_48', 'RQ_OS_IP', 'RQ_IP_SB', 'RQ_SB_IP',
-  'RQ_SHORT_MCR', 'RQ_1DAY', 'RQ_READMIT_7', 'RQ_READMIT_30', 'RQ_IMM', 'RQ_MOON',
+  'RQ_SHORT_MCR', 'RQ_1DAY', 'RQ_READMIT_7', 'RQ_READMIT_30',
   'RQ_TRANSITION', 'RQ_DATA'
 ];
 
@@ -113,8 +113,6 @@ describe('calculation rule registry', function () {
     regulatory.forEach(function (r) {
       assert.ok(r.notes && r.notes.length > 40, r.id + ' must carry a limitation note');
     });
-    assert.includes(UR.reviewRules.byId('RQ_IMM').notes, 'NOT PROOF OF DELIVERY');
-    assert.includes(UR.reviewRules.byId('RQ_MOON').notes, 'NOT PROOF OF DELIVERY');
     assert.includes(UR.reviewRules.byId('RQ_SHORT_MCR').notes, 'DO NOT LABEL THESE INAPPROPRIATE');
   });
 
@@ -163,7 +161,7 @@ describe('configuration', function () {
   test('defaults ship with the hospital reference tables', function () {
     var config = UR.configSchema.defaults();
     var services = config.serviceCodes.map(function (r) { return r.code; });
-    assert.deepEqual(services, ['IP', 'OS', 'SB']);
+    assert.deepEqual(services, ['IP', 'OS', 'SB', 'RP']);
 
     var codes = config.dischargeCodes.map(function (r) { return r.code; });
     ['A', 'B', 'C', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'X', 'Z']

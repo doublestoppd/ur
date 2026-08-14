@@ -251,8 +251,8 @@ describe('insurance table', function () {
   /*
    * The hospital files Medicare supplement plans under Commercial/Managed Care,
    * not under Medicare. That is deliberate and it matters: a Medigap account is
-   * therefore NOT on the IMM or MOON lists. Asserting it here so the decision
-   * survives any future tidy-up of the payer table.
+   * therefore NOT a two-midnight review candidate. Asserting it here so the
+   * decision survives any future tidy-up of the payer table.
    */
   test('Medicare supplement plans are Commercial, and stay off the Medicare lists', function () {
     ['D4', 'D4R', 'DB4', 'DS', 'DCE'].forEach(function (code) {
@@ -268,8 +268,8 @@ describe('insurance table', function () {
     ];
     var s = fixtures.run(UR, { matrix: matrix, config: UR.configSchema.defaults() });
     assert.equal(s.encounters[0].payerCategory, UR.PAYER_CATEGORY.COMMERCIAL);
-    assert.equal(s.reviewQueue.counts.RQ_IMM, 0, 'a Medigap inpatient is not an IMM candidate');
-    assert.equal(s.metrics.inpatient.IP_2MN_001.value, 0, 'nor a two-midnight review candidate');
+    assert.equal(s.metrics.inpatient.IP_2MN_001.value, 0, 'a Medigap inpatient is not a two-midnight review candidate');
+    assert.equal(s.reviewQueue.counts.RQ_SHORT_MCR, 0, 'and produces no Medicare short-stay row');
   });
 
   test('the Medicare sets are small and specific', function () {
@@ -326,12 +326,11 @@ describe('insurance table', function () {
       [49, 'MO1', 'OBS, TEST', 'OS', '08/16/2026', 600, '08/18/2026', 600, 'MB', 'H', '04']
     ];
     var s = fixtures.run(UR, { matrix: matrix, config: config });
-    var imm = s.reviewQueue.rows.filter(function (r) { return r.ruleId === 'RQ_IMM'; });
-    assert.equal(imm.length, 2, 'the Medicare FFS and Medicare Advantage inpatients, not the commercial one');
-    var moon = s.reviewQueue.rows.filter(function (r) { return r.ruleId === 'RQ_MOON'; });
-    assert.equal(moon.length, 1, 'the 48-hour Medicare observation stay');
-    assert.equal(moon[0].account, 'MO1');
+    var shortMcr = s.reviewQueue.rows.filter(function (r) { return r.ruleId === 'RQ_SHORT_MCR'; });
+    assert.equal(shortMcr.length, 2, 'the Medicare FFS and Medicare Advantage inpatients, not the commercial one');
     assert.equal(s.metrics.inpatient.IP_2MN_001.value, 2, 'both Medicare inpatients cross one midnight');
+    var os36 = s.reviewQueue.rows.filter(function (r) { return r.ruleId === 'RQ_OS_36' && r.account === 'MO1'; });
+    assert.equal(os36.length, 1, 'the 48-hour observation stay is on the escalated-observation list');
   });
 
   test('the code inventory reports the shipped mappings against real data', function () {

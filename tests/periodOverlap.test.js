@@ -64,11 +64,11 @@ describe('boundary-crossing stays in period figures', function () {
       'both patients are in scope during August');
   });
 
-  test('the boundary-crossing Medicare stay is an IMM candidate', function () {
-    var imm = s.reviewQueue.rows.filter(function (r) { return r.ruleId === 'RQ_IMM'; });
-    assert.ok(imm.some(function (r) { return r.account === 'X001'; }),
-      'X001 overlaps the period and belongs on the IMM list');
-    assert.ok(imm.some(function (r) { return r.account === 'X002'; }));
+  test('the boundary-crossing stay is in scope for work lists', function () {
+    var inScope = UR.scope.inScopeInPeriod(s.encounters, UR.SERVICE.IP, s.period);
+    assert.ok(inScope.some(function (e) { return e.account === 'X001'; }),
+      'X001 overlaps the period and is in scope');
+    assert.ok(inScope.some(function (e) { return e.account === 'X002'; }));
   });
 
   test('the admission event itself stays outside the period', function () {

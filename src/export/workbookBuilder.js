@@ -713,30 +713,6 @@
       return makeSheet(rows, { maxWidth: 40 });
     },
 
-    /* ----------------------------------------------------- Notice Review */
-    noticeReview: function (state) {
-      var cfg = state.config;
-      var rows = [];
-      rows.push(TITLE(['MEDICARE NOTICE MANUAL-CHECK CANDIDATES']));
-      rows.push(NOTE(['This worksheet lists accounts that objectively QUALIFY for a notice review. It is not proof of delivery.']));
-      rows.push(NOTE(['CPSI cannot export scanned or signed notice status, so completion, timing, and signature must be verified manually for every row (R3, R4).']));
-      rows.push([]);
-      rows.push(HDR(['Rule ID', 'Notice', 'Account', 'Patient ID'].concat(nameCols(cfg)).concat(
-        ['Service', 'Payer category', 'Admit', 'Discharge', 'Open', 'Hours', 'Detail'])));
-      var qrows = state.reviewQueue.rows;
-      var found = 0;
-      for (var i = 0; i < qrows.length; i++) {
-        var r = qrows[i];
-        if (r.ruleId !== 'RQ_IMM' && r.ruleId !== 'RQ_MOON') { continue; }
-        found++;
-        rows.push([r.ruleId, r.ruleId === 'RQ_IMM' ? 'Important Message from Medicare' : 'Medicare Outpatient Observation Notice',
-          r.account, r.mrn].concat(nameVal(cfg, r.patientName)).concat(
-          [r.service, r.payerCategory, D(r.admit), D(r.discharge), yn(r.isOpen), N(r.measure), r.detail]));
-      }
-      if (!found) { rows.push(['No account met the objective notice-eligibility criteria for this period.']); }
-      return makeSheet(rows, { autofilter: true, headerRow: 5, maxWidth: 70 });
-    },
-
     /* -------------------------------------------------------- Data Quality */
     dataQuality: function (state) {
       var rows = [];
@@ -857,7 +833,6 @@
       rows.push(['Observation thresholds (hours)', cfg.thresholds.obsThresholdHours.join(', ')]);
       rows.push(['One-day stay ceiling (hours)', cfg.thresholds.oneDayStayHours]);
       rows.push(['Short-stay midnight threshold', cfg.thresholds.shortStayMidnights]);
-      rows.push(['MOON screening threshold (hours)', cfg.thresholds.moonThresholdHours]);
       rows.push(['Readmission windows (days)', cfg.thresholds.readmissionWindowDays.join(', ')]);
       rows.push(['Maximum transition gap (minutes)', cfg.transition.maxGapMinutes]);
       rows.push(['Overlap tolerance (minutes)', cfg.transition.overlapToleranceMinutes]);
@@ -962,8 +937,6 @@
           desc: 'Utilization by payer category and by raw insurance code.' },
         { name: 'Disposition & Source', group: 'Summary', freeze: 0, ws: workbookBuilder.dispositionAndSource(state),
           desc: 'Dispositions, deaths, admission sources, day-of-week, LOS distribution.' },
-        { name: 'Notice Review', group: 'Review', freeze: 5, ws: workbookBuilder.noticeReview(state),
-          desc: 'IMM / MOON manual-check candidates. Not proof of delivery.' },
         { name: 'Data Quality', group: 'Quality', freeze: 2, ws: workbookBuilder.dataQuality(state),
           desc: 'Every diagnostic raised, summarized by rule and listed as findings.' },
         { name: 'Code Inventory', group: 'Quality', freeze: 3, ws: workbookBuilder.codeInventory(state),

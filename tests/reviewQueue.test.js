@@ -47,32 +47,6 @@ describe('review queue', function () {
     assert.ok(sbip.some(function (r) { return r.account === 'A103' && r.relatedAccount === 'A104'; }));
   });
 
-  test('IMM candidates are every mapped Medicare inpatient stay in scope', function () {
-    var imm = rowsFor('RQ_IMM');
-    /* v1.2 semantics: stays overlapping the period or counted in its
-     * discharged-stay figures, not just admissions inside it. */
-    var expected = UR.scope.inScopeOrCounted(state.encounters, UR.SERVICE.IP, fixtures.buildConfig(UR), state.period)
-      .filter(function (e) { return UR.util.contains(UR.MEDICARE_CATEGORIES, e.payerCategory); });
-    assert.equal(imm.length, expected.length);
-    imm.forEach(function (r) {
-      assert.ok(UR.util.contains(UR.MEDICARE_CATEGORIES, r.payerCategory));
-      assert.includes(r.detail, 'Manual verification required');
-    });
-  });
-
-  test('MOON candidates require Medicare and the hour threshold', function () {
-    var moon = rowsFor('RQ_MOON');
-    assert.ok(moon.length >= 1);
-    moon.forEach(function (r) {
-      assert.equal(r.service, UR.SERVICE.OS);
-      assert.ok(UR.util.contains(UR.MEDICARE_CATEGORIES, r.payerCategory));
-      assert.ok(r.measure > state.config.thresholds.moonThresholdHours);
-      assert.includes(r.detail, 'Manual verification required');
-    });
-    var selfPayObs = moon.filter(function (r) { return r.account === 'B601'; });
-    assert.equal(selfPayObs.length, 0, 'a self-pay 72-hour observation is not a MOON candidate');
-  });
-
   test('an observation patient still in house past the threshold is flagged', function () {
     var matrix = [
       fixtures.HEADERS.slice(),

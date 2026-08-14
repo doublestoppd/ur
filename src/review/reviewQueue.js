@@ -135,46 +135,6 @@
     RQ_READMIT_7: function (ctx) { return readmissionRows(ctx, 'RQ_READMIT_7', ctx.config.thresholds.readmissionWindowDays[0]); },
     RQ_READMIT_30: function (ctx) { return readmissionRows(ctx, 'RQ_READMIT_30', ctx.config.thresholds.readmissionWindowDays[1]); },
 
-    RQ_IMM: function (ctx) {
-      var rows = [];
-      /* In scope = the stay overlaps the period (even partially) or is
-       * counted in this period's discharged-stay figures. */
-      var list = scope.inScopeOrCounted(ctx.encounters, UR.SERVICE.IP, ctx.config, ctx.period);
-      for (var i = 0; i < list.length; i++) {
-        var e = list[i];
-        if (!isMedicare(e)) { continue; }
-        rows.push(baseRow('RQ_IMM', e, {
-          measure: e.durationHours,
-          measureLabel: 'LOS hours',
-          detail: 'Medicare inpatient admission (' + e.payerCategory + '). Manual verification required: the export cannot show whether the Important Message was delivered or signed.'
-        }));
-      }
-      return rows;
-    },
-
-    RQ_MOON: function (ctx) {
-      var rows = [];
-      var threshold = ctx.config.thresholds.moonThresholdHours;
-      var escalated = ctx.config.thresholds.obsThresholdHours[1];
-      var list = scope.inScopeOrCounted(ctx.encounters, UR.SERVICE.OS, ctx.config, ctx.period);
-      for (var i = 0; i < list.length; i++) {
-        var e = list[i];
-        if (!isMedicare(e)) { continue; }
-        var hours = e.isOpen ? openHours(e, ctx.period) : e.durationHours;
-        if (hours === null || hours <= threshold) { continue; }
-        rows.push(baseRow('RQ_MOON', e, {
-          measure: hours,
-          measureLabel: 'Observation hours',
-          detail: util.round(hours, 1) + ' observation hours' + (e.isOpen ? ' and still open at ' + util.fmtDateTime(ctx.period.asOf) : '') +
-                  '; past ' + threshold + 'h' + (hours > escalated ? ', past ' + escalated + 'h' : '') +
-                  '. Manual verification required: the export cannot show whether a MOON was delivered or signed.',
-          past24: hours > threshold,
-          past36: hours > escalated
-        }));
-      }
-      return rows;
-    },
-
     RQ_TRANSITION: function (ctx) {
       var rows = [];
       var byRowId = {};
@@ -258,7 +218,7 @@
     var i, e;
 
     /*
-     * The WORK LIST is overlap-gated, like RQ_MOON: any observation stay in
+     * The WORK LIST is overlap-gated: any observation stay in
      * scope during the period that passed the threshold belongs on it,
      * including stays whose counting date (losBasis) falls outside the
      * period. The OS_24/36/48 COUNT metrics stay anchored on discharged

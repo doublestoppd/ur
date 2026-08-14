@@ -102,7 +102,7 @@ describe('conversion-rate boundary consistency', function () {
 
 describe('review work-list gating', function () {
 
-  test('a threshold-crossing OS stay reaching past the period end is on RQ_OS and MOON alike', function () {
+  test('a threshold-crossing OS stay reaching past the period end is on the RQ_OS lists', function () {
     var s = fixtures.run(UR, { matrix: [
       fixtures.HEADERS.slice(),
       [62, 'H1', 'CROSSEND, TEST', 'OS', '08/30/2026', 800, '09/01/2026', 1000, 'MCR', 'H', 1]
@@ -111,21 +111,20 @@ describe('review work-list gating', function () {
     function rows(id) { return s.reviewQueue.rows.filter(function (r) { return r.ruleId === id; }); }
     assert.ok(rows('RQ_OS_24').some(function (r) { return r.account === 'H1'; }), 'on the 24h list');
     assert.ok(rows('RQ_OS_48').some(function (r) { return r.account === 'H1'; }), 'on the 48h list');
-    assert.ok(rows('RQ_MOON').some(function (r) { return r.account === 'H1'; }), 'on the MOON list');
     assert.equal(s.metrics.observation.OS_24_001.value, 0,
       'the COUNT metric stays anchored on the discharge date');
     var row = rows('RQ_OS_24').filter(function (r) { return r.account === 'H1'; })[0];
     assert.includes(row.detail, 'outside the discharged-stay COUNT metric');
   });
 
-  test('a Medicare stay discharged exactly at the period start stays on the IMM list', function () {
+  test('a stay discharged exactly at the period start is still in work-list scope', function () {
     var s = fixtures.run(UR, { matrix: [
       fixtures.HEADERS.slice(),
       [64, 'I1', 'MIDDIS, TEST', 'IP', '07/20/2026', 800, '08/01/2026', '', 'MCR', 'H', 1]
     ]});
-    var imm = s.reviewQueue.rows.filter(function (r) { return r.ruleId === 'RQ_IMM'; });
-    assert.ok(imm.some(function (r) { return r.account === 'I1'; }),
-      'counted in this period\'s discharged-stay figures, so on the work list');
+    var listed = UR.scope.inScopeOrCounted(s.encounters, UR.SERVICE.IP, fixtures.buildConfig(UR), s.period);
+    assert.ok(listed.some(function (e) { return e.account === 'I1'; }),
+      'counted in this period\'s discharged-stay figures, so in work-list scope');
   });
 });
 

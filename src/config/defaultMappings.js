@@ -19,7 +19,11 @@
   var SERVICE_CODES = [
     { code: 'IP', label: 'Acute inpatient', behavior: SERVICE.IP, enabled: true },
     { code: 'OS', label: 'Observation', behavior: SERVICE.OS, enabled: true },
-    { code: 'SB', label: 'Swing bed', behavior: SERVICE.SB, enabled: true }
+    { code: 'SB', label: 'Swing bed', behavior: SERVICE.SB, enabled: true },
+    /* Respite care is recognized so it never surfaces as an unknown code, and
+     * deliberately ignored so it joins no utilization figure; RESPITE_001
+     * counts the rows so their presence is still visible. */
+    { code: 'RP', label: 'Respite care', behavior: SERVICE.IGNORED, enabled: true }
   ];
 
   /* ------------------------------------------------------- discharge codes */
@@ -155,7 +159,6 @@
     obsThresholdHours: [24, 36, 48],
     oneDayStayHours: 24,         /* IP_SHORT_001 / RQ_1DAY upper bound */
     shortStayMidnights: 2,       /* IP_2MN_001: fewer than 2 midnights (R5) */
-    moonThresholdHours: 24,      /* MOON manual-check candidate threshold (R3) */
     readmissionWindowDays: [7, 30],
     losBands: [
       { label: '<= 1 day', minHours: 0, maxHours: 24 },
