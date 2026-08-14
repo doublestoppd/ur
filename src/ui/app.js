@@ -267,6 +267,21 @@
           resolve({ fileName: file.name, snapshot: snapshot, error: null, sheets: [] });
           return;
         }
+        /* A PDF is expected to be the CPSI Service Log (CNSERVLOG) report. */
+        if (UR.pdfText.isPdf(data)) {
+          var lines = UR.pdfText.extractLines(data);
+          if (!lines.length) {
+            resolve({ fileName: file.name, error: 'No text could be extracted from this PDF. A scanned report has no text layer; export the report from CPSI directly to PDF instead.', sheets: [] });
+            return;
+          }
+          var log = UR.serviceLogParser.parse(lines);
+          if (!log.ok) {
+            resolve({ fileName: file.name, error: 'This PDF is not a recognized CPSI Service Log (CNSERVLOG) report. Only that report is supported as a PDF.', sheets: [] });
+            return;
+          }
+          resolve({ fileName: file.name, serviceLog: log, error: null, sheets: [] });
+          return;
+        }
         resolve(UR.spreadsheetReader.readFile(file.name, data));
       };
       reader.onerror = function () {
@@ -357,6 +372,25 @@
     ui.periodTouched = !!(snap.period && snap.period.touched);
     ui.manualObservations = (snap.manualObservations || []).map(function (m) {
       return { account: m.account, osAdmitDT: new Date(m.osAdmit), osDischargeDT: new Date(m.osDischarge) };
+    });
+    (snap.serviceLogs || []).forEach(function (s) {
+      ui.files.push({
+        fileName: s.fileName,
+        restored: true,
+        error: null,
+        sheets: [],
+        serviceLog: {
+          ok: true,
+          reportRange: s.reportRange || '',
+          facility: s.facility || '',
+          rows: (s.rows || []).map(function (r) {
+            return { account: r.account, name: r.name, from: r.from, to: r.to,
+                     changeDT: r.change ? new Date(r.change) : null,
+                     rawDate: r.rawDate, rawTime: r.rawTime, initials: r.initials };
+          }),
+          unparsed: s.unparsed || []
+        }
+      });
     });
     ui.state = null;
     return true;
@@ -463,6 +497,19 @@
 
       if (file.error) {
         card.appendChild(el('div', { class: 'msg msg-error', text: file.error }));
+      } else if (file.serviceLog) {
+        var osip = file.serviceLog.rows.filter(function (r) { return r.from === 'OS' && r.to === 'IP'; });
+        var others = file.serviceLog.rows.length - osip.length;
+        card.appendChild(el('div', { class: 'file-meta', text:
+          'CPSI Service Log (CNSERVLOG)' +
+          (file.serviceLog.reportRange ? ' | ' + file.serviceLog.reportRange : '') +
+          ' | ' + osip.length + ' OS -> IP change(s)' +
+          (others ? ' | ' + others + ' row(s) with other service pairs, not applied' : '') +
+          (file.serviceLog.unparsed.length ? ' | ' + file.serviceLog.unparsed.length + ' line(s) not readable as rows' : '') }));
+        card.appendChild(el('div', { class: 'muted', text:
+          'Each OS -> IP row becomes an observation segment on the matching inpatient account: ' +
+          'an <account>-MANUAL observation account from the account\'s admission to the change moment, with the inpatient admission moved to the change moment. ' +
+          'Rows without a matching imported IP account are reported after processing.' }));
       } else {
         var source = ui.sources.filter(function (s) { return s.fileName === file.fileName; })[0];
         var meta = el('div', { class: 'file-meta' });
@@ -1073,8 +1120,31 @@
       options.periodStart = parseDateInput(startValue);
       options.periodEnd = parseDateInput(endValue);
     }
-    if (ui.manualObservations.length) {
-      options.manualObservations = ui.manualObservations;
+    /*
+     * Observation segments come from two places: typed entries, and OS -> IP
+     * rows parsed out of imported CPSI Service Log PDFs. A typed entry for an
+     * account outranks the report's row for the same account, so an operator
+     * correction is never overwritten by a re-read of the PDF.
+     */
+    var manualEntries = ui.manualObservations.slice();
+    var manualAccounts = {};
+    manualEntries.forEach(function (m) { manualAccounts[m.account] = true; });
+    ui.files.forEach(function (file) {
+      if (!file.serviceLog) { return; }
+      file.serviceLog.rows.forEach(function (row) {
+        if (row.from !== 'OS' || row.to !== 'IP') { return; }
+        if (manualAccounts[row.account] || !row.changeDT) { return; }
+        manualAccounts[row.account] = true;
+        manualEntries.push({
+          account: row.account,
+          osAdmitDT: null, /* the observation began when the account opened */
+          osDischargeDT: row.changeDT,
+          source: 'from the CPSI Service Log report ' + file.fileName
+        });
+      });
+    });
+    if (manualEntries.length) {
+      options.manualObservations = manualEntries;
     }
     ui.state = UR.pipeline.process(ui.sources, ui.config, options);
     return ui.state;
@@ -2143,6 +2213,19 @@
       },
       manualObservations: ui.manualObservations.map(function (m) {
         return { account: m.account, osAdmit: m.osAdmitDT.toISOString(), osDischarge: m.osDischargeDT.toISOString() };
+      }),
+      serviceLogs: ui.files.filter(function (f) { return f.serviceLog; }).map(function (f) {
+        return {
+          fileName: f.fileName,
+          reportRange: f.serviceLog.reportRange,
+          facility: f.serviceLog.facility,
+          rows: f.serviceLog.rows.map(function (r) {
+            return { account: r.account, name: r.name, from: r.from, to: r.to,
+                     change: r.changeDT ? r.changeDT.toISOString() : null,
+                     rawDate: r.rawDate, rawTime: r.rawTime, initials: r.initials };
+          }),
+          unparsed: f.serviceLog.unparsed
+        };
       })
     };
   }

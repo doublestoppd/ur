@@ -56,6 +56,9 @@
       if (!target) { refuse(entry, 'no imported account carries that number.'); continue; }
       if (target.serviceClass !== UR.SERVICE.IP) { refuse(entry, 'the account is ' + target.serviceClass + ', not IP.'); continue; }
       if (!target.metricEligible || !target.admitDT) { refuse(entry, 'the account is excluded from metrics, so a segment cannot attach to it.'); continue; }
+      /* A Service Log row supplies only the change moment; the observation
+       * began when the account was opened. */
+      if (!osAdmit && util.isDate(osDis)) { osAdmit = target.admitDT; }
       if (!util.isDate(osAdmit) || !util.isDate(osDis)) { refuse(entry, 'the observation datetimes are unusable.'); continue; }
       if (osDis.getTime() <= osAdmit.getTime()) { refuse(entry, 'the observation discharge must come after the observation admission.'); continue; }
       var originalAdmit = target.admitDT;
@@ -103,23 +106,27 @@
       }
       target.manualObsAdjusted = true;
 
+      var origin = entry.source || 'entered manually';
+      os.manualSource = entry.source || '';
+      target.manualSource = entry.source || '';
       state.manualObservationsApplied.push({
         account: entry.account,
         manualAccount: manualAccount,
         osAdmitDT: osAdmit,
         osDischargeDT: osDis,
-        admitMovedFrom: originalAdmit
+        admitMovedFrom: originalAdmit,
+        source: entry.source || ''
       });
 
       diag.addFor('DQ_MANUAL_OS', target, {
-        message: 'Account ' + entry.account + ': an observation segment was added MANUALLY as ' + manualAccount +
+        message: 'Account ' + entry.account + ': an observation segment (' + origin + ') was added as ' + manualAccount +
                  ' (' + util.fmtDateTime(osAdmit) + ' to ' + util.fmtDateTime(osDis) + '), and the inpatient admission was moved forward from ' +
                  util.fmtDateTime(originalAdmit) + ' to ' + util.fmtDateTime(osDis) + ' so the observation hours are not double-counted as inpatient time. ' +
                  'This entry lives only in this session; the durable fix is correcting the export or the source system.'
       });
       diag.addFor('DQ_MANUAL_OS', os, {
-        message: 'Account ' + manualAccount + ' is a MANUALLY ENTERED observation segment for account ' + entry.account +
-                 '; it exists in this session only and is not part of the imported export.'
+        message: 'Account ' + manualAccount + ' is an observation segment (' + origin + ') for account ' + entry.account +
+                 '; it exists in this session only and is not part of the imported spreadsheet export.'
       });
     }
   }

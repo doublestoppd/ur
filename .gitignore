@@ -4,8 +4,10 @@
 node_modules/
 *.log
 
-# Never commit real exports or compiled workbooks: they contain PHI.
+# Never commit real exports, compiled workbooks, or CPSI report PDFs: they
+# contain PHI.
 *.xlsx
 *.xls
 *.csv
+*.pdf
 !tests/fixtures/**

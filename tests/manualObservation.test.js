@@ -69,7 +69,7 @@ describe('manual observation segments', function () {
     assert.equal(notes.length, 2, 'a note on the IP account and one on the manual account');
     assert.ok(notes.some(function (d) { return d.message.indexOf('moved forward') >= 0; }));
     assert.ok(s.reviewQueue.rows.some(function (r) {
-      return r.ruleId === 'RQ_DATA' && r.detail.indexOf('MANUALLY') >= 0;
+      return r.ruleId === 'RQ_DATA' && r.detail.indexOf('entered manually') >= 0;
     }), 'the note reaches the review queue');
     assert.equal(s.manualObservationsApplied.length, 1);
     var built = UR.workbookBuilder.build(s, 'test');

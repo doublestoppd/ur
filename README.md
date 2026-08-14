@@ -296,7 +296,21 @@ synthetic `<account>-MANUAL` observation account carries it (linked as a normal
 OS → IP conversion), the IP admission moves forward to the observation
 discharge so the hours are not double-counted, and everything reprocesses.
 Entries are session-only, noted on the account and the review queue
-(`DQ_MANUAL_OS`), listed in Run Metadata, and removable with one click. The **Executive Summary** reads
+(`DQ_MANUAL_OS`), listed in Run Metadata, and removable with one click.
+
+**The CPSI Service Log PDF automates those segments.** The CNSERVLOG report
+(*Service Log for Service CD*, filtered to CHANGED FROM: OS / CHANGED TO: IP)
+documents each account's status-change moment, but CPSI only offers it as a
+PDF. Drop that PDF into the tool alongside the spreadsheet export: a
+self-contained text extractor (`src/import/inflate.js` + `pdfText.js`, no
+external libraries) reads it, `serviceLogParser.js` parses the rows, and every
+OS → IP change becomes an observation segment on the matching IP account
+automatically — observation from the account's opening to the change moment,
+inpatient from the change moment on. A typed manual entry for an account
+outranks the report's row; rows with no matching imported account are
+reported; a scanned (image-only) PDF is refused with an explanation. Like the
+spreadsheets, report PDFs are never committed to this repository — they
+contain PHI. The **Executive Summary** reads
 month by month - one column per calendar month of the reporting period, left to
 right, then a Total column for the whole period - and deliberately carries no
 Rule ID column: it is written for a reader, and every line's rule is documented
