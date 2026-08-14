@@ -62,7 +62,7 @@
     {
       key: 'admitTime', label: 'Admission time', cpsi: 'ipv1_ad_time', requirement: 'strong', degradable: true,
       use: 'Precise durations and transition timing.',
-      degradedEffect: 'Admission is assumed to occur at midnight. Hour-based metrics, the 4-minute-gap transition logic, and observation thresholds lose accuracy.',
+      degradedEffect: 'Admission is assumed to occur at midnight. Hour-based metrics, transition-gap matching, and observation thresholds lose accuracy.',
       aliases: ['ipv1_ad_time', 'admission time', 'admit time', 'adm time', 'ad time', 'time of admission']
     },
     {
@@ -80,7 +80,7 @@
     {
       key: 'insurance', label: 'Insurance code', cpsi: 'visit_ins', requirement: 'recommended', degradable: true,
       use: 'Mapped through the editable payer table into a payer category.',
-      degradedEffect: 'All payer-mix, Medicare notice, and two-midnight review rules are unavailable.',
+      degradedEffect: 'All payer-mix and two-midnight review rules are unavailable.',
       aliases: ['visit_ins', 'insurance', 'insurance code', 'ins code', 'ins', 'payer', 'payor', 'payer code', 'financial class', 'primary insurance']
     },
     {

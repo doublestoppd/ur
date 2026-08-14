@@ -653,9 +653,15 @@
 
         if (global.matchMedia) {
           var mq = global.matchMedia('(prefers-color-scheme: dark)');
-          var onTheme = function () { cards.forEach(function (c) { c.redraw(); }); };
-          if (mq.addEventListener) { mq.addEventListener('change', onTheme); }
-          else if (mq.addListener) { mq.addListener(onTheme); }
+          /* Replace, never accumulate: a stale listener would redraw cards
+           * that are no longer on the page. */
+          if (charts._onTheme) {
+            if (mq.removeEventListener) { mq.removeEventListener('change', charts._onTheme); }
+            else if (mq.removeListener) { mq.removeListener(charts._onTheme); }
+          }
+          charts._onTheme = function () { cards.forEach(function (c) { c.redraw(); }); };
+          if (mq.addEventListener) { mq.addEventListener('change', charts._onTheme); }
+          else if (mq.addListener) { mq.addListener(charts._onTheme); }
         }
       }
 

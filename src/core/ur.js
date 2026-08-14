@@ -116,7 +116,7 @@
     {
       id: 'R4',
       title: 'CMS - FFS & MA IM/DND',
-      note: 'The Important Message from Medicare applies to Medicare fee-for-service and Medicare Advantage hospital inpatients.',
+      note: 'The Important Message from Medicare. Retained for background only: the tool no longer builds notice candidate lists.',
       url: 'https://www.cms.gov/medicare/forms-notices/beneficiary-notices-initiative/ffs-ma-im'
     },
     {

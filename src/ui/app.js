@@ -45,13 +45,13 @@
   var STEPS = [
     { id: 'overview', label: 'Overview', group: 'work' },
     { id: 'results', label: 'Metrics', group: 'work' },
-    { id: 'review', label: 'Review Queue', group: 'work' },
+    { id: 'review', label: 'Review queue', group: 'work' },
     { id: 'accounts', label: 'Accounts', group: 'work' },
     { id: 'graphs', label: 'Graphs', group: 'work' },
     { id: 'export', label: 'Export', group: 'work' },
     { id: 'import', label: 'Import', group: 'setup' },
-    { id: 'map', label: 'Field Mapping', group: 'setup' },
-    { id: 'rules', label: 'Rules & Codes', group: 'setup' },
+    { id: 'map', label: 'Field mapping', group: 'setup' },
+    { id: 'rules', label: 'Rules & codes', group: 'setup' },
     { id: 'calcref', label: 'Reference', group: 'setup' }
   ];
 
@@ -243,15 +243,23 @@
 
   /* ----------------------------------------------------------------- modal */
 
+  var modalOpener = null;
+
   function openModal(title, bodyNode) {
     $('modal-title').textContent = title;
     var body = $('modal-body');
     clear(body);
     body.appendChild(bodyNode);
+    modalOpener = doc.activeElement;
     $('modal-backdrop').hidden = false;
+    $('modal-close').focus();
   }
 
-  function closeModal() { $('modal-backdrop').hidden = true; }
+  function closeModal() {
+    $('modal-backdrop').hidden = true;
+    if (modalOpener && modalOpener.focus) { modalOpener.focus(); }
+    modalOpener = null;
+  }
 
   /* ------------------------------------------------------- 1. file import */
 
@@ -555,12 +563,17 @@
         type: 'button', class: 'link',
         onclick: function () {
           ui.files.splice(index, 1);
-          ui.selection = {};
           ui.state = null;
-          $('period-start').value = '';
-          $('period-end').value = '';
-          ui.periodTouched = false;
           rebuildSources();
+          /* A hand-picked mapping and period only reset when NOTHING is left
+           * to apply them to; removing one of several files keeps both. */
+          if (!ui.sources.length) {
+            ui.selection = {};
+            $('period-start').value = '';
+            $('period-end').value = '';
+            ui.periodTouched = false;
+            ui.manualObservations = [];
+          }
           renderFileList();
         }
       }, ['Remove file']));
@@ -616,11 +629,14 @@
     }
     var errored = ui.files.filter(function (f) { return f.error; }).length;
     if (errored) { parts.push(errored + ' file(s) could not be read - see the cards above'); }
+    if (logs.length && !ui.sources.length) {
+      parts.push('no CPSI Ad Hoc export loaded yet - the Service Log needs the patient data to attach to');
+    }
 
     host.appendChild(el('div', { class: 'import-summary' }, [
       el('strong', { text: 'Imported so far: ' }),
       doc.createTextNode(parts.join('  |  ') || 'nothing usable yet'),
-      el('span', { class: 'hint', text: '  Nothing is processed until Process & review is pressed - add everything first.' })
+      el('span', { class: 'hint', text: '  Nothing is processed until you press Process & review or open a work screen - add everything first.' })
     ]));
   }
 
@@ -735,7 +751,7 @@
       });
       host.appendChild(el('p', { class: 'attn-ok', text:
         'Every column resolved: ' + mappedCount + ' of ' + UR.headerMapper.FIELDS.length +
-        ' canonical fields matched, nothing needs a decision.' }));
+        ' fields matched, nothing needs a decision.' }));
       var d = el('details', { class: 'fold', open: ui.mappingFoldOpen ? true : null }, [
         el('summary', null, ['Show every field assignment']),
         el('div', { class: 'fold-body' }, [wrapped])
@@ -945,7 +961,7 @@
   function renderInsuranceCodes() {
     var wrap = el('div');
     wrap.appendChild(el('p', { class: 'hint', text:
-      'Codes, names, and payer categories come from the hospital mapping. Payer category drives the Medicare notice and two-midnight review rules; ' +
+      'Codes, names, and payer categories come from the hospital mapping. Payer category drives the two-midnight review rule; ' +
       'an unmapped code reports as Unknown and is excluded from those rules rather than being guessed. ' +
       'Codes are CASE-SENSITIVE: this table contains pairs such as DCg and DCG that differ only in case and mean different payers. ' +
       'Rows the hospital marks Do Not Use are shipped disabled, so one appearing on a current account is reported rather than absorbed.' }));
@@ -961,6 +977,7 @@
       el('input', {
         type: 'search', value: ui.insuranceFilter || '',
         placeholder: 'Filter by code or plan name',
+        'aria-label': 'Filter insurance codes',
         oninput: function (ev) { ui.insuranceFilter = ev.target.value; renderRules(); }
       }),
       el('label', { class: 'inline-check' }, [
@@ -1825,7 +1842,7 @@
         title: 'Open account ' + r.account + ' in the Accounts view',
         onclick: function () { openAccount(r.account); }
       }, [
-        el('td', null, [el('strong', { text: r.account })]),
+        el('td', null, [accountLink(r.account) || el('strong', { text: r.account })]),
         el('td', { text: showNames ? (r.patientName || ('Patient ' + (r.mrn || '(no ID)'))) : (r.mrn || '(none)') }),
         el('td', { text: r.service }),
         el('td', { text: r.payerCategory }),
@@ -1960,7 +1977,7 @@
             t.dischargeCode || '-',
             t.gapMinutes === null || t.gapMinutes === undefined ? '-' : util.round(t.gapMinutes, 0) + ' min',
             t.sameDay === null || t.sameDay === undefined ? '-' : (t.sameDay ? 'Yes' : 'No'),
-            pill(t.confidence, accepted ? (t.confidence === UR.LINK_CONFIDENCE.CONFIRMED ? 'info' : 'warning') : 'warning'),
+            pill(t.confidence, accepted ? 'info' : 'warning'),
             t.issue || (accepted ? 'Accepted: exactly one account matched the expected service inside the configured tolerance.' : '')
           ];
         })));
@@ -2164,6 +2181,7 @@
 
     if (ui.state.blocked) {
       host.appendChild(el('div', { class: 'msg msg-blocking', text: 'Processing was blocked, so there is nothing to graph. Open the Overview to see why.' }));
+      status.textContent = '';
       $('btn-export-all-png').disabled = true;
       ui.chartCards = [];
       return;
@@ -2225,7 +2243,7 @@
         doc.createTextNode(dq.Error + ' error(s) and ' + dq.Warning + ' warning(s) will be exported with the workbook on the Data Quality worksheet.')
       ]));
     }
-    host.appendChild(el('p', { class: 'hint', text: 'The workbook contains 18 worksheets and opens on a linked Contents page. Tabs are color-grouped, header rows are frozen and filterable, and long tables are banded for reading across. It has no macros and no external links.' }));
+    host.appendChild(el('p', { class: 'hint', text: 'The workbook opens on a linked Contents page listing every worksheet. Tabs are color-grouped, header rows are frozen and filterable, and long tables are banded for reading across. It has no macros and no external links.' }));
     renderNav('export');
   }
 
@@ -2481,6 +2499,11 @@
     $('review-rule').addEventListener('change', function (ev) { ui.reviewRuleFilter = ev.target.value; renderReview(); });
     $('btn-to-export').addEventListener('click', function () { goTo('export'); });
     $('btn-back-results').addEventListener('click', function () { goTo('results'); });
+    $('btn-accounts-overview').addEventListener('click', function () { goTo('overview'); });
+    $('btn-accounts-review').addEventListener('click', function () { goTo('review'); });
+    $('btn-accounts-export').addEventListener('click', function () { goTo('export'); });
+    $('btn-graphs-metrics').addEventListener('click', function () { goTo('results'); });
+    $('btn-graphs-export').addEventListener('click', function () { goTo('export'); });
     $('btn-to-graphs').addEventListener('click', function () { goTo('graphs'); });
     $('btn-graphs-from-export').addEventListener('click', function () { goTo('graphs'); });
     $('account-search').addEventListener('input', renderAccounts);
@@ -2502,6 +2525,7 @@
 
     $('opt-exclude-names').addEventListener('change', function (e) {
       ui.config.processing.excludePatientNames = e.target.checked;
+      markConfigChanged();
     });
 
     $('btn-config-export').addEventListener('click', exportConfig);
