@@ -37,10 +37,12 @@ being treated as official compliance reporting.
 
 Nothing to install; no administrator rights, npm, Node, or Python needed.
 
-The routine monthly flow is two actions: **drop the export file, read the Overview.** Files
-whose columns are recognized process immediately; the Field Mapping screen appears only when
-the mapper actually needs a decision (a required column missing, or two columns equally
-plausible).
+The routine monthly flow: **drop every document for the period — the export file(s) and,
+if used, the Service Log PDF — press "Process & review", read the Overview.** The Import page
+keeps a running summary of what has been added (files, rows, admission spans, service-log
+changes) and never advances on its own, so nothing is compiled from half an upload. The Field
+Mapping screen appears only when the mapper actually needs a decision (a required column
+missing, or two columns equally plausible).
 
 The **Overview** leads with an attention digest — the short list of things that genuinely
 need a person, each line carrying a count and a button that jumps to the screen where it is
@@ -84,7 +86,7 @@ The hospital's own reference tables ship with the application:
 | Table | Contents |
 |---|---|
 | Service codes | IP, OS, SB |
-| Discharge codes | all 23, with the UB-04 patient discharge status in each label |
+| Discharge codes | all 24, with the UB-04 patient discharge status in each label |
 | Origin (admission source) codes | all 7, read from the `ipv1_origin` column (`origin_code` also accepted) |
 | Insurance codes | all 736, with the hospital's own payer categories |
 
