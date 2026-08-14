@@ -216,7 +216,7 @@
           header: claim.cand.header,
           index: idx,
           confidence: claim.cand.confidence,
-          basis: claim.cand.confidence === CONFIDENCE.EXACT_CPSI ? 'Exact CPSI field name'
+          basis: claim.cand.confidence === CONFIDENCE.EXACT_CPSI ? 'Exact CPSI name'
             : (claim.cand.confidence === CONFIDENCE.EXACT_ALIAS ? 'Known alias' : 'Partial header match')
         };
       }

@@ -721,7 +721,7 @@
       }
 
       var matchText = current
-        ? current.basis + (current.confidence ? ' (' + Math.round(current.confidence * 100) + '%)' : '')
+        ? current.basis
         : '-';
 
       var row = el('tr');
@@ -1125,8 +1125,11 @@
   /* ------------------------------------------------------- editor controls */
 
   function editText(row, key, onChange) {
+    /* The column decides the width: a code is a couple of characters, a label
+     * must show the configured meaning without truncating it. */
     return el('input', {
       type: 'text', value: row[key] === null || row[key] === undefined ? '' : row[key],
+      class: 'edit-' + key,
       onchange: function (ev) { row[key] = ev.target.value; onChange(); }
     });
   }
@@ -1323,6 +1326,14 @@
     if (action.view) { goTo(action.view); }
   }
 
+
+  /* The digest button says where it goes, not just that it goes somewhere. */
+  function attentionActionLabel(action) {
+    if (action.expand) { return 'Show'; }
+    var names = { rules: 'Open Rules', accounts: 'Open Accounts', review: 'Open Review queue', map: 'Open Field mapping' };
+    return names[action.view] || 'Open';
+  }
+
   /* A collapsed card: full detail preserved, one click below the digest. */
   function fold(id, label, countText, buildBody, open) {
     var body = el('div', { class: 'fold-body' });
@@ -1361,7 +1372,7 @@
     var rowTotal = state.counts ? state.counts.imported
       : ui.sources.reduce(function (n, s) { return n + s.rows.length; }, 0);
     status.appendChild(el('p', { class: 'overview-status-line', text:
-      'Processed ' + rowTotal + ' row(s) from ' + names +
+      'Processed ' + rowTotal + (rowTotal === 1 ? ' row' : ' rows') + ' from ' + names +
       (mappingWasAutomatic()
         ? ' - every column was recognized automatically.'
         : ' - using the assignments on the Field Mapping screen.') }));
@@ -1383,7 +1394,7 @@
           it.action ? el('button', {
             type: 'button', class: 'link',
             onclick: function () { runAttentionAction(it.action); }
-          }, [it.action.expand ? 'Show' : 'Open']) : null
+          }, [attentionActionLabel(it.action)]) : null
         ]));
       });
       attn.appendChild(list);
@@ -1409,7 +1420,6 @@
           'TRANS_001', state.transitionCounts.osip + ' OS->IP, ' + state.transitionCounts.ipsb + ' IP->SB, ' + state.transitionCounts.sbip + ' SB->IP'),
         card('Open encounters', counts.open, 'DQ_OPEN', '')
       ]));
-      summary.appendChild(el('p', { class: 'hint', text: state.summaryLines.join('  |  ') }));
     }
 
     /* ---------------------------------------------------- period fold */
@@ -1654,7 +1664,7 @@
       headline(th.acuteTargetDays + '-day target variance', (m.inpatient.IP_TARGET_001.varianceDays === null ? '-' : (m.inpatient.IP_TARGET_001.varianceDays > 0 ? '+' : '') + num(m.inpatient.IP_TARGET_001.varianceDays, 2)), 'days', 'IP_TARGET_001', 'Against the CAH ' + th.acuteTargetDays + '-day (' + (th.acuteTargetDays * 24) + '-hour) annual expectation', cahTone),
       headline('Observation > ' + th.obsThresholdHours[0] + 'h', withPct(m.observation.OS_24_001.value, m.observation.OS_24_PCT_001.value), '', 'OS_24_001', 'of ' + m.observation.OS_ALOS_001.n + ' discharged observation stays'),
       headline('Accounts to review', state.reviewQueue.byAccount.length, '', '', state.reviewQueue.rows.length + ' reasons across the queue'),
-      headline('Data issues', dq.Blocking + dq.Error, '', '', dq.Warning + ' warnings, ' + dq.Info + ' notices', (dq.Blocking + dq.Error) ? 'warn' : 'good')
+      headline('Blocking / error issues', dq.Blocking + dq.Error, '', '', dq.Warning + ' warnings, ' + dq.Info + ' notices to review', (dq.Blocking + dq.Error) ? 'warn' : 'good')
     ]));
 
     /* ----------------------------------------------------------- inpatient */
@@ -1812,8 +1822,8 @@
       return true;
     });
 
-    $('review-count').textContent = rows.length + ' of ' + all.length + ' account(s), ' +
-      state.reviewQueue.rows.length + ' reason(s) across the queue';
+    $('review-count').textContent = rows.length + ' of ' + all.length + (all.length === 1 ? ' account' : ' accounts') + ', ' +
+      state.reviewQueue.rows.length + (state.reviewQueue.rows.length === 1 ? ' reason' : ' reasons') + ' across the queue';
 
     if (!all.length) {
       host.appendChild(el('p', { class: 'attn-ok', text: 'The review queue is empty: no account met any objective trigger in this run.' }));
@@ -1892,7 +1902,7 @@
       if (row.partialPeriod) { badges.appendChild(pill('Crosses period start', 'info')); }
       if (row.manualEntry) { badges.appendChild(pill('Manual entry', 'warning')); }
       if (row.manualObsAdjusted) { badges.appendChild(pill('Admit moved after manual OBS', 'info')); }
-      if (row.reviewRuleIds.length) { badges.appendChild(pill(row.reviewRuleIds.length + ' review', 'operational')); }
+      if (row.reviewRuleIds.length) { badges.appendChild(pill(row.reviewRuleIds.length + (row.reviewRuleIds.length === 1 ? ' review flag' : ' review flags'), 'operational')); }
       if (row.worstSeverity === UR.SEVERITY.ERROR || row.worstSeverity === UR.SEVERITY.BLOCKING) {
         badges.appendChild(pill(row.worstSeverity, row.worstSeverity.toLowerCase()));
       }
@@ -2385,7 +2395,7 @@
       function row(label, value) {
         if (!value || (value.length === 0)) { return; }
         dl.appendChild(el('dt', { text: label }));
-        dl.appendChild(el('dd', { text: Object.prototype.toString.call(value) === '[object Array]' ? value.join(' ') : value }));
+        dl.appendChild(el('dd', { text: Object.prototype.toString.call(value) === '[object Array]' ? value.join('; ') : value }));
       }
       row('Definition', r.definition);
       row('Formula or logic', r.formula);

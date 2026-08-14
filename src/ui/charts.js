@@ -185,7 +185,21 @@
     }
 
     var horizontal = spec.form === 'hbar';
-    var scale = niceTicks(maxValue(spec), 0, horizontal ? 4 : 5);
+    var dataMax = maxValue(spec);
+    var scale = niceTicks(dataMax, 0, horizontal ? 4 : 5);
+    /* A count axis never shows fractional ticks. */
+    if (spec.decimals === 0 && scale.ticks.length > 1 && (scale.ticks[1] - scale.ticks[0]) < 1) {
+      var intMax = Math.max(1, Math.ceil(dataMax));
+      scale = { ticks: [], min: 0, max: intMax };
+      for (var ti = 0; ti <= intMax; ti++) { scale.ticks.push(ti); }
+    }
+    /* Headroom: a bar that reaches the axis top would push its value label
+     * into the legend, so the scale always ends one step above the data. */
+    if (!horizontal && dataMax >= scale.max && scale.ticks.length > 1) {
+      var stepUp = scale.ticks[1] - scale.ticks[0];
+      scale.max += stepUp;
+      scale.ticks.push(scale.max);
+    }
 
     /* --------------------------------------------------------- plot frame */
     /* Set the label font BEFORE measuring with it, or the gutter is sized

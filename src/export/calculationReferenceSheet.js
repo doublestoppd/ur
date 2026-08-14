@@ -28,7 +28,7 @@
   }
 
   function joinList(list) {
-    return (list && list.length) ? list.join(' ') : '';
+    return (list && list.length) ? list.join('; ') : '';
   }
 
   var calculationReferenceSheet = {
