@@ -317,7 +317,16 @@
         ui.periodTouched = false;
         ui.manualObservations = [];
       }
-      tryAutoProcess();
+      /*
+       * Deliberately NO automatic jump to the Overview: the operator may have
+       * more documents to add (the Service Log PDF, a prior month for
+       * readmission history), and processing half an upload invites reading
+       * half the picture. The state is invalidated so whatever renders next
+       * reprocesses with everything imported; the Process & review button is
+       * the explicit "I am done uploading" step.
+       */
+      ui.state = null;
+      goTo('import');
     });
   }
 
@@ -397,10 +406,11 @@
   }
 
   /*
-   * The routine monthly path: drop the file, read the Overview. The mapping
-   * screen appears only when the mapper actually needs a human decision - a
-   * required column missing or two columns equally plausible. Everything the
-   * screen would have said on a clean run is still reachable from Setup.
+   * The Process & review button: validates the mapping and moves on. The
+   * mapping screen appears only when the mapper actually needs a human
+   * decision - a required column missing or two columns equally plausible.
+   * Import never advances on its own; the operator says when the pile of
+   * documents is complete.
    */
   function tryAutoProcess() {
     if (!ui.sources.length) { return; }
@@ -508,7 +518,7 @@
           (file.serviceLog.unparsed.length ? ' | ' + file.serviceLog.unparsed.length + ' line(s) not readable as rows' : '') }));
         card.appendChild(el('div', { class: 'muted', text:
           'Each OS -> IP row becomes an observation segment on the matching inpatient account: ' +
-          'an <account>-MANUAL observation account from the account\'s admission to the change moment, with the inpatient admission moved to the change moment. ' +
+          'an <account>-SRVCLOG observation account from the account\'s admission to the change moment, with the inpatient admission moved to the change moment. ' +
           'Rows without a matching imported IP account are reported after processing.' }));
       } else {
         var source = ui.sources.filter(function (s) { return s.fileName === file.fileName; })[0];
@@ -559,7 +569,59 @@
 
     $('btn-to-mapping').disabled = ui.sources.length === 0;
     $('btn-adjust-mapping').hidden = ui.sources.length === 0;
+    renderImportSummary();
     renderNav('import');
+  }
+
+  /*
+   * What has been imported so far, aggregated: total rows and the admission
+   * span across every spreadsheet, plus the service-log changes. Rendered on
+   * every file change so the operator can see whether the pile is complete
+   * BEFORE pressing Process & review.
+   */
+  function renderImportSummary() {
+    var host = $('import-summary');
+    clear(host);
+    if (!ui.files.length) { return; }
+
+    var totalRows = 0;
+    var minAdmit = null, maxAdmit = null;
+    ui.sources.forEach(function (source) {
+      totalRows += source.rows.length;
+      if (!source.mapping.admitDate) { return; }
+      source.rows.forEach(function (row) {
+        var res = UR.parsers.parseDate(UR.spreadsheetReader.cellFor(row, source.mapping, 'admitDate'));
+        if (!res.ok) { return; }
+        if (!minAdmit || res.value < minAdmit) { minAdmit = res.value; }
+        if (!maxAdmit || res.value > maxAdmit) { maxAdmit = res.value; }
+      });
+    });
+
+    var logs = ui.files.filter(function (f) { return f.serviceLog; });
+    var logChanges = 0;
+    var logRanges = [];
+    logs.forEach(function (f) {
+      logChanges += f.serviceLog.rows.filter(function (r) { return r.from === 'OS' && r.to === 'IP'; }).length;
+      if (f.serviceLog.reportRange) { logRanges.push(f.serviceLog.reportRange); }
+    });
+
+    var parts = [];
+    if (ui.sources.length) {
+      parts.push(ui.sources.length + ' spreadsheet file(s), ' + totalRows + ' data row(s)' +
+        (minAdmit ? ', admissions spanning ' + util.fmtDate(minAdmit) + ' - ' + util.fmtDate(maxAdmit) : ''));
+    }
+    if (logs.length) {
+      parts.push(logs.length + ' Service Log report(s) with ' + logChanges + ' OS -> IP change(s)' +
+        (logRanges.length ? ' covering ' + logRanges.join('; ') : ''));
+    }
+    var errored = ui.files.filter(function (f) { return f.error; }).length;
+    if (errored) { parts.push(errored + ' file(s) could not be read - see the cards above'); }
+
+    host.appendChild(el('div', { class: 'import-summary' }, [
+      el('strong', { text: 'Imported so far: ' }),
+      doc.createTextNode(parts.join('  |  ') || 'nothing usable yet'),
+      el('span', { class: 'hint', text: '  Nothing is processed until Process & review is pressed - add everything first.' })
+    ]));
   }
 
   /* --------------------------------------------------------- 2. field map */
@@ -1139,6 +1201,7 @@
           account: row.account,
           osAdmitDT: null, /* the observation began when the account opened */
           osDischargeDT: row.changeDT,
+          suffix: '-SRVCLOG',
           source: 'from the CPSI Service Log report ' + file.fileName
         });
       });

@@ -305,8 +305,8 @@ PDF. Drop that PDF into the tool alongside the spreadsheet export: a
 self-contained text extractor (`src/import/inflate.js` + `pdfText.js`, no
 external libraries) reads it, `serviceLogParser.js` parses the rows, and every
 OS → IP change becomes an observation segment on the matching IP account
-automatically — observation from the account's opening to the change moment,
-inpatient from the change moment on. A typed manual entry for an account
+automatically — an `<account>-SRVCLOG` observation account from the account's
+opening to the change moment, inpatient from the change moment on. A typed manual entry for an account
 outranks the report's row; rows with no matching imported account are
 reported; a scanned (image-only) PDF is refused with an explanation. Like the
 spreadsheets, report PDFs are never committed to this repository — they

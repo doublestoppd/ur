@@ -137,10 +137,11 @@ describe('pipeline application of service-log changes', function () {
         account: '80180009',
         osAdmitDT: null, /* the Service Log supplies only the change moment */
         osDischargeDT: util.mkDT(2026, 6, 6, 13, 10),
+        suffix: '-SRVCLOG',
         source: 'from the CPSI Service Log report test.pdf'
       }]
     });
-    var os = s.encounters.find(function (e) { return e.account === '80180009-MANUAL'; });
+    var os = s.encounters.find(function (e) { return e.account === '80180009-SRVCLOG'; });
     assert.ok(os, 'the observation segment exists');
     assert.equal(os.admitDT.toISOString(), '2026-06-06T04:15:00.000Z', 'observation begins at the account opening');
     assert.equal(os.dischargeDT.toISOString(), '2026-06-06T13:10:00.000Z', 'and ends at the change moment');

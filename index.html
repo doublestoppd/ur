@@ -30,7 +30,12 @@
   <!-- ============================================================== IMPORT -->
   <section class="step" id="step-import">
     <h2>Import</h2>
-    <p class="hint">Drop one or more CPSI Ad Hoc exports (.xlsx, .xls, or .csv). Known column names are recognized and processing starts automatically; the mapping and rules screens open only when something needs a decision.</p>
+    <p class="hint">Add every document for the period you are compiling, then press <strong>Process &amp; review</strong>. Nothing is processed until you do, so files can be added in any order. Three kinds of file are understood:</p>
+    <ul class="hint import-expects">
+      <li><strong>CPSI Ad Hoc export</strong> (.xlsx / .xls / .csv) &mdash; the patient data. Expected columns: <code>ipv1_num</code> (account), <code>visit_name</code>, <code>ipv1_age_years</code>, <code>visit_servicecd_key</code>, <code>ipv1_ad_date</code> / <code>ipv1_ad_time</code>, <code>ipv1_dis_date</code> / <code>ipv1_dis_time</code>, <code>visit_ins</code>, <code>ipv1_discd</code>, <code>ipv1_origin</code>. Several files combine into one run (for example, the reporting month plus the prior 30 days for readmission history).</li>
+      <li><strong>CPSI Service Log report</strong> (.pdf, report CNSERVLOG &mdash; <em>Service Log for Service CD</em>, Changed From: OS / Changed To: IP) &mdash; optional. Each OS &rarr; IP change becomes an observation segment on the matching inpatient account automatically.</li>
+      <li><strong>A workbook this tool exported</strong> (.xlsx) &mdash; restores that session exactly as it was; more files can then be added on top.</li>
+    </ul>
 
     <div class="dropzone" id="dropzone">
       <p><strong>Drop files here</strong> or</p>
@@ -38,9 +43,10 @@
     </div>
 
     <div id="file-list"></div>
+    <div id="import-summary"></div>
 
     <div class="actions">
-      <button type="button" class="primary" id="btn-to-mapping" disabled>Process</button>
+      <button type="button" class="primary" id="btn-to-mapping" disabled>Process &amp; review</button>
       <button type="button" class="link" id="btn-adjust-mapping" hidden>Adjust field mapping first</button>
     </div>
   </section>

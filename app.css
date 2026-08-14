@@ -287,6 +287,17 @@ button.link { border: none; background: none; color: var(--accent); text-decorat
 .manual-obs-form button { align-self: flex-start; }
 .manual-obs-row { display: flex; gap: 1rem; flex-wrap: wrap; }
 .manual-obs-row input[type="text"] { width: 7rem; }
+
+.import-expects { max-width: 100ch; padding-left: 1.4rem; }
+.import-expects li { margin-bottom: .35rem; }
+.import-summary {
+  margin: .8rem 0;
+  padding: .6rem .8rem;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent-soft);
+}
 .filter-row { display: flex; gap: .5rem; margin: .5rem 0 1rem; flex-wrap: wrap; }
 .filter-row input[type="search"] { flex: 1 1 320px; }
 

@@ -64,7 +64,7 @@
       var originalAdmit = target.admitDT;
       if (osDis.getTime() < originalAdmit.getTime()) { refuse(entry, 'the observation discharge precedes the recorded inpatient admission; the inpatient admission only ever moves FORWARD.'); continue; }
       if (target.dischargeDT && osDis.getTime() >= target.dischargeDT.getTime()) { refuse(entry, 'the observation discharge must precede the inpatient discharge.'); continue; }
-      var manualAccount = entry.account + '-MANUAL';
+      var manualAccount = entry.account + (entry.suffix || '-MANUAL');
       if (byAccount[manualAccount]) { refuse(entry, 'an account named ' + manualAccount + ' already exists.'); continue; }
 
       var codeB = UR.configSchema.dischargeCode(config, 'B');
