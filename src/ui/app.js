@@ -630,7 +630,7 @@
     var errored = ui.files.filter(function (f) { return f.error; }).length;
     if (errored) { parts.push(errored + ' file(s) could not be read - see the cards above'); }
     if (logs.length && !ui.sources.length) {
-      parts.push('no CPSI Ad Hoc export loaded yet - the Service Log needs the patient data to attach to');
+      parts.push('no CPSI Census Days Stay export loaded yet - the Service Log needs the patient data to attach to');
     }
 
     host.appendChild(el('div', { class: 'import-summary' }, [
